@@ -1,0 +1,39 @@
+# ── Node ──────────────────────────────────────
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+
+# ── Environnements & secrets (jamais versionnés) ──
+.env
+.env.local
+.env.*.local
+*.pem
+
+# ── Médias de dev (adapter stockage local) ──
+apps/api/uploads/
+
+# ── Flutter / Dart ────────────────────────────
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+apps/mobile/build/
+apps/mobile/.gradle/
+apps/mobile/android/local.properties
+apps/mobile/android/key.properties
+apps/mobile/ios/Pods/
+apps/mobile/ios/.symlinks/
+
+# ── IDE ───────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+
+# ── OS ────────────────────────────────────────
+Thumbs.db
+.DS_Store
+
+# ── Logs ──────────────────────────────────────
+*.log

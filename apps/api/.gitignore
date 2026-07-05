@@ -1,0 +1,19 @@
+# Compilation
+dist/
+*.tsbuildinfo
+
+# Dépendances
+node_modules/
+
+# Environnement — ne JAMAIS committer de vraies clés
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Médias uploadés en développement (driver local)
+uploads/
+
+# Journaux
+*.log

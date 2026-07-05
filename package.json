@@ -1,0 +1,20 @@
+{
+  "name": "endirek",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Endirek — réseau social mobile local temps réel de La Réunion",
+  "workspaces": [
+    "apps/api",
+    "apps/admin"
+  ],
+  "scripts": {
+    "api:dev": "npm run start:dev --workspace apps/api",
+    "api:build": "npm run build --workspace apps/api",
+    "api:start": "npm run start:prod --workspace apps/api",
+    "admin:dev": "npm run dev --workspace apps/admin",
+    "admin:build": "npm run build --workspace apps/admin"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

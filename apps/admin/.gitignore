@@ -1,0 +1,19 @@
+# Dépendances
+node_modules/
+
+# Build de production
+dist/
+
+# Variables d'environnement locales (jamais commitées)
+.env
+.env.local
+.env.*.local
+
+# Journaux
+logs/
+*.log
+npm-debug.log*
+
+# Caches TypeScript / Vite
+*.tsbuildinfo
+.vite/

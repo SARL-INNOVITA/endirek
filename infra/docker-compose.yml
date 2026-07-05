@@ -1,0 +1,84 @@
+# =============================================================================
+# ENDIREK — Infrastructure de développement locale
+# =============================================================================
+# Prérequis : Docker Desktop (ou Docker Engine + plugin compose).
+#
+# ⚠️ Docker n'est PAS installé sur la machine de dev actuelle (Windows 11).
+#    Tant que Docker manque, l'API tourne avec DB_DRIVER=mock (voir
+#    docs/INSTALL.md et docs/MOCKED_SERVICES.md). Ce fichier est prêt à
+#    l'emploi dès que Docker sera disponible.
+#
+# Usage (depuis le dossier infra/) :
+#   docker compose up -d        # démarrer PostgreSQL/PostGIS
+#   docker compose ps           # vérifier l'état (healthcheck)
+#   docker compose down         # arrêter (les données sont conservées)
+#   docker compose down -v      # arrêter ET supprimer les données (reset)
+#
+# Les identifiants par défaut (endirek/endirek/endirek) sont surchargeables
+# via les variables d'environnement POSTGRES_DB / POSTGRES_USER /
+# POSTGRES_PASSWORD (par exemple via un fichier infra/.env, non versionné).
+# Ne jamais commiter de vrai mot de passe.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 + extension PostGIS 3.4
+  # Base de données cible du projet (schéma = source de vérité, posé à
+  # l'étape 2 du Lot 1). PostGIS est indispensable pour les requêtes
+  # géospatiales : posts géolocalisés, caméras météo/trafic, proximité.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: endirek-postgres
+    restart: unless-stopped
+    ports:
+      # Port PostgreSQL standard, exposé en local pour l'API et psql.
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-endirek}
+      POSTGRES_USER: ${POSTGRES_USER:-endirek}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-endirek}
+    volumes:
+      # Volume nommé : les données survivent aux redémarrages du conteneur.
+      - endirek_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Le conteneur est marqué "healthy" quand PostgreSQL accepte les
+      # connexions — utile pour attendre la base avant de lancer l'API.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-endirek} -d ${POSTGRES_DB:-endirek}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # TODO Lot 2+ (optionnel) : MinIO — émulation S3 en local
+  # ---------------------------------------------------------------------------
+  # Au Lot 1, l'adapter média utilise le disque local
+  # (MEDIA_STORAGE_DRIVER=local → apps/api/uploads/). Quand on voudra tester
+  # le chemin S3 sans bucket réel (S3/Hetzner), décommenter ce service et
+  # renseigner S3_* dans apps/api/.env (S3_ENDPOINT=http://localhost:9000).
+  #
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: endirek-minio
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9000:9000"   # API S3
+  #     - "9001:9001"   # Console web d'administration
+  #   environment:
+  #     MINIO_ROOT_USER: ${S3_ACCESS_KEY:-endirek}
+  #     MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-endirek-secret}
+  #   command: server /data --console-address ":9001"
+  #   volumes:
+  #     - endirek_minio:/data
+  #   healthcheck:
+  #     test: ["CMD", "mc", "ready", "local"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  # Données PostgreSQL persistantes (reset : docker compose down -v).
+  endirek_pgdata:
+  # TODO Lot 2+ : décommenter avec le service MinIO ci-dessus.
+  # endirek_minio:

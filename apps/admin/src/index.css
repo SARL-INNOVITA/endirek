@@ -1,0 +1,246 @@
+/*
+  Feuille de style globale du backoffice Endirek — Lot 1.
+  CSS pur, sans framework UI. Charte graphique provisoire.
+*/
+
+:root {
+  /* Bleu Endirek — placeholder à calibrer sur les mockups */
+  --endirek-blue: #1173D4;
+  --endirek-blue-dark: #0e5fae;
+
+  --page-bg: #F6F7F8;
+  --text: #111;
+  --text-muted: #5c6470;
+  --card-bg: #ffffff;
+  --border: #e4e6ea;
+
+  --success: #157f3d;
+  --success-bg: #e4f5ea;
+  --danger: #c62f2f;
+  --danger-bg: #fdeaea;
+  --neutral: #5c6470;
+  --neutral-bg: #eef0f2;
+}
+
+/* ---------- Reset léger ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  background-color: var(--page-bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+dl,
+dt,
+dd {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.9em;
+  background: var(--neutral-bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---------- Mise en page ---------- */
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 40px 20px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.app-title {
+  color: var(--endirek-blue);
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.app-subtitle {
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.app-footer {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ---------- Carte blanche arrondie ---------- */
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.05),
+    0 6px 18px rgba(17, 17, 17, 0.06);
+  padding: 24px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.card-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 8px 0 16px;
+}
+
+/* ---------- Badges de statut ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge--success {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.badge--error {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.badge--neutral {
+  color: var(--neutral);
+  background: var(--neutral-bg);
+}
+
+/* ---------- Détails de santé de l'API ---------- */
+
+.health-details {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+
+.health-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.health-row dt {
+  color: var(--text-muted);
+}
+
+.health-row dd {
+  font-weight: 600;
+}
+
+.health-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.health-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- Bouton primaire ---------- */
+
+.button-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--endirek-blue);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--endirek-blue-dark);
+}
+
+.button-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Liste des sections à venir ---------- */
+
+.sections-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.section-item {
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--page-bg);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
