@@ -4,13 +4,14 @@ Ce guide décrit l'installation complète de l'environnement de développement
 sur une machine locale (référence : Windows 11, mais les commandes sont
 identiques sur macOS/Linux sauf mention contraire).
 
-> **État actuel du projet (fin d'étape 3 du Lot 1)** : le socle du monorepo
+> **État actuel du projet (fin d'étape 4 du Lot 1)** : le socle du monorepo
 > est posé, la couche base de données est implémentée en mode mock
 > (`DB_DRIVER=mock`, seed La Réunion — voir [DATABASE.md](DATABASE.md)) et
-> les routes métier de l'étape 3 sont fonctionnelles : auth (register,
-> login, refresh, me), profils, follows, export/suppression RGPD et gestion
-> des utilisateurs du backoffice — voir « Tester l'API » ci-dessous. Ce
-> guide restera valable pour toute la suite du Lot 1.
+> les routes métier des étapes 3 et 4 sont fonctionnelles : auth, profils,
+> follows, RGPD (étape 3) puis posts, feed scoré, commentaires, réactions,
+> enregistrements, upload d'images, signalements et modération backoffice
+> (étape 4) — voir « Tester l'API » ci-dessous. Ce guide restera valable
+> pour toute la suite du Lot 1.
 
 ---
 
@@ -93,15 +94,19 @@ npm run api:dev
 
 - Healthcheck : http://localhost:3001/health (hors préfixe, pour les sondes)
 - Routes métier : préfixées `http://localhost:3001/api/v1/...`
-  (auth, users et admin/users sont en place depuis l'étape 3)
+  (auth/users depuis l'étape 3 ; posts, feed, commentaires, réactions,
+  enregistrements, médias, signalements et admin posts/reports depuis
+  l'étape 4)
 - Documentation Swagger : http://localhost:3001/docs
 
-#### Tester l'API (étape 3)
+#### Tester l'API (étapes 3 et 4)
 
-Le seed La Réunion (chargé si `DB_MOCK_SEED=true`, défaut) fournit
-**15 comptes de démonstration** partageant le mot de passe de dev
-`endirek974` — emails en `@endirek.invalid`, listés dans
-`apps/api/src/database/seed/users.seed.ts`.
+**Rappel comptes seed** : le seed La Réunion (chargé si `DB_MOCK_SEED=true`,
+défaut) fournit **15 comptes de démonstration** partageant le mot de passe
+de dev `endirek974` — emails en `@endirek.invalid`, listés dans
+`apps/api/src/database/seed/users.seed.ts`. Notamment
+`equipe@endirek.invalid` (super_admin) et `marie.hoarau@endirek.invalid`
+(moderator) pour les routes admin.
 
 ```bash
 # Créer un compte
@@ -119,9 +124,76 @@ curl http://localhost:3001/api/v1/auth/me \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
-Toutes les routes (profils, follows, export RGPD, admin…) sont documentées
-et testables dans **Swagger** : http://localhost:3001/docs (bouton
-« Authorize » pour poser le Bearer token).
+Le cœur social de l'étape 4 (remplacer `<ACCESS_TOKEN>` et `<POST_ID>` —
+un id de post est renvoyé par la création ou par le feed) :
+
+```bash
+# Créer un post météo géolocalisé (visible carte 2 h — city déduite si omise)
+curl -X POST http://localhost:3001/api/v1/posts \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"typeSlug":"weather","title":"Fortes pluies sur Saint-Denis","body":"Le Barachois est sous une grosse averse, prudence sur la route du littoral.","location":{"lat":-20.8789,"lng":55.4481},"city":"Saint-Denis"}'
+
+# Fil d'actualité scoré (lat/lng optionnels : activent le bonus de proximité)
+curl "http://localhost:3001/api/v1/posts/feed?limit=5&offset=0&lat=-20.8789&lng=55.4481" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+
+# Commenter un post (parentCommentId en plus pour répondre à un commentaire)
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/comments \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"body":"Merci pour le signalement, prudence à tous !"}'
+
+# Réagir à un post (upsert : changer d'emoji remplace ; DELETE pour retirer)
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/reactions \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"emoji":"👍"}'
+
+# Enregistrer un post (collection « Général » — 204, idempotent)
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/save \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+
+# Signaler un post (motifs : spam, hateful, dangerous, false_info, other ;
+# un second signalement de la même cible répond 409)
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/report \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"reasonCode":"spam","message":"Publicité répétée"}'
+
+# Uploader une image (multipart, champ « file » — JPEG/PNG/WebP, 8 Mo max) :
+# la réponse { url, thumbnailUrl, ... } se glisse dans le tableau media
+# de POST /posts
+curl -X POST http://localhost:3001/api/v1/media/upload \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -F "file=@photo.jpg"
+```
+
+Endpoints admin (jeton d'un compte `moderator` ou `super_admin`) :
+
+```bash
+# Publications côté backoffice (filtres optionnels typeSlug/status/search)
+curl "http://localhost:3001/api/v1/admin/posts?status=active&limit=5" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+
+# File des signalements (status=open par exemple), puis traitement
+curl "http://localhost:3001/api/v1/admin/reports?status=open" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+curl -X PATCH http://localhost:3001/api/v1/admin/reports/<REPORT_ID> \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"action_taken","resolutionNote":"Publication masquée"}'
+
+# Masquer / republier une publication
+curl -X PATCH http://localhost:3001/api/v1/admin/posts/<POST_ID>/status \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"hidden"}'
+```
+
+Toutes les routes (profils, follows, export RGPD, posts, feed, admin…) sont
+documentées et testables dans **Swagger** : http://localhost:3001/docs
+(bouton « Authorize » pour poser le Bearer token).
 
 ### Backoffice admin (React + Vite — port 5173)
 
@@ -148,10 +220,14 @@ flutter run -d chrome      # alternative rapide dans le navigateur
 (`flutter devices` pour vérifier ; l'émulateur Android est disponible sur
 la machine de dev).
 
-Écrans disponibles à l'étape 3 : **connexion**, **inscription**, **profil**
-(du compte connecté) et **édition du profil** — le shell complet à 4 onglets
-arrive à l'étape 7. Connexion possible avec n'importe quel compte du seed
-(mot de passe `endirek974`).
+Écrans disponibles à l'étape 4 : **connexion**, **inscription**, le **shell
+à 4 onglets** (Accueil = fil d'actualité réel ; Carte/News/Dealplace =
+placeholders), le **fil** (pagination, pull-to-refresh, réactions,
+enregistrement), la **création de post** (choix du type, photos via la
+galerie, commune pour les types carte), le **détail d'un post**
+(commentaires deux niveaux, réactions, signalement, édition/suppression si
+auteur) ainsi que **profil** et **édition du profil**. Connexion possible
+avec n'importe quel compte du seed (mot de passe `endirek974`).
 
 L'URL de l'API est déduite automatiquement (web/desktop → `localhost:3001`,
 émulateur Android → `10.0.2.2:3001`). Pour un appareil physique ou une API

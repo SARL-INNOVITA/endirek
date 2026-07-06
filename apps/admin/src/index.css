@@ -1,5 +1,5 @@
 /*
-  Feuille de style globale du backoffice Endirek — Lot 1, étape 3.
+  Feuille de style globale du backoffice Endirek — Lot 1, étapes 3 et 4.
   CSS pur, sans framework UI. Charte graphique provisoire.
 */
 
@@ -86,6 +86,12 @@ code {
 
 .app-header {
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-header-row {
+  display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
@@ -116,6 +122,52 @@ code {
   align-items: center;
   gap: 8px;
   font-weight: 600;
+}
+
+/* Onglets du backoffice connecté (Utilisateurs / Publications / Signalements) */
+
+.app-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-tab:hover {
+  color: var(--endirek-blue-dark);
+}
+
+.app-tab--active {
+  color: var(--endirek-blue);
+  border-bottom-color: var(--endirek-blue);
+}
+
+/* Compteur rouge de signalements ouverts sur l'onglet Signalements */
+.app-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .app-main {
@@ -319,21 +371,27 @@ code {
   font-size: 0.9rem;
 }
 
-/* ---------- Vue Utilisateurs ---------- */
+/* ---------- Vues en tableau (Utilisateurs / Publications / Signalements) ----------
+   Les classes users-* de l'étape 3 sont réutilisées telles quelles par les
+   nouvelles vues (mêmes tableaux, mêmes filtres) ; .view-layout est l'alias
+   générique de la grille liste + panneau détail. */
 
-.users-layout {
+.users-layout,
+.view-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
 
-.users-layout--with-detail {
+.users-layout--with-detail,
+.view-layout--with-detail {
   grid-template-columns: minmax(0, 1fr) 340px;
 }
 
 @media (max-width: 960px) {
-  .users-layout--with-detail {
+  .users-layout--with-detail,
+  .view-layout--with-detail {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -519,6 +577,174 @@ code {
 }
 
 .detail-locked {
+  font-size: 0.9rem;
+}
+
+/* ---------- Étape 4 : publications & signalements ---------- */
+
+/* Badge coloré d'un type de publication — la couleur (pastille + fond teinté
+   posé en style inline) vient de la table post_types, jamais du CSS. */
+.badge--type {
+  color: var(--text);
+}
+
+.type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Extrait tronqué (titre — corps) dans les tableaux */
+.cell-excerpt {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.excerpt-title {
+  font-weight: 600;
+}
+
+/* Petit badge du type de cible d'un signalement (Publication / Commentaire) */
+.target-kind {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+}
+
+/* Contenu complet d'une publication dans le panneau détail */
+.post-title {
+  font-weight: 700;
+}
+
+.post-body {
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Vignettes des médias (cliquables : ouvrent l'original dans un onglet) */
+.detail-media {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.media-thumb-link {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  line-height: 0;
+}
+
+.media-thumb-link:focus-visible {
+  outline: 2px solid var(--endirek-blue);
+  outline-offset: 1px;
+}
+
+.media-thumb {
+  width: 88px;
+  height: 66px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Sous-sections du panneau détail (signalements liés, cible…) */
+.detail-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* Signalements liés à une publication (panneau détail) */
+.report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.report-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-reason {
+  font-weight: 600;
+}
+
+.report-item-meta {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+.report-item-message {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+/* Extrait de la cible dans le panneau signalement */
+.target-extract {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.92rem;
+}
+
+.target-extract-body {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Note de résolution (même habillage que les champs de formulaire) */
+.resolution-note {
+  font: inherit;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text);
+  resize: vertical;
+}
+
+.resolution-note:focus {
+  outline: 2px solid var(--endirek-blue);
+  outline-offset: 1px;
+  border-color: var(--endirek-blue);
+}
+
+/* Boutons de décision du panneau signalement */
+.report-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-actions .button-primary,
+.report-actions .button-danger {
+  padding: 8px 16px;
   font-size: 0.9rem;
 }
 

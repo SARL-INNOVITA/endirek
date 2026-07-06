@@ -56,6 +56,8 @@ export interface MediaConfig {
   /** Adapter de stockage : 'local' en dev, 's3' pour Hetzner en production. */
   driver: string;
   uploadDir: string;
+  /** Taille maximale d'un fichier uploadé, en mégaoctets (défaut 8). */
+  maxFileSizeMb: number;
   s3: S3Config;
 }
 
@@ -170,6 +172,7 @@ export default (): EndirekConfig => ({
   media: {
     driver: env('MEDIA_STORAGE_DRIVER', 'local'),
     uploadDir: env('UPLOAD_DIR', './uploads'),
+    maxFileSizeMb: envInt('MEDIA_MAX_FILE_SIZE_MB', 8),
     s3: {
       endpoint: env('S3_ENDPOINT'),
       bucket: env('S3_BUCKET'),

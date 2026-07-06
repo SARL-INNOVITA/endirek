@@ -3,11 +3,13 @@
 API REST + WebSocket (NestJS 11) du réseau social mobile local temps réel de La Réunion.
 Elle sert l'application mobile Flutter (`apps/mobile`) et le backoffice (`apps/admin`).
 
-> **État actuel — étape 3** : configuration typée, healthcheck, couche
+> **État actuel — étape 4** : configuration typée, healthcheck, couche
 > persistance (driver mock + seed La Réunion), authentification JWT (guard
-> global), profils/follows/RGPD et gestion des utilisateurs du backoffice
-> sont câblés. Les modules posts/feed/carte/notifications arrivent aux
-> étapes 4 et 5.
+> global), profils/follows/RGPD (étape 3) puis le cœur social (étape 4) :
+> publications, feed scoré, commentaires deux niveaux, réactions,
+> enregistrements, upload d'images (adapter local + sharp), signalements et
+> modération backoffice (posts + reports). La carte complète, les caméras,
+> la lecture des notifications et le temps réel arrivent à l'étape 5.
 
 ## Lancement
 
@@ -47,23 +49,60 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 | `database` (src/database) | Persistance PostgreSQL/PostGIS + adapter mock (seed La Réunion) | **2 ✅** |
 | `auth` | Email/mot de passe (bcrypt), JWT access+refresh, guard global + `@Public()`, OAuth Google/Apple en 501 | **3 ✅** |
 | `users` | Profils (complet/public), follows, export RGPD, suppression RGPD (voir [docs/RGPD.md](../../docs/RGPD.md)) | **3 ✅** |
-| `media` | Upload et stockage des médias | 4 |
-| `posts` | Publications (libre, météo, trafic, danger, question) | 4 |
-| `feed` | Fil d'actualité (algorithme MVP) | 4 |
-| `comments` | Commentaires (niveau 0) + réponses (niveau 1) — pas de réponse à une réponse au Lot 1 | 4 |
-| `reactions` | Réactions emoji (6 réactions MVP) | 4 |
-| `saved-posts` | Enregistrements (catégorie « Général » par défaut) | 4 |
-| `map` | Carte interactive — mode Météo & trafic | 5 |
+| `media` | `POST /media/upload` — images JPEG/PNG/WebP validées par décodage réel, miniatures webp (sharp), fichiers servis sur `/uploads/` | **4 ✅** |
+| `posts` | Publications (libre, météo, trafic, danger, question), détail par id et `url_slug`, listes de profil, règles carte (`mapExpiresAt`) | **4 ✅** |
+| `feed` | Fil d'actualité (algorithme MVP, poids centralisés `FEED_WEIGHTS`) — implémenté dans le module `posts` (`feed.service.ts`, voir `modules/feed/README.md`) | **4 ✅** |
+| `comments` | Commentaires (niveau 0) + réponses (niveau 1) — pas de réponse à une réponse au Lot 1 ; notifications in-app `comment`/`reply` créées | **4 ✅** |
+| `reactions` | Réactions emoji sur posts et commentaires (upsert, palette validée contre `reaction_types`) | **4 ✅** |
+| `saved-posts` | Enregistrements (collection « Général » par défaut, idempotents) | **4 ✅** |
+| `map` | Carte interactive — mode Météo & trafic ; **endpoints préparatoires faits à l'étape 4** (`GET /map/communes`, `GET /map/posts`) | **4 partiel** / 5 |
 | `cameras` | Caméras météo/trafic | 5 |
-| `notifications` | Notifications in-app (push préparé) | 5 |
+| `notifications` | Notifications in-app (push préparé) — créées dès l'étape 4 (comment/reply), endpoints de lecture à l'étape 5 | 5 |
 | `realtime` | Gateway WebSocket temps réel | 5 |
-| `moderation` | Signalements et traitement | 6 |
-| `admin` | Endpoints du backoffice — **gestion des utilisateurs (liste/détail/statut) faite à l'étape 3** ; le reste à l'étape 6 | **3 partiel** / 6 |
+| `moderation` | Signalements et traitement — **signalement utilisateur fait à l'étape 4** (`POST /posts/:id/report`, anti-doublon 409) | **4 partiel** / 6 |
+| `admin` | Endpoints du backoffice — **utilisateurs (étape 3), publications et signalements (étape 4)** ; le reste (caméras, types de posts) à l'étape 6 | **3-4 partiel** / 6 |
 | `_future/*` | Lots 2+ (pages, dealplace, deals, conversations, news, billing) | TODO Lot 2+ |
 
 Chaque dossier de module contient un `README.md` détaillant son périmètre et
-les règles métier du Lot 1 ; les modules des étapes 4 à 6 n'ont pas encore de
-code, seuls leurs README documentent l'architecture cible.
+les règles métier du Lot 1 ; les modules des étapes 5 et 6 n'ont pas encore
+de code (hors parties partielles ci-dessus), seuls leurs README documentent
+l'architecture cible.
+
+## Exemples rapides (étape 4)
+
+Se connecter puis poser le Bearer token (`<TOKEN>`) — tout est aussi
+testable dans Swagger (`/docs`, bouton « Authorize ») :
+
+```bash
+# Types de publication (référence pilotable post_types)
+curl http://localhost:3001/api/v1/posts/types -H "Authorization: Bearer <TOKEN>"
+
+# Feed scoré (lat/lng optionnels — bonus de proximité)
+curl "http://localhost:3001/api/v1/posts/feed?limit=5&lat=-21.34&lng=55.48" \
+  -H "Authorization: Bearer <TOKEN>"
+
+# Créer un post trafic géolocalisé (visible carte 2 h)
+curl -X POST http://localhost:3001/api/v1/posts \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"typeSlug":"traffic","body":"Bouchon route du littoral, comptez 30 minutes.","location":{"lat":-20.9,"lng":55.35}}'
+
+# Commenter, réagir, enregistrer, signaler
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/comments \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"body":"Merci pour le signalement !"}'
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/reactions \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"emoji":"👍"}'
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/save \
+  -H "Authorization: Bearer <TOKEN>"
+curl -X POST http://localhost:3001/api/v1/posts/<POST_ID>/report \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"reasonCode":"spam"}'
+
+# Uploader une image (multipart) puis la référencer dans POST /posts (media[])
+curl -X POST http://localhost:3001/api/v1/media/upload \
+  -H "Authorization: Bearer <TOKEN>" -F "file=@photo.jpg"
+```
 
 ## Comptes de test (seed)
 

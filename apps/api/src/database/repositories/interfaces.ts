@@ -21,11 +21,13 @@ import {
   Notification,
   NotificationType,
   Post,
+  PostMedia,
   PostMediaType,
   PostStatus,
   PostType,
   Reaction,
   ReactionTargetType,
+  ReactionType,
   Report,
   ReportReasonCode,
   ReportStatus,
@@ -95,6 +97,9 @@ export interface PageParams {
 
 export interface UsersRepository {
   findById(id: string): Promise<User | null>;
+  /** Chargement PAR LOT (auteurs d'une page de feed — évite les N+1) : les
+   * ids inconnus sont ignorés, l'ordre de retour n'est pas garanti. */
+  findByIds(ids: string[]): Promise<User[]>;
   /** Recherche insensible à la casse (miroir de l'index UNIQUE lower(email)). */
   findByEmail(email: string): Promise<User | null>;
   create(input: CreateUserInput): Promise<User>;
@@ -147,9 +152,14 @@ export interface PostTypesRepository {
 // Publications
 // ────────────────────────────────────────────────────────────────────────────
 
+/** Média attaché à la création d'un post (le postId n'existe pas encore :
+ * il est posé par le repository). Position par défaut : l'index du tableau. */
+export type CreatePostMediaSpec = Omit<CreatePostMediaInput, 'postId'>;
+
 /** Données de création d'un post. `mapExpiresAt` est calculé par le SERVICE
  * (createdAt + defaultMapDurationMinutes du type quand il y a une location) :
- * la règle métier carte ne vit pas dans le repository. */
+ * la règle métier carte ne vit pas dans le repository. Les médias sont créés
+ * ATOMIQUEMENT avec le post (équivalent transaction côté SQL). */
 export interface CreatePostInput {
   authorId: string;
   typeSlug: string;
@@ -159,6 +169,7 @@ export interface CreatePostInput {
   location?: GeoPoint | null;
   city?: string | null;
   mapExpiresAt?: Date | null;
+  media?: CreatePostMediaSpec[];
 }
 
 export type UpdatePostPatch = Partial<
@@ -176,11 +187,32 @@ export interface ListFeedParams {
 }
 
 export interface ListMapMarkersParams {
-  bbox: BoundingBox;
+  /** Boîte englobante optionnelle — absente : toute l'île. */
+  bbox?: BoundingBox;
   /** Filtre optionnel sur les types carte (slugs : weather, traffic, danger). */
   categories?: string[];
   /** Instant de référence pour l'expiration carte (injecté = testable). */
   now: Date;
+}
+
+/** Page de publications d'un auteur, filtrée par statuts (profil public :
+ * ['active'] ; « mes posts » : ['active','hidden'] — jamais 'deleted'). */
+export interface ListAuthorPostsParams {
+  statuses: PostStatus[];
+  limit: number;
+  offset: number;
+}
+
+/** Paramètres de la liste backoffice des publications : TOUS statuts par
+ * défaut (y compris 'deleted' — audit), filtres facultatifs. `search` porte
+ * sur le titre, le corps ET le nom affiché de l'auteur (insensible à la
+ * casse). */
+export interface AdminListPostsParams {
+  typeSlug?: string;
+  status?: PostStatus;
+  search?: string;
+  limit: number;
+  offset: number;
 }
 
 export interface PostsRepository {
@@ -195,11 +227,28 @@ export interface PostsRepository {
   /** TOUTES les publications d'un auteur, quel que soit leur statut,
    * antéchronologiques — export RGPD (le feed public passe par listFeed). */
   listByAuthor(authorId: string): Promise<Post[]>;
+  /** Page antéchronologique des publications d'un auteur filtrée par statuts
+   * (listes de profil paginées — GET /users/:id/posts, /users/me/posts). */
+  listByAuthorPaged(
+    authorId: string,
+    params: ListAuthorPostsParams,
+  ): Promise<PagedResult<Post>>;
   /** Feed antéchronologique : posts 'active' uniquement. */
   listFeed(params: ListFeedParams): Promise<Post[]>;
+  /** Fenêtre du scoring du feed : les `limit` posts 'active' les plus récents
+   * (createdAt DESC, tie-break id — ordre STABLE). Le driver postgres portera
+   * le scoring en SQL et cette fenêtre deviendra une sous-requête. */
+  listActiveWindow(limit: number): Promise<Post[]>;
   /** Marqueurs carte : location non nulle ET mapExpiresAt > now ET status
-   * 'active', dans la bbox demandée. */
+   * 'active', dans la bbox demandée (toute l'île si absente). */
   listMapMarkers(params: ListMapMarkersParams): Promise<Post[]>;
+  /** Liste BACKOFFICE paginée : tous statuts, filtres typeSlug/status et
+   * recherche titre/corps/nom d'auteur, antéchronologique (tie-break id —
+   * ordre stable). Le driver postgres fera un JOIN users + ILIKE. */
+  listAdmin(params: AdminListPostsParams): Promise<PagedResult<Post>>;
+  /** Médias de plusieurs posts EN UN APPEL (page de feed — évite les N+1),
+   * triés par position croissante au sein de chaque post. */
+  listMediaByPostIds(postIds: string[]): Promise<PostMedia[]>;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -216,8 +265,8 @@ export interface CreatePostMediaInput {
   position?: number;
 }
 
-// (Pas de repository dédié au Lot 1 étape 2 : les médias seront gérés par le
-// module posts à l'étape 4 ; le store mock les charge déjà depuis le seed.)
+// (Pas de repository dédié : depuis l'étape 4, les médias sont créés avec le
+// post — CreatePostInput.media — et lus par lot via listMediaByPostIds.)
 
 // ────────────────────────────────────────────────────────────────────────────
 // Commentaires
@@ -250,6 +299,10 @@ export interface CommentsRepository {
 // ────────────────────────────────────────────────────────────────────────────
 
 export interface ReactionsRepository {
+  /** Palette ACTIVE de la table reaction_types, triée par position — la
+   * validation des emojis se fait TOUJOURS contre cette table (pilotable
+   * par le backoffice), jamais contre une liste en dur dans le code. */
+  listActiveTypes(): Promise<ReactionType[]>;
   /** Une réaction par (user, cible) — UNIQUE côté SQL : si elle existe déjà,
    * l'emoji est mis à jour (changer d'emoji = update, pas de doublon). */
   upsert(
@@ -275,6 +328,20 @@ export interface ReactionsRepository {
     targetType: ReactionTargetType,
     targetId: string,
   ): Promise<Record<string, number>>;
+  /** Même agrégat pour PLUSIEURS cibles en un appel (reactionsTop d'une page
+   * de feed — évite les N+1) : { targetId → { emoji → nombre } } ; les cibles
+   * sans réaction sont absentes du résultat. */
+  countsByEmojiForTargets(
+    targetType: ReactionTargetType,
+    targetIds: string[],
+  ): Promise<Record<string, Record<string, number>>>;
+  /** Réactions du VIEWER sur plusieurs cibles en un appel (viewerReaction
+   * d'une page de feed) : { targetId → emoji } ; cibles non réagies absentes. */
+  findViewerReactions(
+    userId: string,
+    targetType: ReactionTargetType,
+    targetIds: string[],
+  ): Promise<Record<string, string>>;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -291,6 +358,19 @@ export interface SavedRepository {
   unsave(collectionId: string, postId: string): Promise<void>;
   /** Posts d'une collection, du plus récemment sauvegardé au plus ancien. */
   listSavedPosts(collectionId: string): Promise<Post[]>;
+  /** Page des posts enregistrés par un utilisateur, TOUTES collections
+   * confondues, du plus récemment enregistré au plus ancien. Seuls les
+   * posts encore 'active' sont servis (les posts devenus hidden/deleted
+   * sont exclus de la liste ET de `total`) — GET /users/me/saved-posts. */
+  listSavedPostsByUser(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Post>>;
+  /** Le post est-il enregistré dans AU MOINS une collection de l'utilisateur ? */
+  isSaved(userId: string, postId: string): Promise<boolean>;
+  /** Filtre PAR LOT (viewerSaved d'une page de feed — évite les N+1) : parmi
+   * `postIds`, ceux enregistrés dans une collection de l'utilisateur. */
+  filterSavedPostIds(userId: string, postIds: string[]): Promise<string[]>;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -356,10 +436,45 @@ export interface HandleReportInput {
   resolutionNote?: string | null;
 }
 
+/** Paramètres de la file de modération backoffice : filtres facultatifs par
+ * statut et type de cible, pagination bornée par le DTO appelant. */
+export interface ListReportsParams {
+  status?: ReportStatus;
+  targetType?: ReportTargetType;
+  limit: number;
+  offset: number;
+}
+
 export interface ReportsRepository {
+  /** REFUSE un doublon (reporterId, targetType, targetId) en levant une
+   * UniqueViolationError (repositories/errors.ts) — miroir de la contrainte
+   * UNIQUE reports_reporter_target_unique. Le service vérifie en amont via
+   * existsByReporterAndTarget ET rattrape cette erreur typée (concurrence)
+   * pour répondre 409 dans les deux cas. */
   create(input: CreateReportInput): Promise<Report>;
-  /** Liste antéchronologique, filtrable par statut (file de modération). */
-  list(params?: { status?: ReportStatus }): Promise<Report[]>;
+  /** L'utilisateur a-t-il DÉJÀ signalé cette cible ? (anti-doublon 409). */
+  existsByReporterAndTarget(
+    reporterId: string,
+    targetType: ReportTargetType,
+    targetId: string,
+  ): Promise<boolean>;
+  /** File de modération paginée, antéchronologique, filtrable par statut et
+   * type de cible (backoffice — GET /admin/reports). */
+  list(params: ListReportsParams): Promise<PagedResult<Report>>;
+  /** Tous les signalements visant UNE cible, antéchronologiques
+   * (détail backoffice d'un post — GET /admin/posts/:id). */
+  listByTarget(
+    targetType: ReportTargetType,
+    targetId: string,
+  ): Promise<Report[]>;
+  /** Nombre de signalements 'open' PAR CIBLE, en un appel pour toute une
+   * page (openReportsCount de la liste admin — évite les N+1) :
+   * { targetId → nombre } ; les cibles sans signalement ouvert sont
+   * absentes du résultat. */
+  countOpenByTargets(
+    targetType: ReportTargetType,
+    targetIds: string[],
+  ): Promise<Record<string, number>>;
   /** Signalements ÉMIS par un utilisateur, antéchronologiques — export RGPD. */
   listByReporter(reporterId: string): Promise<Report[]>;
   findById(id: string): Promise<Report | null>;

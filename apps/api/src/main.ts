@@ -1,10 +1,13 @@
+import { mkdirSync } from 'node:fs';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { resolveUploadDir } from './adapters/media-storage/upload-dir';
 import { APP_VERSION } from './app-version';
 import { AppModule } from './app.module';
-import type { AppConfig } from './config/configuration';
+import type { AppConfig, MediaConfig } from './config/configuration';
 
 /**
  * Point d'entrée de l'API Endirek.
@@ -13,7 +16,7 @@ import type { AppConfig } from './config/configuration';
  * Les modules métier (auth, posts, carte, etc.) seront branchés aux étapes suivantes.
  */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Configuration typée (source de vérité unique : src/config/configuration.ts).
   const appConfig = app.get(ConfigService).getOrThrow<AppConfig>('app');
@@ -33,6 +36,17 @@ async function bootstrap(): Promise<void> {
 
   // Préfixe global des routes métier : /api/v1 — le healthcheck reste exposé à la racine.
   app.setGlobalPrefix('api/v1', { exclude: ['health'] });
+
+  // Médias (étape 4, driver local) : fichiers uploadés servis STATIQUEMENT
+  // sur /uploads/ — hors préfixe global ET hors guard JWT (les fichiers
+  // statiques Express ne passent pas par les guards Nest : c'est voulu,
+  // les URLs de médias sont publiques). Le dossier est créé au boot.
+  const mediaConfig = app.get(ConfigService).getOrThrow<MediaConfig>('media');
+  if (mediaConfig.driver === 'local') {
+    const uploadDir = resolveUploadDir(mediaConfig.uploadDir);
+    mkdirSync(uploadDir, { recursive: true });
+    app.useStaticAssets(uploadDir, { prefix: '/uploads/' });
+  }
 
   // Documentation Swagger (OpenAPI) montée sur /docs.
   const swaggerConfig = new DocumentBuilder()

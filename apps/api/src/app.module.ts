@@ -4,7 +4,14 @@ import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CommentsModule } from './modules/comments/comments.module';
 import { HealthModule } from './modules/health/health.module';
+import { MapModule } from './modules/map/map.module';
+import { MediaModule } from './modules/media/media.module';
+import { ModerationModule } from './modules/moderation/moderation.module';
+import { PostsModule } from './modules/posts/posts.module';
+import { ReactionsModule } from './modules/reactions/reactions.module';
+import { SavedPostsModule } from './modules/saved-posts/saved-posts.module';
 import { UsersModule } from './modules/users/users.module';
 
 /**
@@ -19,10 +26,20 @@ import { UsersModule } from './modules/users/users.module';
  * UsersModule (profils, follows, export RGPD, suppression RGPD) et
  * AdminModule (gestion des utilisateurs du backoffice — rôles
  * moderator/super_admin uniquement).
+ * Étape 4 : MediaModule (upload d'images via l'adapter de stockage
+ * MEDIA_STORAGE_DRIVER — fichiers servis sur /uploads/, voir main.ts),
+ * PostsModule (publications, feed scoré, types de posts, listes de profil —
+ * le fil d'actualité vit dans PostsModule, voir modules/feed/README.md),
+ * MapModule (endpoints préparatoires : communes et marqueurs posts),
+ * CommentsModule (fil deux niveaux option A + notifications in-app),
+ * ReactionsModule (réactions emoji sur posts et commentaires),
+ * SavedPostsModule (enregistrements — collection « Général »),
+ * ModerationModule (signalements côté utilisateur) et l'extension du
+ * AdminModule (modération des publications + file des signalements).
  *
  * Chaque module métier restant sera importé ici au fil des étapes du Lot 1
- * (étape 4 : posts, feed, etc. — étape 5 : map, cameras, notifications,
- * realtime — étape 6 : moderation et le reste du backoffice admin).
+ * (étape 5 : cameras, notifications, realtime et le reste du module map —
+ * étape 6 : le reste du backoffice admin — caméras et types de posts).
  */
 @Module({
   imports: [
@@ -34,6 +51,13 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     UsersModule,
     AdminModule,
+    MediaModule,
+    PostsModule,
+    CommentsModule,
+    ReactionsModule,
+    SavedPostsModule,
+    ModerationModule,
+    MapModule,
     HealthModule,
   ],
 })

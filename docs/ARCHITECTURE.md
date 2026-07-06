@@ -50,27 +50,35 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `database` | Accès données derrière une interface (`DB_DRIVER=postgres\|mock`), schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ |
 | `auth` | Email/mot de passe, JWT access+refresh, guard global ; endpoints OAuth Google/Apple en 501 | 3 ✅ |
 | `users` | Comptes, profils (photo, bio, ville), follows, export + suppression RGPD (voir [RGPD.md](RGPD.md)) | 3 ✅ |
-| `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h | 4 |
-| `feed` | Algorithme simple : récence + proximité + type + popularité + abonnements | 4 |
-| `comments` | Commentaires (niveau 0) + réponses (niveau 1), pas de réponse à une réponse au MVP | 4 |
-| `reactions` | Réactions emoji (set MVP : 👍 ❤️ 😂 😮 😢 😡) | 4 |
-| `saved-posts` | Enregistrements (catégorie « Général » par défaut) | 4 |
-| `media` | Upload via l'adapter stockage (local en dev, S3 en prod) | 4 |
-| `map` | Marqueurs par viewport/mode, géocodage inverse (adapter), proximité | 5 |
+| `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h, listes de profil | 4 ✅ |
+| `feed` | Algorithme simple : récence + proximité + type + popularité + abonnements — implémenté DANS le module posts (`feed.service.ts`, poids centralisés `FEED_WEIGHTS`), voir `modules/feed/README.md` | 4 ✅ |
+| `comments` | Commentaires (niveau 0) + réponses (niveau 1), pas de réponse à une réponse au MVP (option A) ; notifications in-app `comment`/`reply` créées à la volée | 4 ✅ |
+| `reactions` | Réactions emoji sur posts et commentaires (upsert, palette validée contre la table `reaction_types`) | 4 ✅ |
+| `saved-posts` | Enregistrements (collection « Général » par défaut, idempotents) | 4 ✅ |
+| `media` | Upload d'images via l'adapter stockage (local implémenté, S3 en prod) : validation par décodage réel, miniatures sharp, `/uploads/` statique | 4 ✅ |
+| `map` | Marqueurs par viewport/mode, géocodage inverse (adapter), proximité — endpoints préparatoires `GET /map/communes` et `GET /map/posts` livrés à l'étape 4, l'écran carte complet (caméras incluses) arrive à l'étape 5 | 4 partiel (préparatoire) / 5 |
 | `cameras` | Caméras météo/trafic (numéro auto, ville déduite, statut) | 5 |
-| `notifications` | Notifications in-app persistées + adapter push (mock en dev) | 5 |
+| `notifications` | Notifications in-app persistées + adapter push (mock en dev) — les notifications `comment`/`reply` sont déjà CRÉÉES à l'étape 4, les endpoints de lecture arrivent à l'étape 5 | 5 |
 | `realtime` | Gateway WebSocket (socle temps réel, consommé dès la carte live) | 5 |
-| `moderation` | Signalements, masquage de posts, outillage backoffice | 6 |
-| `admin` | Endpoints d'administration consommés par le backoffice — la gestion des utilisateurs (liste, détail, suspension/réactivation) est faite à l'étape 3 ; le reste (modération, caméras…) arrive à l'étape 6 | 3 partiel / 6 |
+| `moderation` | Signalements, masquage de posts, outillage backoffice — le signalement côté utilisateur (`POST /posts/:id/report`, anti-doublon 409) est fait à l'étape 4 | 4 partiel (signalements) / 6 |
+| `admin` | Endpoints d'administration consommés par le backoffice — gestion des utilisateurs (étape 3), modération des publications et file des signalements (étape 4) ; le reste (caméras, types de posts…) arrive à l'étape 6 | 3-4 partiel / 6 |
 | `modules/_future/*` | Placeholders des lots suivants (voir §6) — **TODO Lot 2+** | — |
 
-> **État réel à l'étape 3** : `health`, la couche `database` (driver mock +
-> seed La Réunion), `auth` (register/login/refresh/logout/me, guard JWT
-> global, OAuth en 501), `users` (profils complet/public, follows, export et
-> suppression RGPD) et la partie « gestion des utilisateurs » d'`admin`
-> (liste/détail/statut, rôles moderator/super_admin) sont implémentés.
-> Les autres modules listés ci-dessus décrivent le plan de montage du
-> Lot 1 ; le tableau est mis à jour au fil des étapes.
+> **État réel à l'étape 4** : `health`, la couche `database` (driver mock +
+> seed La Réunion), `auth`, `users` (étape 3) sont en place, et le cœur
+> social de l'étape 4 est implémenté : `posts` (CRUD, détail par id et par
+> `url_slug`, listes de profil), le feed scoré (`GET /posts/feed`, service
+> dans le module posts), `comments` (deux niveaux option A, soft-delete,
+> notifications in-app `comment`/`reply` créées), `reactions` (posts et
+> commentaires, upsert), `saved-posts`, `media` (`POST /media/upload`,
+> driver local + miniatures sharp), le signalement utilisateur de
+> `moderation` (`POST /posts/:id/report`) et l'extension d'`admin`
+> (modération des publications + file des signalements, en plus de la
+> gestion des utilisateurs de l'étape 3). Le module `map` n'expose que ses
+> endpoints préparatoires (`/map/communes`, `/map/posts`). Restent à venir :
+> carte complète, caméras, lecture des notifications, temps réel (étape 5)
+> et le complément backoffice (étape 6). Le tableau est mis à jour au fil
+> des étapes.
 
 Conventions transverses :
 
@@ -91,7 +99,7 @@ demande **aucun changement de code métier**, seulement du `.env`.
 | Adapter | Variable de sélection | Implémentation dev (actuelle) | Implémentation prod (cible) |
 |---|---|---|---|
 | Base de données | `DB_DRIVER` | `mock` (en mémoire, seed La Réunion — **disponible depuis l'étape 2**, `DB_MOCK_SEED=true` par défaut) | `postgres` (PostgreSQL + PostGIS — driver à implémenter, voir [DATABASE.md](DATABASE.md) §7) |
-| Stockage médias | `MEDIA_STORAGE_DRIVER` | `local` (disque, `apps/api/uploads/`) | `s3` (S3/Hetzner) |
+| Stockage médias | `MEDIA_STORAGE_DRIVER` | `local` (**implémenté à l'étape 4** : upload d'images + miniatures sharp, fichiers écrits sous `UPLOAD_DIR` — `apps/api/uploads/` — et servis statiquement sur `/uploads/`) | `s3` (S3/Hetzner — non implémenté : le démarrage échoue avec une erreur explicite) |
 | Géocodage inverse | `GEOCODING_PROVIDER` | `mock` (table des communes de La Réunion + plus proche voisin) | API de géocodage réelle (`GEOCODING_API_KEY`) |
 | Push | `PUSH_DRIVER` | `mock` (notifications persistées en base uniquement) | `fcm` (Firebase/APNs) |
 | Email | `EMAIL_DRIVER` | `mock` (log console) | `brevo` |
@@ -135,6 +143,26 @@ Détail complet (comportements, variables, procédure de bascule) :
 - **Gateway WebSocket posée à l'étape 5** : la carte live l'utilise dès le
   Lot 1, et elle sert de socle au temps réel futur (conversations
   Dealplace — TODO Lot 2+).
+- **Scoring du feed à poids centralisés** : les poids de l'algorithme
+  (récence, proximité, type, popularité, abonnements) vivent dans une seule
+  constante extensible (`FEED_WEIGHTS`, `posts/feed.service.ts`) — aucune
+  valeur magique dispersée ; re-régler le feed = ajuster une constante, et
+  le futur driver postgres portera le même scoring en SQL avec ces mêmes
+  poids.
+- **Fichiers médias servis statiquement = URLs publiques** : `/uploads/`
+  est monté hors préfixe `api/v1` ET hors guard JWT (les fichiers statiques
+  Express ne passent pas par les guards Nest — c'est voulu). Quiconque
+  possède l'URL d'un média peut le lire ; les noms de fichiers aléatoires
+  (crypto) rendent les URLs non devinables.
+- **Anti-doublon de signalement garanti en base** : la contrainte
+  `UNIQUE (reporter_id, target_type, target_id)` de la table `reports`
+  (migration `0001`) double la vérification du service — un même
+  utilisateur ne signale une même cible qu'une fois (409 côté API), même
+  en cas de requêtes concurrentes.
+- **Option A appliquée à l'API** : la limite « commentaire (depth 0) +
+  réponse (depth 1), jamais de niveau 2+ » n'est pas qu'une contrainte de
+  schéma — le service commentaires refuse en 400 toute réponse à une
+  réponse, et le fil est servi déjà imbriqué sur deux niveaux.
 - **`url_slug` sur les posts publics** : chaque post public est conçu pour
   avoir une URL web partageable plus tard (SEO, partage hors app).
 - **`page_id` nullable sur les entités de publication** : anticipe les pages

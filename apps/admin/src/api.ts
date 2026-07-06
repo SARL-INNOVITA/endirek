@@ -1,8 +1,9 @@
 /**
- * Client HTTP typé du backoffice Endirek — Lot 1, étape 3.
+ * Client HTTP typé du backoffice Endirek — Lot 1, étapes 3 et 4.
  *
- * Regroupe tous les appels à l'API (auth + administration des utilisateurs)
- * derrière des fonctions typées, ainsi que la gestion du jeton d'accès.
+ * Regroupe tous les appels à l'API (auth, administration des utilisateurs,
+ * publications et signalements) derrière des fonctions typées, ainsi que la
+ * gestion du jeton d'accès.
  *
  * Stockage du jeton : `localStorage` — choix assumé pour le DÉVELOPPEMENT
  * uniquement (simple, survit au rechargement de la page). Un stockage
@@ -58,6 +59,177 @@ export interface PagedUsers {
 export interface ListUsersParams {
   search?: string
   status?: UserStatus
+  limit: number
+  offset: number
+}
+
+// ─── Types du contrat d'API (étape 4 — publications & signalements) ──────────
+
+export type PostStatus = 'active' | 'hidden' | 'deleted'
+
+/** Statuts posables par le backoffice sur une publication ('deleted' reste
+ * réservé à l'auteur et au flux RGPD — 400 API sinon). */
+export type AdminSettablePostStatus = 'active' | 'hidden'
+
+/** Forme AUTEUR du contrat (les comptes supprimés arrivent déjà anonymisés). */
+export interface PostAuthor {
+  id: string
+  displayName: string
+  avatarUrl: string | null
+  city: string | null
+}
+
+/** Forme MEDIA du contrat — images uniquement au Lot 1. */
+export interface PostMedia {
+  url: string
+  thumbnailUrl: string | null
+  width: number | null
+  height: number | null
+  mediaType: 'image' | 'video'
+  position: number
+}
+
+/** Un emoji et son nombre de réactions (élément de reactionsTop). */
+export interface EmojiCount {
+  emoji: string
+  count: number
+}
+
+/** Forme FEED_POST du contrat (dates sérialisées en chaînes ISO). */
+export interface FeedPost {
+  id: string
+  typeSlug: string
+  title: string | null
+  body: string
+  city: string | null
+  location: { lat: number; lng: number } | null
+  mapExpiresAt: string | null
+  urlSlug: string
+  status: PostStatus
+  createdAt: string
+  updatedAt: string
+  reactionCount: number
+  commentCount: number
+  shareCount: number
+  saveCount: number
+  author: PostAuthor
+  media: PostMedia[]
+  viewerReaction: string | null
+  viewerSaved: boolean
+  reactionsTop: EmojiCount[]
+}
+
+/** FEED_POST enrichi pour le backoffice du nombre de signalements ouverts. */
+export interface AdminFeedPost extends FeedPost {
+  openReportsCount: number
+}
+
+/** Type de publication (table de référence post_types, GET /posts/types). */
+export interface PostType {
+  slug: string
+  labelFr: string
+  icon: string
+  color: string
+  requiresLocationForMap: boolean
+  showsOnMap: boolean
+  defaultMapDurationMinutes: number | null
+  position: number
+}
+
+/** Motifs de signalement (codes pilotés côté app — libellés dans ui.tsx). */
+export type ReportReasonCode =
+  | 'spam'
+  | 'hateful'
+  | 'dangerous'
+  | 'false_info'
+  | 'other'
+
+/** Cycle de vie d'un signalement ('open' = « pending » de la spec produit). */
+export type ReportStatus = 'open' | 'reviewed' | 'action_taken' | 'dismissed'
+
+/** Décisions posables au traitement (le retour à 'open' n'existe pas). */
+export type ReportDecision = 'reviewed' | 'action_taken' | 'dismissed'
+
+export type ReportTargetType = 'post' | 'comment' | 'user'
+
+/** Signalement lié affiché dans le détail backoffice d'une publication. */
+export interface AdminPostReport {
+  id: string
+  reasonCode: ReportReasonCode
+  message: string
+  status: ReportStatus
+  createdAt: string
+  reporter: PostAuthor
+}
+
+/** Détail backoffice d'une publication : FEED_POST + signalements liés. */
+export interface AdminPostDetail extends AdminFeedPost {
+  reports: AdminPostReport[]
+}
+
+/** Extrait d'une PUBLICATION signalée (body déjà tronqué à 140 par l'API). */
+export interface ReportPostTarget {
+  id: string
+  title: string | null
+  body: string
+  typeSlug: string
+  status: PostStatus
+  urlSlug: string
+}
+
+/** Extrait d'un COMMENTAIRE signalé (body déjà tronqué à 140 par l'API). */
+export interface ReportCommentTarget {
+  id: string
+  body: string
+  status: 'active' | 'hidden' | 'deleted'
+  postId: string
+}
+
+/**
+ * Signalement de la file de modération. `target` se discrimine par
+ * `targetType` ('post' → ReportPostTarget, 'comment' → ReportCommentTarget) ;
+ * null si la cible est introuvable ou de type 'user' (Lot 2+).
+ */
+export interface AdminReport {
+  id: string
+  targetType: ReportTargetType
+  targetId: string
+  reasonCode: ReportReasonCode
+  message: string
+  status: ReportStatus
+  createdAt: string
+  handledBy: string | null
+  handledAt: string | null
+  resolutionNote: string | null
+  reporter: PostAuthor
+  target: ReportPostTarget | ReportCommentTarget | null
+}
+
+/** Page de la liste backoffice des publications (GET /admin/posts). */
+export interface PagedAdminPosts {
+  items: AdminFeedPost[]
+  total: number
+}
+
+/** Page de la file de modération (GET /admin/reports). */
+export interface PagedAdminReports {
+  items: AdminReport[]
+  total: number
+}
+
+/** Paramètres de GET /admin/posts — mêmes noms que la query string. */
+export interface AdminListPostsParams {
+  typeSlug?: string
+  status?: PostStatus
+  search?: string
+  limit: number
+  offset: number
+}
+
+/** Paramètres de GET /admin/reports — mêmes noms que la query string. */
+export interface AdminListReportsParams {
+  status?: ReportStatus
+  targetType?: ReportTargetType
   limit: number
   offset: number
 }
@@ -272,5 +444,89 @@ export function updateUserStatus(
   return request<FullProfile>(`/admin/users/${encodeURIComponent(id)}/status`, {
     method: 'PATCH',
     body: { status },
+  })
+}
+
+// ─── Types de publication (référentiel) ──────────────────────────────────────
+
+/**
+ * GET /posts/types — types de publication ACTIFS, triés par position.
+ * Table de référence pilotable : les libellés et couleurs des badges du
+ * backoffice viennent d'ici, jamais du code.
+ */
+export function listPostTypes(signal?: AbortSignal): Promise<PostType[]> {
+  return request<PostType[]>('/posts/types', { signal })
+}
+
+// ─── Administration des publications ─────────────────────────────────────────
+
+/** GET /admin/posts?typeSlug=&status=&search=&limit=&offset= — tous statuts. */
+export function adminListPosts(
+  params: AdminListPostsParams,
+  signal?: AbortSignal,
+): Promise<PagedAdminPosts> {
+  const query = new URLSearchParams()
+  if (params.typeSlug) query.set('typeSlug', params.typeSlug)
+  if (params.status) query.set('status', params.status)
+  if (params.search) query.set('search', params.search)
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedAdminPosts>(`/admin/posts?${query.toString()}`, { signal })
+}
+
+/** GET /admin/posts/:id — FEED_POST quel que soit le statut + signalements liés. */
+export function adminGetPost(
+  id: string,
+  signal?: AbortSignal,
+): Promise<AdminPostDetail> {
+  return request<AdminPostDetail>(`/admin/posts/${encodeURIComponent(id)}`, {
+    signal,
+  })
+}
+
+/** PATCH /admin/posts/:id/status — masquer ou republier une publication. */
+export function adminSetPostStatus(
+  id: string,
+  status: AdminSettablePostStatus,
+): Promise<AdminFeedPost> {
+  return request<AdminFeedPost>(
+    `/admin/posts/${encodeURIComponent(id)}/status`,
+    { method: 'PATCH', body: { status } },
+  )
+}
+
+// ─── Administration des signalements ─────────────────────────────────────────
+
+/** GET /admin/reports?status=&targetType=&limit=&offset= — tri createdAt DESC. */
+export function adminListReports(
+  params: AdminListReportsParams,
+  signal?: AbortSignal,
+): Promise<PagedAdminReports> {
+  const query = new URLSearchParams()
+  if (params.status) query.set('status', params.status)
+  if (params.targetType) query.set('targetType', params.targetType)
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedAdminReports>(`/admin/reports?${query.toString()}`, {
+    signal,
+  })
+}
+
+/**
+ * PATCH /admin/reports/:id — pose la décision (reviewed | action_taken |
+ * dismissed) avec la note de résolution éventuelle ; l'API renseigne
+ * handledBy (admin courant) et handledAt (now).
+ */
+export function adminHandleReport(
+  id: string,
+  decision: ReportDecision,
+  resolutionNote?: string,
+): Promise<AdminReport> {
+  return request<AdminReport>(`/admin/reports/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: {
+      status: decision,
+      ...(resolutionNote ? { resolutionNote } : {}),
+    },
   })
 }

@@ -1,10 +1,13 @@
 /**
- * Racine du backoffice Endirek — Lot 1, étape 3.
+ * Racine du backoffice Endirek — Lot 1, étapes 3 et 4.
  *
- * Pas de routeur : un simple état de session suffit pour l'instant.
+ * Pas de routeur : un état de session + un état d'onglet suffisent.
  * - session en restauration → écran d'attente ;
  * - anonyme → LoginView (réservé aux rôles moderator / super_admin) ;
- * - administrateur connecté → UsersView (gestion des comptes).
+ * - administrateur connecté → onglets « Utilisateurs » (étape 3),
+ *   « Publications » et « Signalements » (étape 4). L'onglet Signalements
+ *   porte le nombre de signalements ouverts (un seul fetch du total —
+ *   rechargé après chaque décision de modération).
  *
  * La session est restaurée au chargement via GET /api/v1/auth/me avec le
  * jeton conservé en localStorage (choix DEV documenté dans api.ts —
@@ -14,6 +17,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
+  adminListReports,
   clearToken,
   fetchMe,
   getToken,
@@ -24,6 +28,8 @@ import {
 import type { FullProfile } from './api'
 import HealthCard from './HealthCard'
 import LoginView from './LoginView'
+import PostsView from './PostsView'
+import ReportsView from './ReportsView'
 import UsersView from './UsersView'
 import { RoleBadge } from './ui'
 
@@ -33,8 +39,22 @@ type Session =
   | { kind: 'anonymous' }
   | { kind: 'authenticated'; admin: FullProfile }
 
+/** Onglets du backoffice connecté. */
+type Tab = 'users' | 'posts' | 'reports'
+
+const TAB_LABELS: Record<Tab, string> = {
+  users: 'Utilisateurs',
+  posts: 'Publications',
+  reports: 'Signalements',
+}
+
+const TABS: Tab[] = ['users', 'posts', 'reports']
+
 export default function App() {
   const [session, setSession] = useState<Session>({ kind: 'restoring' })
+  const [tab, setTab] = useState<Tab>('users')
+  /** Nombre de signalements 'open' (badge de l'onglet) — null tant qu'inconnu. */
+  const [openReportsCount, setOpenReportsCount] = useState<number | null>(null)
 
   // Restauration de session au chargement : si un jeton est présent, on le
   // valide via GET /auth/me et on revérifie le rôle (un compte rétrogradé,
@@ -65,17 +85,40 @@ export default function App() {
     return () => controller.abort()
   }, [])
 
+  /**
+   * Recharge le badge de l'onglet Signalements : un fetch minimal
+   * (limit=1) dont seul le total est utilisé. Silencieux en cas d'échec
+   * (le badge disparaît simplement, la vue reste utilisable).
+   */
+  const refreshOpenReportsCount = useCallback(() => {
+    adminListReports({ status: 'open', limit: 1, offset: 0 })
+      .then((page) => setOpenReportsCount(page.total))
+      .catch(() => setOpenReportsCount(null))
+  }, [])
+
+  // Compteur chargé à l'entrée en session (puis rechargé par ReportsView
+  // après chaque décision de modération).
+  useEffect(() => {
+    if (session.kind === 'authenticated') {
+      refreshOpenReportsCount()
+    }
+  }, [session.kind, refreshOpenReportsCount])
+
   /** Déconnexion : appel de courtoisie à l'API puis purge locale du jeton. */
   const handleLogout = useCallback(() => {
     void logout() // stateless côté serveur : l'échec éventuel est sans effet
     clearToken()
     setSession({ kind: 'anonymous' })
+    setTab('users')
+    setOpenReportsCount(null)
   }, [])
 
   /** Jeton refusé en cours de session (401) : purge et retour au login. */
   const handleSessionExpired = useCallback(() => {
     clearToken()
     setSession({ kind: 'anonymous' })
+    setTab('users')
+    setOpenReportsCount(null)
   }, [])
 
   // Toute réponse 401 sur un appel authentifié (n'importe quelle vue) ramène
@@ -88,20 +131,45 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div>
-          <h1 className="app-title">ENDIREK</h1>
-          <p className="app-subtitle">Backoffice — Lot 1 · gestion des utilisateurs</p>
+        <div className="app-header-row">
+          <div>
+            <h1 className="app-title">ENDIREK</h1>
+            <p className="app-subtitle">
+              Backoffice — Lot 1 · utilisateurs, publications & signalements
+            </p>
+          </div>
+
+          {session.kind === 'authenticated' && (
+            <div className="app-session">
+              <span className="app-session-user">
+                {session.admin.displayName} <RoleBadge role={session.admin.role} />
+              </span>
+              <button type="button" className="button-ghost" onClick={handleLogout}>
+                Se déconnecter
+              </button>
+            </div>
+          )}
         </div>
 
         {session.kind === 'authenticated' && (
-          <div className="app-session">
-            <span className="app-session-user">
-              {session.admin.displayName} <RoleBadge role={session.admin.role} />
-            </span>
-            <button type="button" className="button-ghost" onClick={handleLogout}>
-              Se déconnecter
-            </button>
-          </div>
+          <nav className="app-tabs" aria-label="Sections du backoffice">
+            {TABS.map((candidate) => (
+              <button
+                key={candidate}
+                type="button"
+                className={candidate === tab ? 'app-tab app-tab--active' : 'app-tab'}
+                aria-current={candidate === tab ? 'page' : undefined}
+                onClick={() => setTab(candidate)}
+              >
+                {TAB_LABELS[candidate]}
+                {candidate === 'reports' &&
+                  openReportsCount !== null &&
+                  openReportsCount > 0 && (
+                    <span className="app-tab-count">{openReportsCount}</span>
+                  )}
+              </button>
+            ))}
+          </nav>
         )}
       </header>
 
@@ -118,14 +186,18 @@ export default function App() {
           />
         )}
 
-        {session.kind === 'authenticated' && (
+        {session.kind === 'authenticated' && tab === 'users' && (
           <UsersView onSessionExpired={handleSessionExpired} />
+        )}
+        {session.kind === 'authenticated' && tab === 'posts' && <PostsView />}
+        {session.kind === 'authenticated' && tab === 'reports' && (
+          <ReportsView onOpenCountChanged={refreshOpenReportsCount} />
         )}
       </main>
 
       <footer className="app-footer">
         <HealthCard />
-        <p>Endirek — La Réunion · Lot 1 · étape 3</p>
+        <p>Endirek — La Réunion · Lot 1 · étape 4</p>
       </footer>
     </div>
   )

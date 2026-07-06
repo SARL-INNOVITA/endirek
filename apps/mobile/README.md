@@ -13,18 +13,46 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
 
 Émulateur disponible sur la machine de dev : `Pixel_3a_API_34`.
 
-## Écrans disponibles (étape 3)
+## Écrans disponibles (étape 4)
 
 - **Connexion** (`/login`) — email + mot de passe, boutons Google/Apple
   présents mais désactivés (« bientôt disponible », le backend répond 501) ;
 - **Inscription** (`/register`) — nom affiché, email, mot de passe ≥ 8
   caractères + confirmation ;
-- **Profil** (`/profile`) — couverture, avatar, bio, stats
-  abonnés/abonnements/publications, déconnexion, tirer-pour-rafraîchir ;
+- **Shell à 4 onglets** (Accueil, Carte, News, Dealplace) — Accueil est le
+  fil réel ; Carte (étape 5), News et Dealplace (lots suivants) sont des
+  placeholders propres ;
+- **Fil d'actualité** (`/home`) — feed scoré de l'API, infinite scroll
+  (offset/limit) + tirer-pour-rafraîchir, cartes de post (type, médias,
+  compteurs) avec actions J'aime / Commenter / Partager / Enregistrer et
+  palette de réactions (appui long) ;
+- **Création de post** (`/compose`) — bottom sheet de choix du type
+  (référentiel `GET /posts/types`), formulaire adapté, jusqu'à 4 images
+  choisies dans la galerie (`image_picker`) et uploadées via
+  `POST /media/upload`, sélecteur de commune pour les types carte ;
+- **Détail d'un post** (`/post/:id`) — médias, réactions, commentaires
+  deux niveaux (répondre seulement à un commentaire principal — option A),
+  menu ⋯ Signaler / Modifier / Supprimer (si auteur) ;
+- **Profil** (`/profile`) — couverture, avatar, bio, stats, section « Mes
+  publications », déconnexion, tirer-pour-rafraîchir ;
 - **Édition du profil** (`/profile/edit`) — nom affiché, bio, ville.
 
-Le shell complet à 4 onglets (Accueil, Carte, News, Dealplace) arrive à
-l'étape 7, fidèle aux mockups de `02_MOCKUPS/`.
+## Limites connues (étape 4)
+
+- **Partage non fonctionnel** : le bouton « Partager » affiche « Partage
+  disponible prochainement » — aucun endpoint de partage côté API, le
+  compteur `shareCount` reste à 0. **TODO** (lot ultérieur) : partage natif
+  (`share_plus`) + comptage.
+- **Pas de GPS réel** : la position d'un post carte est le **centre-ville
+  de la commune choisie** (sélecteur alimenté par `GET /map/communes`).
+  **TODO** (étapes 5/7) : position GPS de l'appareil (`geolocator`) et
+  choix sur carte interactive.
+- L'onglet **Carte** est un placeholder jusqu'à l'étape 5.
+- La palette de réactions du mobile est locale (miroir du seed
+  `reaction_types`) — un GET dédié côté API est prévu (étape 5/6).
+
+Principales dépendances : Riverpod, go_router, Dio, `flutter_secure_storage`
+et **`image_picker`** (choix des photos du composer — ajouté à l'étape 4).
 
 > Tous les textes rédigés par l'app sont en français, mais les libellés
 > **système de Material** (boutons par défaut des dialogues, tooltips internes,

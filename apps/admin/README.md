@@ -6,9 +6,14 @@ réel de La Réunion.
 **Stack** : React 19 + Vite 7 + TypeScript — CSS pur, sans framework UI,
 sans routeur (un simple état de vue suffit à ce stade).
 
-## Fonctionnalités (Lot 1, étape 3)
+## Fonctionnalités (Lot 1, étapes 3 et 4)
 
-Backoffice **minimal de gestion des utilisateurs** :
+Backoffice de gestion des **utilisateurs** (étape 3), des **publications**
+et des **signalements** (étape 4), avec une navigation par onglets simples
+dans l'en-tête connecté — l'onglet « Signalements » porte le nombre de
+signalements ouverts.
+
+### Connexion et session
 
 - **Connexion administrateur** (`POST /api/v1/auth/login`) — l'entrée est
   réservée aux rôles `moderator` et `super_admin` ; un compte classique
@@ -16,6 +21,11 @@ Backoffice **minimal de gestion des utilisateurs** :
   chargement via `GET /api/v1/auth/me`, avec bouton « Se déconnecter ».
   Le jeton d'accès est conservé en `localStorage` (choix de développement
   documenté dans `src/api.ts` — TODO : cookie httpOnly/session plus tard).
+- La carte **« État de l'API »** (`GET /health`) de l'étape 1 est conservée,
+  en version compacte dans le pied de page.
+
+### Utilisateurs (étape 3)
+
 - **Vue Utilisateurs** (`GET /api/v1/admin/users`) : tableau paginé
   (20 par page, précédent/suivant, total) avec avatar/initiales, nom, email,
   ville, rôle (badge bleu), statut (badge vert actif / orange suspendu /
@@ -27,20 +37,62 @@ Backoffice **minimal de gestion des utilisateurs** :
   (`PATCH /api/v1/admin/users/:id/status`) avec confirmation. Le statut d'un
   super administrateur est intouchable (403 API) et un compte supprimé
   (flux RGPD) n'est jamais réactivable (409 API) — messages clairs à l'écran.
-- La carte **« État de l'API »** (`GET /health`) de l'étape 1 est conservée,
-  en version compacte dans le pied de page.
+
+### Publications (étape 4)
+
+- **Vue Publications** (`GET /api/v1/admin/posts`) : tableau paginé
+  (20 par page) de TOUTES les publications, tous statuts confondus
+  (`active` / `hidden` / `deleted` — audit). Colonnes : type (badge coloré —
+  libellé `labelFr` et couleur issus du référentiel `GET /api/v1/posts/types`,
+  chargé une fois, jamais hardcodés), extrait titre/corps tronqué, auteur,
+  statut (badge Active / Masquée / Supprimée), réactions, commentaires,
+  signalements ouverts (badge rouge si > 0) et date de création. Filtres
+  type + statut et recherche titre/corps/nom d'auteur avec debounce.
+- **Panneau détail** au clic (`GET /api/v1/admin/posts/:id`) : contenu
+  complet, vignettes des médias (cliquables : l'original s'ouvre dans un
+  nouvel onglet), commune, localisation, expiration carte, compteurs, et la
+  liste des **signalements liés** (motif, statut, auteur, message).
+- Actions **« Masquer » / « Réactiver »** (`PATCH /api/v1/admin/posts/:id/status`)
+  avec confirmation, puis rafraîchissement de la liste. La suppression reste
+  réservée à l'auteur ou au flux RGPD (400 API) et une publication supprimée
+  n'est jamais restaurée par le backoffice (409 API).
+
+### Signalements (étape 4)
+
+- **Vue Signalements** (`GET /api/v1/admin/reports`) : file de modération
+  antéchronologique, paginée (20 par page). Colonnes : cible (type
+  Publication/Commentaire + extrait ≤ 140 caractères fourni par l'API),
+  motif en français (Spam / Contenu haineux / Contenu dangereux / Fausse
+  information / Autre), signaleur, statut (badge Ouvert / Examiné / Action
+  prise / Rejeté) et date. Filtre par statut, **« Ouverts » par défaut**
+  (rappel : `open` = « pending » de la spécification produit).
+- **Panneau détail** au clic : message complet du signaleur, extrait de la
+  cible avec son statut, décisions **« Marquer examiné »** (`reviewed`),
+  **« Action prise »** (`action_taken`) et **« Rejeter »** (`dismissed`)
+  via `PATCH /api/v1/admin/reports/:id`, avec **note de résolution**
+  facultative (textarea, ≤ 500 caractères) et confirmation. L'API renseigne
+  `handledBy` (admin courant) et `handledAt`.
+- Si la cible est une publication : bouton **« Voir la publication »** qui
+  ouvre le panneau publication (le même que la vue Publications), depuis
+  lequel on peut la **masquer** — le flux complet « signalement ouvert →
+  voir la publication → masquer → action prise » se fait sans quitter la vue.
+- L'onglet « Signalements » de l'en-tête porte le **nombre de signalements
+  ouverts** (un fetch minimal du total, rechargé après chaque décision).
 
 ### Découpage (`src/`)
 
-| Fichier          | Rôle                                                    |
-| ---------------- | ------------------------------------------------------- |
-| `api.ts`         | Client HTTP typé (auth + admin) et gestion du jeton     |
-| `App.tsx`        | État de session (restauration, login, déconnexion)      |
-| `LoginView.tsx`  | Formulaire de connexion + garde-fou de rôle             |
-| `UsersView.tsx`  | Tableau, recherche (debounce), filtre statut, pagination |
-| `UserDetail.tsx` | Panneau détail + suspension/réactivation                |
-| `HealthCard.tsx` | Bandeau compact « État de l'API » (pied de page)        |
-| `ui.tsx`         | Badges rôle/statut, avatar (initiales), formats de date |
+| Fichier               | Rôle                                                          |
+| --------------------- | ------------------------------------------------------------- |
+| `api.ts`              | Client HTTP typé (auth + admin users/posts/reports) et jeton  |
+| `App.tsx`             | État de session + onglets (badge signalements ouverts)        |
+| `LoginView.tsx`       | Formulaire de connexion + garde-fou de rôle                   |
+| `UsersView.tsx`       | Tableau utilisateurs, recherche, filtre statut, pagination    |
+| `UserDetail.tsx`      | Panneau détail compte + suspension/réactivation               |
+| `PostsView.tsx`       | Tableau publications, filtres type/statut, recherche          |
+| `PostDetailAdmin.tsx` | Panneau détail publication + Masquer/Réactiver                |
+| `ReportsView.tsx`     | File de modération + décisions et note de résolution          |
+| `HealthCard.tsx`      | Bandeau compact « État de l'API » (pied de page)              |
+| `ui.tsx`              | Badges (rôles, statuts, types), avatar, dates, hook types     |
 
 ## Compte de test (seed de développement)
 
@@ -89,12 +141,13 @@ npm run admin:build   # tsc -b && vite build → apps/admin/dist
 
 ## Périmètre prévu à l'étape 6
 
-- **Publications** : modération, mise en avant, suppression ;
-- **Commentaires** : modération ;
-- **Signalements** : file de traitement des contenus signalés ;
+- **Publications** : mise en avant (la modération masquer/réactiver est
+  livrée à l'étape 4) ;
+- **Commentaires** : modération dédiée (aujourd'hui : signalements de
+  commentaires visibles dans la file, extrait inclus) ;
 - **Caméras météo/trafic** : gestion des flux affichés dans l'app mobile ;
 - **Paramètres des types de posts** : configuration des catégories de
-  publications.
+  publications (la table `post_types` est déjà pilotable côté API).
 
 <!-- TODO Lot 2+ : statistiques d'usage, gestion fine des rôles,
      notifications push administrées, exports. -->

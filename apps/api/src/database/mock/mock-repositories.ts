@@ -29,16 +29,19 @@ import {
   CommentStatus,
   Notification,
   Post,
+  PostMedia,
   PostStatus,
   PostType,
   Reaction,
   ReactionTargetType,
+  ReactionType,
   Report,
-  ReportStatus,
+  ReportTargetType,
   SavedCollection,
   User,
 } from '../domain/entities';
 import {
+  AdminListPostsParams,
   CamerasRepository,
   CommentsRepository,
   CreateCameraInput,
@@ -48,9 +51,11 @@ import {
   CreateReportInput,
   CreateUserInput,
   HandleReportInput,
+  ListAuthorPostsParams,
   ListCamerasParams,
   ListFeedParams,
   ListMapMarkersParams,
+  ListReportsParams,
   ListUsersParams,
   NotificationsRepository,
   PagedResult,
@@ -66,6 +71,7 @@ import {
   UpdateUserPatch,
   UsersRepository,
 } from '../repositories/interfaces';
+import { UniqueViolationError } from '../repositories/errors';
 import { isInBbox } from './geo';
 import { MockDatabaseService } from './mock-database.service';
 
@@ -118,6 +124,19 @@ export class MockUsersRepository implements UsersRepository {
 
   findById(id: string): Promise<User | null> {
     return Promise.resolve(clone(this.db.users.get(id) ?? null));
+  }
+
+  findByIds(ids: string[]): Promise<User[]> {
+    // Chargement par lot (auteurs d'une page de feed) : les ids inconnus
+    // sont ignorés silencieusement — équivalent d'un WHERE id = ANY($1).
+    const users: User[] = [];
+    for (const id of new Set(ids)) {
+      const user = this.db.users.get(id);
+      if (user) {
+        users.push(clone(user));
+      }
+    }
+    return Promise.resolve(users);
   }
 
   findByEmail(email: string): Promise<User | null> {
@@ -432,6 +451,22 @@ export class MockPostsRepository implements PostsRepository {
       updatedAt: now,
     };
     this.db.posts.set(post.id, post);
+    // Médias créés ATOMIQUEMENT avec le post (équivalent transaction SQL) —
+    // position par défaut : l'index dans le tableau fourni.
+    (input.media ?? []).forEach((spec, index) => {
+      const media: PostMedia = {
+        id: randomUUID(),
+        postId: post.id,
+        mediaType: spec.mediaType,
+        url: spec.url,
+        thumbnailUrl: spec.thumbnailUrl ?? null,
+        width: spec.width ?? null,
+        height: spec.height ?? null,
+        position: spec.position ?? index,
+        createdAt: now,
+      };
+      this.db.postMedia.set(media.id, media);
+    });
     return clone(post);
   }
 
@@ -476,6 +511,22 @@ export class MockPostsRepository implements PostsRepository {
     );
   }
 
+  listByAuthorPaged(
+    authorId: string,
+    params: ListAuthorPostsParams,
+  ): Promise<PagedResult<Post>> {
+    const statuses = new Set(params.statuses);
+    const items = [...this.db.posts.values()]
+      .filter((p) => p.authorId === authorId && statuses.has(p.status))
+      .sort(byCreatedAtDesc);
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((p) => clone(p)),
+      total: items.length,
+    });
+  }
+
   listFeed(params: ListFeedParams): Promise<Post[]> {
     let items = [...this.db.posts.values()].filter(
       (p) => p.status === 'active',
@@ -494,6 +545,64 @@ export class MockPostsRepository implements PostsRepository {
     }
     items.sort(byCreatedAtDesc);
     return Promise.resolve(items.slice(0, params.limit).map((p) => clone(p)));
+  }
+
+  listActiveWindow(limit: number): Promise<Post[]> {
+    // Fenêtre du scoring du feed : les N posts 'active' les plus récents,
+    // tie-break sur l'id pour un ordre STABLE entre deux appels (le driver
+    // postgres fera ORDER BY created_at DESC, id LIMIT n).
+    const items = [...this.db.posts.values()]
+      .filter((p) => p.status === 'active')
+      .sort(
+        (a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id),
+      );
+    return Promise.resolve(items.slice(0, limit).map((p) => clone(p)));
+  }
+
+  listMediaByPostIds(postIds: string[]): Promise<PostMedia[]> {
+    // Lecture PAR LOT des médias d'une page de posts (évite les N+1) —
+    // triés par position croissante (le regroupement par post revient à
+    // l'appelant, comme avec un WHERE post_id = ANY($1) ORDER BY position).
+    const wanted = new Set(postIds);
+    return Promise.resolve(
+      [...this.db.postMedia.values()]
+        .filter((m) => wanted.has(m.postId))
+        .sort((a, b) => a.position - b.position || byCreatedAtAsc(a, b))
+        .map((m) => clone(m)),
+    );
+  }
+
+  listAdmin(params: AdminListPostsParams): Promise<PagedResult<Post>> {
+    // Liste BACKOFFICE : tous statuts par défaut (y compris 'deleted' —
+    // audit), recherche insensible à la casse sur titre, corps et nom
+    // affiché de l'auteur. Le driver postgres fera un JOIN users + ILIKE.
+    let items = [...this.db.posts.values()];
+    if (params.typeSlug !== undefined) {
+      items = items.filter((p) => p.typeSlug === params.typeSlug);
+    }
+    if (params.status !== undefined) {
+      items = items.filter((p) => p.status === params.status);
+    }
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim().toLowerCase();
+      items = items.filter((p) => {
+        const authorName =
+          this.db.users.get(p.authorId)?.displayName.toLowerCase() ?? '';
+        return (
+          (p.title ?? '').toLowerCase().includes(needle) ||
+          p.body.toLowerCase().includes(needle) ||
+          authorName.includes(needle)
+        );
+      });
+    }
+    // Antéchronologique, tie-break id : ordre STABLE entre deux pages.
+    items.sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((p) => clone(p)),
+      total: items.length,
+    });
   }
 
   listMapMarkers(params: ListMapMarkersParams): Promise<Post[]> {
@@ -515,7 +624,8 @@ export class MockPostsRepository implements PostsRepository {
       if (categories && !categories.has(p.typeSlug)) {
         return false;
       }
-      return isInBbox(p.location, params.bbox);
+      // bbox absente : toute l'île (aucun filtre spatial).
+      return params.bbox === undefined || isInBbox(p.location, params.bbox);
     });
     items.sort(byCreatedAtDesc);
     return Promise.resolve(items.map((p) => clone(p)));
@@ -623,6 +733,18 @@ export class MockCommentsRepository implements CommentsRepository {
 @Injectable()
 export class MockReactionsRepository implements ReactionsRepository {
   constructor(private readonly db: MockDatabaseService) {}
+
+  listActiveTypes(): Promise<ReactionType[]> {
+    // Palette pilotable par le backoffice (table reaction_types) : la
+    // validation des emojis passe TOUJOURS par ici, jamais par une liste
+    // en dur dans le code métier.
+    return Promise.resolve(
+      [...this.db.reactionTypes.values()]
+        .filter((t) => t.isActive)
+        .sort((a, b) => a.position - b.position)
+        .map((t) => clone(t)),
+    );
+  }
 
   /** Répercute la mutation sur le compteur dénormalisé de la cible. */
   private refreshTargetCounters(
@@ -732,6 +854,44 @@ export class MockReactionsRepository implements ReactionsRepository {
     }
     return Promise.resolve(counts);
   }
+
+  countsByEmojiForTargets(
+    targetType: ReactionTargetType,
+    targetIds: string[],
+  ): Promise<Record<string, Record<string, number>>> {
+    // Agrégat PAR LOT (reactionsTop d'une page de feed) : un seul parcours
+    // du store — équivalent d'un GROUP BY target_id, emoji côté SQL.
+    const wanted = new Set(targetIds);
+    const result: Record<string, Record<string, number>> = {};
+    for (const reaction of this.db.reactions.values()) {
+      if (reaction.targetType !== targetType || !wanted.has(reaction.targetId)) {
+        continue;
+      }
+      const counts = (result[reaction.targetId] ??= {});
+      counts[reaction.emoji] = (counts[reaction.emoji] ?? 0) + 1;
+    }
+    return Promise.resolve(result);
+  }
+
+  findViewerReactions(
+    userId: string,
+    targetType: ReactionTargetType,
+    targetIds: string[],
+  ): Promise<Record<string, string>> {
+    // Réactions du viewer PAR LOT (viewerReaction d'une page de feed).
+    const wanted = new Set(targetIds);
+    const result: Record<string, string> = {};
+    for (const reaction of this.db.reactions.values()) {
+      if (
+        reaction.userId === userId &&
+        reaction.targetType === targetType &&
+        wanted.has(reaction.targetId)
+      ) {
+        result[reaction.targetId] = reaction.emoji;
+      }
+    }
+    return Promise.resolve(result);
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -807,6 +967,40 @@ export class MockSavedRepository implements SavedRepository {
     return Promise.resolve();
   }
 
+  isSaved(userId: string, postId: string): Promise<boolean> {
+    const collectionIds = this.ownedCollectionIds(userId);
+    return Promise.resolve(
+      this.db.savedPosts.some(
+        (s) => s.postId === postId && collectionIds.has(s.collectionId),
+      ),
+    );
+  }
+
+  filterSavedPostIds(userId: string, postIds: string[]): Promise<string[]> {
+    // Filtre PAR LOT (viewerSaved d'une page de feed) : parmi les postIds
+    // demandés, ceux présents dans une collection de l'utilisateur.
+    const collectionIds = this.ownedCollectionIds(userId);
+    const wanted = new Set(postIds);
+    const saved = new Set<string>();
+    for (const entry of this.db.savedPosts) {
+      if (wanted.has(entry.postId) && collectionIds.has(entry.collectionId)) {
+        saved.add(entry.postId);
+      }
+    }
+    return Promise.resolve([...saved]);
+  }
+
+  /** Ids des collections appartenant à un utilisateur. */
+  private ownedCollectionIds(userId: string): Set<string> {
+    const ids = new Set<string>();
+    for (const collection of this.db.savedCollections.values()) {
+      if (collection.ownerId === userId) {
+        ids.add(collection.id);
+      }
+    }
+    return ids;
+  }
+
   listSavedPosts(collectionId: string): Promise<Post[]> {
     const posts: Post[] = [];
     const entries = this.db.savedPosts
@@ -819,6 +1013,40 @@ export class MockSavedRepository implements SavedRepository {
       }
     }
     return Promise.resolve(posts);
+  }
+
+  listSavedPostsByUser(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Post>> {
+    // Enregistrements de TOUTES les collections de l'utilisateur (une seule
+    // « Général » au Lot 1), du plus récemment enregistré au plus ancien.
+    // Seuls les posts encore 'active' sont retenus : un post devenu
+    // hidden/deleted disparaît de la liste ET de `total` (le lien
+    // saved_posts, lui, est conservé). Dédoublonné par post au cas où un
+    // même post serait enregistré dans plusieurs collections (lots futurs).
+    const collectionIds = this.ownedCollectionIds(userId);
+    const seen = new Set<string>();
+    const posts: Post[] = [];
+    const entries = this.db.savedPosts
+      .filter((s) => collectionIds.has(s.collectionId))
+      .sort(byCreatedAtDesc);
+    for (const entry of entries) {
+      if (seen.has(entry.postId)) {
+        continue;
+      }
+      seen.add(entry.postId);
+      const post = this.db.posts.get(entry.postId);
+      if (post && post.status === 'active') {
+        posts.push(post);
+      }
+    }
+    return Promise.resolve({
+      items: posts
+        .slice(params.offset, params.offset + params.limit)
+        .map((p) => clone(p)),
+      total: posts.length,
+    });
   }
 }
 
@@ -896,9 +1124,28 @@ export class MockCamerasRepository implements CamerasRepository {
 export class MockReportsRepository implements ReportsRepository {
   constructor(private readonly db: MockDatabaseService) {}
 
-  create(input: CreateReportInput): Promise<Report> {
+  async create(input: CreateReportInput): Promise<Report> {
     if (!this.db.users.has(input.reporterId)) {
       throw new Error(`Utilisateur introuvable : ${input.reporterId}.`);
+    }
+    // Miroir de la contrainte UNIQUE reports_reporter_target_unique : un
+    // même utilisateur ne signale une cible qu'UNE seule fois. Erreur TYPÉE
+    // (UniqueViolationError) : le service la traduit en 409 même quand deux
+    // requêtes concurrentes passent toutes deux la vérification amont
+    // existsByReporterAndTarget — le futur driver postgres lèvera le même
+    // type depuis l'erreur native 23505.
+    if (
+      await this.existsByReporterAndTarget(
+        input.reporterId,
+        input.targetType,
+        input.targetId,
+      )
+    ) {
+      throw new UniqueViolationError(
+        'reports_reporter_target_unique',
+        'Signalement en doublon : cette cible a déjà été signalée par cet ' +
+          'utilisateur (contrainte UNIQUE reports_reporter_target_unique).',
+      );
     }
     const report: Report = {
       id: randomUUID(),
@@ -914,16 +1161,77 @@ export class MockReportsRepository implements ReportsRepository {
       createdAt: new Date(),
     };
     this.db.reports.set(report.id, report);
-    return Promise.resolve(clone(report));
+    return clone(report);
   }
 
-  list(params?: { status?: ReportStatus }): Promise<Report[]> {
+  existsByReporterAndTarget(
+    reporterId: string,
+    targetType: ReportTargetType,
+    targetId: string,
+  ): Promise<boolean> {
+    for (const report of this.db.reports.values()) {
+      if (
+        report.reporterId === reporterId &&
+        report.targetType === targetType &&
+        report.targetId === targetId
+      ) {
+        return Promise.resolve(true);
+      }
+    }
+    return Promise.resolve(false);
+  }
+
+  list(params: ListReportsParams): Promise<PagedResult<Report>> {
+    // File de modération backoffice : filtres statut / type de cible,
+    // antéchronologique (tie-break id — ordre stable), paginée.
     let items = [...this.db.reports.values()];
-    if (params?.status !== undefined) {
+    if (params.status !== undefined) {
       items = items.filter((r) => r.status === params.status);
     }
-    items.sort(byCreatedAtDesc);
-    return Promise.resolve(items.map((r) => clone(r)));
+    if (params.targetType !== undefined) {
+      items = items.filter((r) => r.targetType === params.targetType);
+    }
+    items.sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((r) => clone(r)),
+      total: items.length,
+    });
+  }
+
+  listByTarget(
+    targetType: ReportTargetType,
+    targetId: string,
+  ): Promise<Report[]> {
+    // Signalements liés à UNE cible (détail backoffice d'un post).
+    return Promise.resolve(
+      [...this.db.reports.values()]
+        .filter((r) => r.targetType === targetType && r.targetId === targetId)
+        .sort(byCreatedAtDesc)
+        .map((r) => clone(r)),
+    );
+  }
+
+  countOpenByTargets(
+    targetType: ReportTargetType,
+    targetIds: string[],
+  ): Promise<Record<string, number>> {
+    // Comptage PAR LOT des signalements 'open' (openReportsCount d'une page
+    // de la liste admin) — équivalent d'un GROUP BY target_id WHERE status
+    // = 'open' côté SQL ; les cibles sans signalement ouvert sont absentes.
+    const wanted = new Set(targetIds);
+    const counts: Record<string, number> = {};
+    for (const report of this.db.reports.values()) {
+      if (
+        report.status === 'open' &&
+        report.targetType === targetType &&
+        wanted.has(report.targetId)
+      ) {
+        counts[report.targetId] = (counts[report.targetId] ?? 0) + 1;
+      }
+    }
+    return Promise.resolve(counts);
   }
 
   listByReporter(reporterId: string): Promise<Report[]> {

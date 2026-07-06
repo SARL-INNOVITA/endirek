@@ -5,18 +5,38 @@ import 'package:go_router/go_router.dart';
 import '../../../core/api/models/user_profile.dart';
 import '../../../core/auth/auth_controller.dart';
 import '../../../core/auth/auth_state.dart';
+import '../../../core/config/api_config.dart';
 import '../../../core/theme/endirek_theme.dart';
+import '../../feed/application/posts_liste_controller.dart';
+import 'widgets/carte_publication_compacte.dart';
 
-/// Écran du profil de l'utilisateur COURANT (étape 3).
+/// Écran du profil de l'utilisateur COURANT (étapes 3-4).
 ///
 /// Couverture (si présente), avatar avec initiales en repli, nom, ville,
 /// bio, stats abonnés/abonnements/publications, boutons « Modifier le
-/// profil » et « Se déconnecter ». Tirer vers le bas pour rafraîchir.
-class ProfileScreen extends ConsumerWidget {
+/// profil » et « Se déconnecter », puis la section « Mes publications »
+/// (posts 'active' + 'hidden', cartes compactes → détail). Tirer vers le
+/// bas pour tout rafraîchir. Accessible via l'avatar du composer du fil.
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Recharge « Mes publications » à chaque ouverture du profil (une
+    // publication a pu être créée/supprimée depuis la dernière visite).
+    Future.microtask(
+      () => ref.read(mesPublicationsProvider.notifier).rafraichir(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final AuthState etatAuth = ref.watch(authControllerProvider);
 
     // Pendant la restauration de session (ou juste après une déconnexion,
@@ -29,11 +49,14 @@ class ProfileScreen extends ConsumerWidget {
     final UserProfile profil = etatAuth.profile;
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Mon profil')),
       body: SafeArea(
         top: false,
         child: RefreshIndicator(
-          onRefresh: () =>
-              ref.read(authControllerProvider.notifier).refreshProfile(),
+          onRefresh: () => Future.wait([
+            ref.read(authControllerProvider.notifier).refreshProfile(),
+            ref.read(mesPublicationsProvider.notifier).rafraichir(),
+          ]),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
@@ -105,6 +128,17 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                         label: const Text('Se déconnecter'),
                       ),
+                      const SizedBox(height: 32),
+                      const Text(
+                        'Mes publications',
+                        style: TextStyle(
+                          color: EndirekColors.encre,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const _SectionMesPublications(),
                     ],
                   ),
                 ),
@@ -160,7 +194,9 @@ class _EnTeteProfil extends StatelessWidget {
           width: double.infinity,
           child: (profil.coverUrl != null && profil.coverUrl!.isNotEmpty)
               ? Image.network(
-                  profil.coverUrl!,
+                  // Réécrit l'origine localhost éventuelle (émulateur
+                  // Android → 10.0.2.2), comme partout ailleurs dans l'app.
+                  ApiConfig.resolveMediaUrl(profil.coverUrl!),
                   fit: BoxFit.cover,
                   // Image indisponible : on retombe sur le dégradé bleu.
                   errorBuilder: (_, _, _) => const _CouvertureParDefaut(),
@@ -212,7 +248,10 @@ class _Avatar extends StatelessWidget {
       child: CircleAvatar(
         radius: 44,
         backgroundColor: EndirekColors.bleu,
-        foregroundImage: aUnePhoto ? NetworkImage(profil.avatarUrl!) : null,
+        foregroundImage: aUnePhoto
+            // Réécriture localhost → adresse joignable (cf. resolveMediaUrl).
+            ? NetworkImage(ApiConfig.resolveMediaUrl(profil.avatarUrl!))
+            : null,
         // Si la photo ne charge pas, les initiales restent visibles dessous.
         onForegroundImageError: aUnePhoto ? (_, _) {} : null,
         child: Text(
@@ -292,5 +331,78 @@ class _SeparateurVertical extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(width: 1, height: 36, color: EndirekColors.bordure);
+  }
+}
+
+/// Section « Mes publications » : cartes compactes (tap → détail), bouton
+/// « Voir plus » pour la pagination, états chargement/erreur/vide sobres.
+class _SectionMesPublications extends ConsumerWidget {
+  const _SectionMesPublications();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final PostsListeState etat = ref.watch(mesPublicationsProvider);
+
+    if (etat.chargement && !etat.initialise) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (etat.erreur != null && etat.posts.isEmpty) {
+      return Column(
+        children: [
+          Text(
+            etat.erreur!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: EndirekColors.encreSecondaire,
+              fontSize: 13.5,
+            ),
+          ),
+          TextButton(
+            onPressed: () =>
+                ref.read(mesPublicationsProvider.notifier).rafraichir(),
+            child: const Text('Réessayer'),
+          ),
+        ],
+      );
+    }
+    if (etat.initialise && etat.posts.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          'Vous n\'avez encore rien publié.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: EndirekColors.encreSecondaire,
+            fontSize: 13.5,
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final post in etat.posts) CartePublicationCompacte(post: post),
+        if (etat.chargementSuite)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+            ),
+          )
+        else if (etat.peutChargerSuite)
+          TextButton(
+            onPressed: () =>
+                ref.read(mesPublicationsProvider.notifier).chargerSuite(),
+            child: const Text('Voir plus'),
+          ),
+      ],
+    );
   }
 }

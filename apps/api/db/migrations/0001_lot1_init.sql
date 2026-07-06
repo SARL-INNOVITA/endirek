@@ -379,7 +379,12 @@ CREATE TABLE reports (
   handled_by      uuid REFERENCES users(id),
   handled_at      timestamptz,
   resolution_note text,
-  created_at      timestamptz NOT NULL DEFAULT now()
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  -- Anti-doublon (étape 4) : un même utilisateur ne peut signaler la même
+  -- cible qu'UNE seule fois — l'API répond 409 « Vous avez déjà signalé ce
+  -- contenu » sur la seconde tentative (le mock reproduit cette contrainte).
+  CONSTRAINT reports_reporter_target_unique
+    UNIQUE (reporter_id, target_type, target_id)
 );
 
 CREATE INDEX reports_target_idx ON reports (target_type, target_id);

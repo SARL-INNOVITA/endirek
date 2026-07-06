@@ -235,6 +235,7 @@ Index : `cameras_location_gist_idx` (GIST), `cameras_category_idx`, `cameras_sta
 | `status` | `text DEFAULT 'open'`, `CHECK IN ('open','reviewed','action_taken','dismissed')` |
 | `handled_by` | `uuid REFERENCES users(id)`, nullable (modérateur) |
 | `handled_at`, `resolution_note` | nullables |
+| — | `CONSTRAINT reports_reporter_target_unique UNIQUE (reporter_id, target_type, target_id)` — anti-doublon : un même utilisateur ne signale la même cible qu'une seule fois (409 côté API) |
 
 Index : `reports_target_idx` (`(target_type, target_id)`), `reports_status_idx`
 (file de modération), `reports_created_at_idx`.

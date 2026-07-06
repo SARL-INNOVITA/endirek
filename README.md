@@ -35,7 +35,7 @@ Installation complète (dont PostgreSQL/PostGIS via Docker et l'alternative sans
 - [x] Étape 1 — Socle du monorepo (API, admin, mobile, infra, docs)
 - [x] Étape 2 — Schéma de base de données + seed La Réunion
 - [x] Étape 3 — Auth, utilisateurs, profils, follows
-- [ ] Étape 4 — Posts, feed, interactions sociales, médias
+- [x] Étape 4 — Posts, feed, interactions sociales, médias
 - [ ] Étape 5 — Carte, caméras, notifications, temps réel
 - [ ] Étape 6 — Backoffice minimal
 - [ ] Étape 7 — Application mobile Flutter
