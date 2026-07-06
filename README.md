@@ -4,6 +4,8 @@
 
 Réseau social mobile local **temps réel** centré sur La Réunion : fil d'actualité social, carte live météo/trafic, News locales et Dealplace.
 
+> **🤖 Agents IA** — Tout agent IA travaillant sur ce repo doit commencer par lire [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md), [docs/AI_DECISIONS.md](docs/AI_DECISIONS.md) et [docs/AI_RUNBOOK.md](docs/AI_RUNBOOK.md), puis vérifier `git status` avant de modifier le code. À la fin de chaque checkpoint, mettre à jour ces fichiers de passation.
+
 ## Structure du monorepo
 
 | Dossier | Rôle |

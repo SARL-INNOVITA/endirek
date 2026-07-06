@@ -1,0 +1,159 @@
+# ENDIREK — Runbook (AI_RUNBOOK)
+
+> Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
+> Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
+
+_Dernière mise à jour : fin du checkpoint 4 (2026-07-07)._
+
+Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. Docker **optionnel** (non requis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
+
+> Sur la machine de dev actuelle, Flutter/adb/Java ne sont pas dans le PATH système. Chemins : Flutter `C:\Users\User\flutter\bin\flutter.bat`, JDK `C:\Program Files\Android\Android Studio\jbr`, Android SDK `C:\Users\User\AppData\Local\Android\Sdk`. Un autre environnement aura ces outils dans le PATH — adapter en conséquence.
+
+---
+
+## 1. Installation
+
+```bash
+npm install                              # installe les workspaces api + admin
+cp apps/api/.env.example apps/api/.env   # optionnel : l'API démarre même sans .env (valeurs par défaut)
+cp apps/admin/.env.example apps/admin/.env
+```
+
+---
+
+## 2. Lancer les applications
+
+### API (NestJS — port 3001)
+```bash
+npm run api:dev        # mode watch (développement)
+npm run api:build      # compile → apps/api/dist
+npm run api:start      # lance le build de production (node dist/main.js)
+```
+Au boot, le log affiche les URLs et le résumé du seed (voir §5).
+
+### Backoffice admin (React + Vite — port 5173)
+```bash
+npm run admin:dev      # serveur de dev
+npm run admin:build    # tsc -b && vite build → apps/admin/dist
+```
+
+### Mobile (Flutter)
+```bash
+cd apps/mobile
+flutter pub get
+flutter run                                   # émulateur/appareil Android
+flutter run -d chrome                          # aperçu web rapide
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3001   # émulateur → API de l'hôte
+```
+> `10.0.2.2` = localhost de la machine hôte vu depuis l'émulateur Android. Émulateur disponible : `Pixel_3a_API_34`.
+
+---
+
+## 3. Commandes de build & test (à lancer avant tout commit)
+
+```bash
+# API
+npm run api:build                    # doit finir sans erreur
+
+# Admin
+npm run admin:build                  # tsc -b && vite build, sans erreur
+
+# Mobile (depuis apps/mobile, PATH Flutter configuré)
+flutter analyze                      # doit afficher "No issues found!"
+flutter test                         # doit afficher "All tests passed!"
+```
+
+---
+
+## 4. Endpoints de santé & documentation
+
+| URL | Rôle |
+|---|---|
+| `http://localhost:3001/health` | Healthcheck public (hors préfixe, sans auth) → `{ status: "ok", ... }` |
+| `http://localhost:3001/docs` | Documentation Swagger (OpenAPI) de toutes les routes |
+| `http://localhost:3001/api/v1/...` | Routes métier (préfixe global, JWT requis sauf `@Public`) |
+| `http://localhost:3001/uploads/...` | Médias uploadés (statique, public) |
+
+---
+
+## 5. Log de boot attendu (seed mock)
+
+```
+Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications
+```
+Si ce log change après une modification non liée au seed, c'est un signal de régression à investiguer.
+
+---
+
+## 6. Comptes de test (seed de développement — NON secret)
+
+Mot de passe **commun à tous les comptes du seed** : `endirek974` (mot de passe de **développement**, jamais utilisé en production).
+
+| Email | Rôle | Usage |
+|---|---|---|
+| `equipe@endirek.invalid` | `super_admin` | backoffice complet, tests admin |
+| `marie.hoarau@endirek.invalid` | `moderator` | tests du second rôle admin / modération |
+| (13 autres comptes) | `user` | tests utilisateur standard |
+
+Les emails du seed utilisent le TLD `.invalid` (réservé RFC 2606, jamais routable). Emails exacts : voir `apps/api/src/database/seed/users.seed.ts`.
+
+Exemple de connexion (récupère un `accessToken`) :
+```bash
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"equipe@endirek.invalid","password":"endirek974"}'
+```
+
+---
+
+## 7. Variables d'environnement importantes
+
+Modèle complet et commenté : `apps/api/.env.example` (API) et `apps/admin/.env.example` (admin). **Ne jamais committer de vrai `.env`.**
+
+| Variable | Défaut (dev) | Rôle |
+|---|---|---|
+| `PORT` | `3001` | port de l'API |
+| `DB_DRIVER` | `mock` | `mock` (in-memory) ou `postgres` (cible, non implémenté) |
+| `DB_MOCK_SEED` | `true` | charge le seed La Réunion au boot |
+| `MEDIA_STORAGE_DRIVER` | `local` | `local` (disque) ou `s3` (non implémenté) |
+| `MEDIA_MAX_FILE_SIZE_MB` | `8` | taille max d'upload image |
+| `GEOCODING_PROVIDER` | `mock` | géocodage mock (communes) |
+| `PUSH_DRIVER` | `mock` | notifications en base, pas d'envoi |
+| `EMAIL_DRIVER` | `mock` | emails logués en console |
+| `JWT_SECRET` / `JWT_REFRESH_SECRET` | `change-me-*` | **valeurs factices** — à remplacer en production |
+| `CORS_ORIGINS` | `http://localhost:5173` | origines autorisées (backoffice) |
+| `VITE_API_URL` (admin) | `http://localhost:3001` | URL de l'API pour le backoffice |
+
+---
+
+## 8. Procédure si Docker manque (état actuel)
+
+Rien à faire de spécial : **c'est le mode par défaut**. `DB_DRIVER=mock` sert des données en mémoire (seed rechargé à chaque boot). Le schéma PostgreSQL/PostGIS reste la source de vérité dans `apps/api/db/migrations/` mais n'a pas besoin de tourner.
+
+Quand Docker sera installé (bascule vers la vraie base) : voir la procédure pas-à-pas dans `docs/DATABASE.md` §bascule (démarrer `infra/docker-compose.yml`, appliquer les migrations, implémenter le driver `postgres`, passer `DB_DRIVER=postgres`).
+
+---
+
+## 9. Vérification avant commit
+
+1. `npm run api:build` → 0 erreur.
+2. `npm run admin:build` → 0 erreur.
+3. `cd apps/mobile && flutter analyze` → « No issues found! ».
+4. `cd apps/mobile && flutter test` → « All tests passed! ».
+5. Boot de l'API (`npm run api:dev`) → le **log de seed** (§5) est inchangé, `/health` répond 200, `/docs` charge.
+6. `git status` → aucun `.env`, aucun secret, aucun dossier `01_PRD`/`02_MOCKUPS`/`03_PROMPTS`/`04_ACCESS` en attente d'ajout.
+7. Un dossier `apps/api/uploads/` peut contenir des fichiers de test locaux — il est **ignoré par Git** (normal).
+
+---
+
+## 10. Checklist avant de passer au checkpoint suivant
+
+- [ ] Toutes les vérifications du §9 passent.
+- [ ] Les endpoints/écrans du checkpoint fonctionnent (test manuel ou curl — voir `docs/INSTALL.md` pour des exemples).
+- [ ] Revue de cohérence API ↔ mobile ↔ admin ↔ docs effectuée, findings corrigés.
+- [ ] `docs/AI_HANDOFF.md` mis à jour (dernier commit, statut des checkpoints, état des composants, prochaine étape).
+- [ ] `docs/AI_DECISIONS.md` mis à jour **si** une nouvelle décision structurante a été prise.
+- [ ] `docs/AI_RUNBOOK.md` mis à jour **si** une commande, procédure ou compte de test a changé.
+- [ ] `docs/KNOWN_LIMITS.md` et les README concernés reflètent la réalité.
+- [ ] Commit dédié au checkpoint créé.
+- [ ] **Arrêt** et attente de la validation du product owner avant le checkpoint suivant.

@@ -3,6 +3,11 @@
 Vue d'ensemble du socle posé au Lot 1 (« socle + expérience Live Local »)
 et des points d'ancrage prévus pour les lots suivants.
 
+> **Règle permanente (agents IA)** : tout agent IA travaillant sur ce repo
+> doit commencer par lire `docs/AI_HANDOFF.md`, `docs/AI_DECISIONS.md` et
+> `docs/AI_RUNBOOK.md`, puis vérifier `git status` avant de modifier le code.
+> À la fin de chaque checkpoint, mettre à jour ces fichiers de passation.
+
 ---
 
 ## 1. Arborescence du monorepo
