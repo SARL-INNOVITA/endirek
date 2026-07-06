@@ -87,6 +87,12 @@ export interface PagedResult<T> {
   total: number;
 }
 
+/** Paramètres de pagination par limite/décalage (listes publiques). */
+export interface PageParams {
+  limit: number;
+  offset: number;
+}
+
 export interface UsersRepository {
   findById(id: string): Promise<User | null>;
   /** Recherche insensible à la casse (miroir de l'index UNIQUE lower(email)). */
@@ -101,6 +107,14 @@ export interface UsersRepository {
   isFollowing(followerId: string, followedId: string): Promise<boolean>;
   /** Ids des comptes suivis par userId (construction du feed « suivis »). */
   listFollowedIds(userId: string): Promise<string[]>;
+  /** Followers d'un utilisateur, du suivi le plus récent au plus ancien.
+   * Seuls les comptes ACTIFS apparaissent (les comptes supprimés/suspendus
+   * sont exclus des listes publiques) ; `total` compte ces mêmes comptes
+   * actifs — il peut donc différer de followersCount (qui compte tous les
+   * liens de suivi, écart assumé et documenté). */
+  listFollowers(userId: string, params: PageParams): Promise<PagedResult<User>>;
+  /** Comptes suivis par un utilisateur — mêmes règles que listFollowers. */
+  listFollowing(userId: string, params: PageParams): Promise<PagedResult<User>>;
   list(params: ListUsersParams): Promise<PagedResult<User>>;
 }
 
@@ -175,6 +189,12 @@ export interface PostsRepository {
   create(input: CreatePostInput): Promise<Post>;
   update(id: string, patch: UpdatePostPatch): Promise<Post>;
   setStatus(id: string, status: PostStatus): Promise<Post>;
+  /** Nombre de publications 'active' d'un auteur — alimente le `postsCount`
+   * des profils (étape 3) sans matérialiser la liste des posts. */
+  countByAuthor(authorId: string): Promise<number>;
+  /** TOUTES les publications d'un auteur, quel que soit leur statut,
+   * antéchronologiques — export RGPD (le feed public passe par listFeed). */
+  listByAuthor(authorId: string): Promise<Post[]>;
   /** Feed antéchronologique : posts 'active' uniquement. */
   listFeed(params: ListFeedParams): Promise<Post[]>;
   /** Marqueurs carte : location non nulle ET mapExpiresAt > now ET status
@@ -217,6 +237,9 @@ export interface CommentsRepository {
   /** Tous les commentaires d'un post, triés par createdAt croissant
    * (miroir de l'index (post_id, created_at)). */
   listByPost(postId: string): Promise<Comment[]>;
+  /** Tous les commentaires d'un auteur (tous statuts), chronologiques —
+   * export RGPD. */
+  listByAuthor(authorId: string): Promise<Comment[]>;
   /** REFUSE (erreur claire) un parent qui a lui-même un parent : depth ≤ 1. */
   create(input: CreateCommentInput): Promise<Comment>;
   setStatus(id: string, status: CommentStatus): Promise<Comment>;
@@ -244,6 +267,9 @@ export interface ReactionsRepository {
     targetType: ReactionTargetType,
     targetId: string,
   ): Promise<Reaction[]>;
+  /** Toutes les réactions émises par un utilisateur, antéchronologiques —
+   * export RGPD. */
+  listByUser(userId: string): Promise<Reaction[]>;
   /** Agrégat { emoji → nombre } pour l'affichage des compteurs par emoji. */
   countsByEmoji(
     targetType: ReactionTargetType,
@@ -334,6 +360,8 @@ export interface ReportsRepository {
   create(input: CreateReportInput): Promise<Report>;
   /** Liste antéchronologique, filtrable par statut (file de modération). */
   list(params?: { status?: ReportStatus }): Promise<Report[]>;
+  /** Signalements ÉMIS par un utilisateur, antéchronologiques — export RGPD. */
+  listByReporter(reporterId: string): Promise<Report[]>;
   findById(id: string): Promise<Report | null>;
   /** Traite un signalement : statut, modérateur, note ; handledAt = now. */
   handle(id: string, input: HandleReportInput): Promise<Report>;

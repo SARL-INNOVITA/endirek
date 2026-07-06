@@ -3,8 +3,11 @@
 API REST + WebSocket (NestJS 11) du réseau social mobile local temps réel de La Réunion.
 Elle sert l'application mobile Flutter (`apps/mobile`) et le backoffice (`apps/admin`).
 
-> **État actuel — étape 1 (socle)** : seuls la configuration typée et le healthcheck
-> sont câblés. Aucune logique métier, aucune base de données, aucun ORM pour l'instant.
+> **État actuel — étape 3** : configuration typée, healthcheck, couche
+> persistance (driver mock + seed La Réunion), authentification JWT (guard
+> global), profils/follows/RGPD et gestion des utilisateurs du backoffice
+> sont câblés. Les modules posts/feed/carte/notifications arrivent aux
+> étapes 4 et 5.
 
 ## Lancement
 
@@ -39,11 +42,11 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 
 | Module | Rôle | Étape |
 |---|---|---|
-| `health` | Healthcheck | **1 (fait)** |
-| `config` (src/config) | Configuration typée depuis l'environnement | **1 (fait)** |
-| `database` (src/database) | Persistance PostgreSQL/PostGIS + adapter mock | 2 |
-| `auth` | Authentification email/mot de passe, JWT, OAuth préparé | 3 |
-| `users` | Profils, followers, paramètres | 3 |
+| `health` | Healthcheck | **1 ✅** |
+| `config` (src/config) | Configuration typée depuis l'environnement | **1 ✅** |
+| `database` (src/database) | Persistance PostgreSQL/PostGIS + adapter mock (seed La Réunion) | **2 ✅** |
+| `auth` | Email/mot de passe (bcrypt), JWT access+refresh, guard global + `@Public()`, OAuth Google/Apple en 501 | **3 ✅** |
+| `users` | Profils (complet/public), follows, export RGPD, suppression RGPD (voir [docs/RGPD.md](../../docs/RGPD.md)) | **3 ✅** |
 | `media` | Upload et stockage des médias | 4 |
 | `posts` | Publications (libre, météo, trafic, danger, question) | 4 |
 | `feed` | Fil d'actualité (algorithme MVP) | 4 |
@@ -55,12 +58,26 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 | `notifications` | Notifications in-app (push préparé) | 5 |
 | `realtime` | Gateway WebSocket temps réel | 5 |
 | `moderation` | Signalements et traitement | 6 |
-| `admin` | Endpoints du backoffice minimal | 6 |
+| `admin` | Endpoints du backoffice — **gestion des utilisateurs (liste/détail/statut) faite à l'étape 3** ; le reste à l'étape 6 | **3 partiel** / 6 |
 | `_future/*` | Lots 2+ (pages, dealplace, deals, conversations, news, billing) | TODO Lot 2+ |
 
 Chaque dossier de module contient un `README.md` détaillant son périmètre et
-les règles métier du Lot 1. À cette étape, **aucun fichier `.ts`** n'existe dans
-ces dossiers (hors `health`) : seuls les README documentent l'architecture cible.
+les règles métier du Lot 1 ; les modules des étapes 4 à 6 n'ont pas encore de
+code, seuls leurs README documentent l'architecture cible.
+
+## Comptes de test (seed)
+
+Avec `DB_DRIVER=mock` et `DB_MOCK_SEED=true` (défauts), 15 comptes de
+démonstration La Réunion sont chargés au boot — **mot de passe commun de
+développement : `endirek974`** (haché bcrypt comme en réel ; à ne jamais
+utiliser en production). Emails en `@endirek.invalid`, liste complète dans
+`src/database/seed/users.seed.ts`. Notamment :
+
+| Compte | Email | Rôle |
+|---|---|---|
+| Équipe Endirek | `equipe@endirek.invalid` | `super_admin` |
+| Marie Hoarau | `marie.hoarau@endirek.invalid` | `moderator` |
+| Jean-Yves Payet | `jean-yves.payet@endirek.invalid` | `user` (13 autres comptes `user` du même type) |
 
 ## Architecture « adapters remplaçables »
 

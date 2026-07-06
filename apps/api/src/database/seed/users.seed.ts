@@ -13,18 +13,20 @@
  * villes étalées sur les 12 communes du référentiel seed.
  */
 
+import * as bcryptjs from 'bcryptjs';
 import { Follow } from '../domain/entities';
 import { SeedUser } from './index';
 import { communeByName } from './communes';
 import { daysAgo, pointNear, seedUuid } from './seed-utils';
 
 /**
- * PLACEHOLDER de développement — ce n'est PAS un hash et PAS un secret :
- * l'authentification n'existe pas encore au Lot 1 étape 2. À l'étape 3
- * (auth), cette valeur sera remplacée par de vrais hash bcrypt générés au
- * chargement du seed (jamais de mot de passe en clair en base réelle).
+ * Hash bcrypt (coût 10, comme l'inscription réelle) du mot de passe commun
+ * de DÉVELOPPEMENT « endirek974 », partagé par les 15 comptes seed pour se
+ * connecter facilement en local. Calculé UNE seule fois au chargement du
+ * module puis réutilisé — jamais de mot de passe en clair en base, et ce
+ * mot de passe de dev ne doit JAMAIS être utilisé en production.
  */
-const DEV_PASSWORD_HASH = 'dev$endirek974';
+const DEV_PASSWORD_HASH = bcryptjs.hashSync('endirek974', 10);
 
 /** Spécification déclarative d'un utilisateur seed (le reste est dérivé). */
 interface UserSpec {

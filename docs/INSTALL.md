@@ -4,12 +4,13 @@ Ce guide décrit l'installation complète de l'environnement de développement
 sur une machine locale (référence : Windows 11, mais les commandes sont
 identiques sur macOS/Linux sauf mention contraire).
 
-> **État actuel du projet (fin d'étape 2 du Lot 1)** : le socle du monorepo
-> est posé et la couche base de données est implémentée en mode mock
-> (`DB_DRIVER=mock`, seed La Réunion — voir [DATABASE.md](DATABASE.md)).
-> Côté routes, seul `GET /health` est fonctionnel ; les routes métier
-> (`/api/v1/...`) arrivent à partir de l'étape 3. Ce guide restera valable
-> pour toute la suite du Lot 1.
+> **État actuel du projet (fin d'étape 3 du Lot 1)** : le socle du monorepo
+> est posé, la couche base de données est implémentée en mode mock
+> (`DB_DRIVER=mock`, seed La Réunion — voir [DATABASE.md](DATABASE.md)) et
+> les routes métier de l'étape 3 sont fonctionnelles : auth (register,
+> login, refresh, me), profils, follows, export/suppression RGPD et gestion
+> des utilisateurs du backoffice — voir « Tester l'API » ci-dessous. Ce
+> guide restera valable pour toute la suite du Lot 1.
 
 ---
 
@@ -92,8 +93,35 @@ npm run api:dev
 
 - Healthcheck : http://localhost:3001/health (hors préfixe, pour les sondes)
 - Routes métier : préfixées `http://localhost:3001/api/v1/...`
-  (à partir de l'étape 3 — à l'étape 1, seul `/health` répond)
+  (auth, users et admin/users sont en place depuis l'étape 3)
 - Documentation Swagger : http://localhost:3001/docs
+
+#### Tester l'API (étape 3)
+
+Le seed La Réunion (chargé si `DB_MOCK_SEED=true`, défaut) fournit
+**15 comptes de démonstration** partageant le mot de passe de dev
+`endirek974` — emails en `@endirek.invalid`, listés dans
+`apps/api/src/database/seed/users.seed.ts`.
+
+```bash
+# Créer un compte
+curl -X POST http://localhost:3001/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"motdepasse123","displayName":"Compte Test"}'
+
+# Se connecter avec un compte du seed (ex. la modératrice Marie Hoarau)
+curl -X POST http://localhost:3001/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"marie.hoarau@endirek.invalid","password":"endirek974"}'
+
+# Profil courant (remplacer <ACCESS_TOKEN> par l'accessToken renvoyé ci-dessus)
+curl http://localhost:3001/api/v1/auth/me \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
+Toutes les routes (profils, follows, export RGPD, admin…) sont documentées
+et testables dans **Swagger** : http://localhost:3001/docs (bouton
+« Authorize » pour poser le Bearer token).
 
 ### Backoffice admin (React + Vite — port 5173)
 
@@ -101,7 +129,12 @@ npm run api:dev
 npm run admin:dev
 ```
 
-- Interface : http://localhost:5173 (écrans fonctionnels à l'étape 6)
+- Interface : http://localhost:5173
+- La gestion des utilisateurs (liste, recherche, détail,
+  suspension/réactivation) est fonctionnelle depuis l'étape 3. L'entrée est
+  réservée aux rôles `moderator` / `super_admin` — se connecter avec le
+  compte super admin du seed : **`equipe@endirek.invalid` / `endirek974`**
+  (ou la modératrice `marie.hoarau@endirek.invalid`).
 
 ### Application mobile (Flutter)
 
@@ -114,6 +147,19 @@ flutter run -d chrome      # alternative rapide dans le navigateur
 `flutter run` liste les appareils disponibles si plusieurs sont détectés
 (`flutter devices` pour vérifier ; l'émulateur Android est disponible sur
 la machine de dev).
+
+Écrans disponibles à l'étape 3 : **connexion**, **inscription**, **profil**
+(du compte connecté) et **édition du profil** — le shell complet à 4 onglets
+arrive à l'étape 7. Connexion possible avec n'importe quel compte du seed
+(mot de passe `endirek974`).
+
+L'URL de l'API est déduite automatiquement (web/desktop → `localhost:3001`,
+émulateur Android → `10.0.2.2:3001`). Pour un appareil physique ou une API
+distante, la forcer à la compilation :
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://192.168.1.20:3001
+```
 
 ---
 

@@ -1,8 +1,8 @@
 # ENDIREK — Limites connues
 
-État honnête des limites du projet **à l'étape 2 du Lot 1** (socle du
-monorepo + couche base de données). Ce fichier est mis à jour au fil des
-étapes.
+État honnête des limites du projet **à l'étape 3 du Lot 1** (socle, couche
+base de données, auth/profils/follows/RGPD). Ce fichier est mis à jour au
+fil des étapes.
 
 ---
 
@@ -27,12 +27,47 @@ peut pas tourner localement. Conséquence :
 - les requêtes géospatiales du mock (proximité, bbox) sont des approximations
   suffisantes pour le dev, pas des requêtes PostGIS réelles.
 
-## 2. API réduite au healthcheck
+## 2. Périmètre de l'API à l'étape 3
 
-À l'étape 2, l'API n'expose toujours que `GET /health` (+ la coquille Swagger
-sur `/docs`). **Aucune route métier `api/v1` n'existe encore** : la couche
-donnée (repositories, seed) est **interne** jusqu'à l'étape 3 — les routes
-métier arrivent aux étapes 3 à 6. Ne pas s'étonner de 404 partout ailleurs.
+L'API expose désormais, en plus de `GET /health` et de Swagger (`/docs`),
+les routes métier `api/v1` de l'étape 3 :
+
+- **auth** : `POST /auth/register|login|refresh|logout`, `GET /auth/me`,
+  placeholders OAuth `POST /auth/oauth/google|apple` (501) ;
+- **users** : `GET|PATCH /users/me/profile`, `GET /users/me/export` (RGPD),
+  `DELETE /users/me` (RGPD), `GET /users/:id`, `POST|DELETE /users/:id/follow`,
+  `GET /users/:id/followers|following` ;
+- **admin** : `GET /admin/users`, `GET /admin/users/:id`,
+  `PATCH /admin/users/:id/status` (rôles moderator/super_admin).
+
+Les routes posts/feed/carte/notifications arrivent aux étapes 4 à 6 : ne pas
+s'étonner de 404 sur le reste.
+
+## 2 bis. Limites de l'authentification (étape 3)
+
+- **Refresh token non révocable** : l'auth est stateless, le serveur ne tient
+  aucune liste de révocation — `POST /auth/logout` ne révoque rien (le client
+  jette ses jetons). Compensation : le guard recharge l'utilisateur et
+  revérifie son statut à chaque requête (comptes supprimés/suspendus
+  immédiatement rejetés — voir [RGPD.md](RGPD.md)). La révocation unitaire
+  viendra avec la persistance des refresh tokens (**TODO**).
+- **Pas de vérification d'email ni de reset de mot de passe** : ces flux ne
+  sont **pas implémentés** au Lot 1 (l'adapter email Brevo est mocké, mais
+  surtout aucun flux ne l'appelle encore — **TODO**). Un email oublié =
+  compte inaccessible ; un email saisi n'est jamais vérifié.
+- **Mot de passe de dev commun du seed** : les 15 comptes seed partagent le
+  mot de passe `endirek974` (haché bcrypt comme en réel). Pratique en local,
+  à ne **jamais** transposer en production.
+- **Jetons mobile en stockage sécurisé… sauf sur le web** :
+  `flutter_secure_storage` utilise le Keystore Android / Keychain iOS, mais
+  retombe sur le `localStorage` du navigateur en cible web — **non sécurisé**
+  (lisible par tout script, XSS). Acceptable pour le dev web uniquement ;
+  cible prod web : cookies httpOnly posés par le backend.
+- **Jeton du backoffice en `localStorage`** : choix assumé pour le
+  développement (simple, survit au rechargement) mais exposé au vol de jeton
+  en cas de XSS — durcissement prévu (cookie httpOnly / session serveur).
+- **Pas de rate limiting** : aucune limitation de débit sur login/register
+  (force brute possible) — **TODO** avant toute exposition publique.
 
 ## 3. Pas de push réel
 
@@ -42,8 +77,10 @@ et visibles **in-app uniquement**. Voir [ACCESS_NEEDED.md](ACCESS_NEEDED.md) §4
 
 ## 4. OAuth Google / Apple désactivé
 
-Boutons désactivés côté mobile, endpoints API en `501 Not Implemented`.
-Seule l'authentification email/mot de passe sera fonctionnelle (étape 3).
+Boutons désactivés côté mobile (mention « bientôt disponible »), endpoints
+API réels mais répondant `501 Not Implemented`
+(`POST /api/v1/auth/oauth/google|apple`). Seule l'authentification
+email/mot de passe est fonctionnelle (étape 3 faite).
 
 ## 5. Tuiles OSM publiques = développement uniquement
 
@@ -72,5 +109,6 @@ la vérification est manuelle (Swagger, app mobile, backoffice).
   aux lots suivants — voir [TODO_LOT_2.md](TODO_LOT_2.md)).
 - Les modes carte « Offres & restos » et « Événements » sont visibles mais
   placeholders ; seul « Météo & trafic » est réel au Lot 1.
-- Email : driver `mock` (contenu logué en console) tant que Brevo n'est pas
-  fourni — pas de vrai envoi de mails de vérification/reset.
+- Email : driver `mock` tant que Brevo n'est pas fourni — et surtout, les
+  flux de vérification d'email / reset de mot de passe ne sont **pas
+  implémentés** au Lot 1 (voir §2 bis).

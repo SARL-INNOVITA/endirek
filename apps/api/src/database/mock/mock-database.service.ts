@@ -160,18 +160,35 @@ export class MockDatabaseService implements OnModuleInit {
     return this.cameraNumberSequence++;
   }
 
-  /** Recalcule followersCount/followingCount d'un utilisateur depuis `follows`. */
+  /**
+   * Recalcule followersCount/followingCount d'un utilisateur depuis `follows`.
+   *
+   * Modèle de cohérence (miroir des listes GET /users/:id/followers|following,
+   * qui ne servent que les comptes ACTIFS) :
+   * - followersCount = nombre de comptes ACTIFS qui suivent `userId` ;
+   * - followingCount = nombre de comptes ACTIFS que `userId` suit.
+   * Les compteurs dénormalisés valent donc TOUJOURS la longueur des listes
+   * publiques : aucun compte 'deleted'/'suspended' n'est sur-compté. On ne
+   * touche jamais aux lignes de `follows` (trace conservée pour l'export RGPD
+   * et l'audit), seulement à ces compteurs.
+   */
   recomputeUserFollowCounts(userId: string): void {
     const user = this.users.get(userId);
     if (!user) {
       return;
     }
     user.followersCount = this.follows.filter(
-      (f) => f.followedId === userId,
+      (f) => f.followedId === userId && this.isActiveUser(f.followerId),
     ).length;
     user.followingCount = this.follows.filter(
-      (f) => f.followerId === userId,
+      (f) => f.followerId === userId && this.isActiveUser(f.followedId),
     ).length;
+  }
+
+  /** Vrai si l'utilisateur existe et est de statut 'active' (contrepartie
+   * comptabilisée dans les compteurs follow et les listes publiques). */
+  private isActiveUser(userId: string): boolean {
+    return this.users.get(userId)?.status === 'active';
   }
 
   /** Recalcule les compteurs dénormalisés d'un post depuis les données.

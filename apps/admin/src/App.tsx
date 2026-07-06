@@ -1,177 +1,131 @@
-import { useEffect, useState } from 'react'
-
 /**
- * Réponse attendue de `GET /health` exposé par l'API Endirek (apps/api).
- * Tous les champs sont optionnels : le backoffice reste tolérant si le
- * contrat évolue. TODO Lot 2+ : partager ces types via un paquet commun.
+ * Racine du backoffice Endirek — Lot 1, étape 3.
+ *
+ * Pas de routeur : un simple état de session suffit pour l'instant.
+ * - session en restauration → écran d'attente ;
+ * - anonyme → LoginView (réservé aux rôles moderator / super_admin) ;
+ * - administrateur connecté → UsersView (gestion des comptes).
+ *
+ * La session est restaurée au chargement via GET /api/v1/auth/me avec le
+ * jeton conservé en localStorage (choix DEV documenté dans api.ts —
+ * TODO cookie httpOnly/session plus tard). La carte « État de l'API » de
+ * l'étape 1 est conservée, déplacée en pied de page (HealthCard).
  */
-interface HealthResponse {
-  status?: string
-  version?: string
-  environment?: string
-  /** Durée de fonctionnement de l'API, en secondes. */
-  uptime?: number
-}
 
-/** États possibles de la vérification de santé de l'API. */
-type HealthState =
-  | { kind: 'loading' }
-  | { kind: 'success'; data: HealthResponse }
-  | { kind: 'error'; message: string }
+import { useCallback, useEffect, useState } from 'react'
+import {
+  clearToken,
+  fetchMe,
+  getToken,
+  isAdminRole,
+  logout,
+  onSessionExpired,
+} from './api'
+import type { FullProfile } from './api'
+import HealthCard from './HealthCard'
+import LoginView from './LoginView'
+import UsersView from './UsersView'
+import { RoleBadge } from './ui'
 
-/** URL de base de l'API (surchargée via `.env` → VITE_API_URL). */
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-
-/** Sections du backoffice prévues à l'étape 6 (liste statique désactivée). */
-const UPCOMING_SECTIONS = [
-  'Utilisateurs',
-  'Publications',
-  'Commentaires',
-  'Signalements',
-  'Caméras météo/trafic',
-  'Paramètres',
-]
-
-/** Formate une durée en secondes en libellé lisible (ex. « 2 h 5 min 12 s »). */
-function formatUptime(totalSeconds: number): string {
-  const seconds = Math.floor(totalSeconds % 60)
-  const minutes = Math.floor((totalSeconds / 60) % 60)
-  const hours = Math.floor((totalSeconds / 3600) % 24)
-  const days = Math.floor(totalSeconds / 86400)
-
-  const parts: string[] = []
-  if (days > 0) parts.push(`${days} j`)
-  if (hours > 0) parts.push(`${hours} h`)
-  if (minutes > 0) parts.push(`${minutes} min`)
-  parts.push(`${seconds} s`)
-  return parts.join(' ')
-}
+/** État de session du backoffice. */
+type Session =
+  | { kind: 'restoring' }
+  | { kind: 'anonymous' }
+  | { kind: 'authenticated'; admin: FullProfile }
 
 export default function App() {
-  const [health, setHealth] = useState<HealthState>({ kind: 'loading' })
-  // Compteur incrémenté par « Revérifier » : chaque changement relance
-  // l'effet ci-dessous, dont le nettoyage annule l'appel précédent via
-  // AbortController (garde anti-course).
-  const [checkCount, setCheckCount] = useState(0)
+  const [session, setSession] = useState<Session>({ kind: 'restoring' })
 
+  // Restauration de session au chargement : si un jeton est présent, on le
+  // valide via GET /auth/me et on revérifie le rôle (un compte rétrogradé,
+  // suspendu ou supprimé entre-temps est renvoyé au login).
   useEffect(() => {
+    if (!getToken()) {
+      setSession({ kind: 'anonymous' })
+      return
+    }
+
     const controller = new AbortController()
-
-    setHealth({ kind: 'loading' })
-
-    fetch(`${API_URL}/health`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`réponse HTTP ${response.status}`)
+    fetchMe(controller.signal)
+      .then((me) => {
+        if (isAdminRole(me.role)) {
+          setSession({ kind: 'authenticated', admin: me })
+        } else {
+          clearToken()
+          setSession({ kind: 'anonymous' })
         }
-        const data = (await response.json()) as HealthResponse
-        // Symétrie avec le .catch : ne pas mettre à jour l'état si l'appel
-        // a été annulé pendant la lecture du corps (démontage/revérification).
-        if (controller.signal.aborted) return
-        setHealth({ kind: 'success', data })
       })
-      .catch((error: unknown) => {
-        // Appel annulé (démontage ou revérification) : ne rien afficher.
+      .catch(() => {
+        // Jeton expiré/invalide ou API injoignable : retour au login.
         if (controller.signal.aborted) return
-        const message = error instanceof Error ? error.message : String(error)
-        setHealth({ kind: 'error', message })
+        clearToken()
+        setSession({ kind: 'anonymous' })
       })
 
     return () => controller.abort()
-  }, [checkCount])
+  }, [])
+
+  /** Déconnexion : appel de courtoisie à l'API puis purge locale du jeton. */
+  const handleLogout = useCallback(() => {
+    void logout() // stateless côté serveur : l'échec éventuel est sans effet
+    clearToken()
+    setSession({ kind: 'anonymous' })
+  }, [])
+
+  /** Jeton refusé en cours de session (401) : purge et retour au login. */
+  const handleSessionExpired = useCallback(() => {
+    clearToken()
+    setSession({ kind: 'anonymous' })
+  }, [])
+
+  // Toute réponse 401 sur un appel authentifié (n'importe quelle vue) ramène
+  // au login : le client API notifie ce gestionnaire de façon centralisée.
+  useEffect(() => {
+    onSessionExpired(handleSessionExpired)
+    return () => onSessionExpired(null)
+  }, [handleSessionExpired])
 
   return (
     <div className="app">
-      <header>
-        <h1 className="app-title">ENDIREK</h1>
-        <p className="app-subtitle">
-          Backoffice — Lot 1 (minimal, en construction : étape 6)
-        </p>
+      <header className="app-header">
+        <div>
+          <h1 className="app-title">ENDIREK</h1>
+          <p className="app-subtitle">Backoffice — Lot 1 · gestion des utilisateurs</p>
+        </div>
+
+        {session.kind === 'authenticated' && (
+          <div className="app-session">
+            <span className="app-session-user">
+              {session.admin.displayName} <RoleBadge role={session.admin.role} />
+            </span>
+            <button type="button" className="button-ghost" onClick={handleLogout}>
+              Se déconnecter
+            </button>
+          </div>
+        )}
       </header>
 
       <main className="app-main">
-        <section className="card" aria-labelledby="health-title">
-          <div className="card-header">
-            <h2 id="health-title" className="card-title">
-              État de l'API
-            </h2>
-            {health.kind === 'loading' && (
-              <span className="badge badge--neutral">Vérification…</span>
-            )}
-            {health.kind === 'success' && (
-              <span className="badge badge--success">API en ligne</span>
-            )}
-            {health.kind === 'error' && (
-              <span className="badge badge--error">API injoignable</span>
-            )}
-          </div>
+        {session.kind === 'restoring' && (
+          <section className="card">
+            <p className="muted">Restauration de la session…</p>
+          </section>
+        )}
 
-          {health.kind === 'success' && (
-            <dl className="health-details">
-              <div className="health-row">
-                <dt>Version</dt>
-                <dd>{health.data.version ?? '—'}</dd>
-              </div>
-              <div className="health-row">
-                <dt>Environnement</dt>
-                <dd>{health.data.environment ?? '—'}</dd>
-              </div>
-              <div className="health-row">
-                <dt>Uptime</dt>
-                <dd>
-                  {health.data.uptime !== undefined
-                    ? formatUptime(health.data.uptime)
-                    : '—'}
-                </dd>
-              </div>
-            </dl>
-          )}
+        {session.kind === 'anonymous' && (
+          <LoginView
+            onLoggedIn={(admin) => setSession({ kind: 'authenticated', admin })}
+          />
+        )}
 
-          {health.kind === 'error' && (
-            <div className="health-error">
-              <p>
-                Impossible de joindre l'API sur <code>{API_URL}</code> (
-                {health.message}).
-              </p>
-              <p className="health-hint">
-                Lancez <code>npm run api:dev</code> à la racine du monorepo.
-              </p>
-            </div>
-          )}
-
-          <button
-            type="button"
-            className="button-primary"
-            onClick={() => setCheckCount((count) => count + 1)}
-            disabled={health.kind === 'loading'}
-          >
-            Revérifier
-          </button>
-        </section>
-
-        <section className="card" aria-labelledby="sections-title">
-          <h2 id="sections-title" className="card-title">
-            Sections à venir (étape 6)
-          </h2>
-          <p className="card-hint">
-            Modules de gestion prévus pour la version complète du backoffice.
-          </p>
-          {/* Liste statique désactivée : sera branchée sur l'API à l'étape 6.
-              TODO Lot 2+ : statistiques, modération avancée, notifications. */}
-          <ul className="sections-list">
-            {UPCOMING_SECTIONS.map((section) => (
-              <li key={section}>
-                <button type="button" className="section-item" disabled>
-                  {section}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        {session.kind === 'authenticated' && (
+          <UsersView onSessionExpired={handleSessionExpired} />
+        )}
       </main>
 
       <footer className="app-footer">
-        <p>Endirek — La Réunion · Lot 1 · squelette technique</p>
+        <HealthCard />
+        <p>Endirek — La Réunion · Lot 1 · étape 3</p>
       </footer>
     </div>
   )

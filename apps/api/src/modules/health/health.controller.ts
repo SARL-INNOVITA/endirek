@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { APP_VERSION } from '../../app-version';
+import { Public } from '../../common/decorators/public.decorator';
 
 /** Réponse du healthcheck. */
 export interface HealthResponse {
@@ -14,6 +15,9 @@ export interface HealthResponse {
   timestamp: string;
 }
 
+// @Public() : le healthcheck reste accessible sans jeton malgré le guard JWT
+// global (APP_GUARD) — indispensable pour la supervision et les sondes.
+@Public()
 @ApiTags('health')
 @Controller('health')
 export class HealthController {

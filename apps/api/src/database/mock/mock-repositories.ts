@@ -54,6 +54,7 @@ import {
   ListUsersParams,
   NotificationsRepository,
   PagedResult,
+  PageParams,
   PostsRepository,
   PostTypesRepository,
   ReactionsRepository,
@@ -188,6 +189,26 @@ export class MockUsersRepository implements UsersRepository {
     user.status = 'deleted';
     user.deletedAt = new Date();
     this.db.touch(user);
+    // Les lignes de `follows` sont CONSERVÉES (trace pour l'export RGPD et
+    // l'audit) ; seuls les compteurs dénormalisés changent. Comme `id` n'est
+    // plus 'active', il ne doit plus être compté chez ses contreparties :
+    // - chaque B que `id` suivait perd 1 follower actif → recompute B ;
+    // - chaque C qui suivait `id` perd 1 following actif → recompute C ;
+    // - `id` lui-même est recomputé (ses propres compteurs retombent à 0
+    //   côté contreparties actives, cohérent avec l'anonymisation du compte).
+    const counterparts = new Set<string>();
+    for (const follow of this.db.follows) {
+      if (follow.followerId === id) {
+        counterparts.add(follow.followedId);
+      }
+      if (follow.followedId === id) {
+        counterparts.add(follow.followerId);
+      }
+    }
+    for (const counterpartId of counterparts) {
+      this.db.recomputeUserFollowCounts(counterpartId);
+    }
+    this.db.recomputeUserFollowCounts(id);
     return Promise.resolve();
   }
 
@@ -199,6 +220,15 @@ export class MockUsersRepository implements UsersRepository {
     }
     if (!this.db.users.has(followerId) || !this.db.users.has(followedId)) {
       throw new Error('Follow impossible : utilisateur introuvable.');
+    }
+    // Défense en profondeur (le service protège déjà via 404) : on ne suit
+    // pas un compte non actif — politique « on ne suit pas un compte
+    // supprimé/suspendu ». Le seed n'emprunte PAS ce chemin (il insère les
+    // follows directement dans le store), il n'est donc pas affecté.
+    if (this.db.users.get(followedId)?.status !== 'active') {
+      throw new Error(
+        'Follow impossible : le compte cible n\'est pas actif (supprimé ou suspendu).',
+      );
     }
     if (await this.isFollowing(followerId, followedId)) {
       return; // Idempotent : déjà suivi, rien à faire.
@@ -233,6 +263,59 @@ export class MockUsersRepository implements UsersRepository {
       this.db.follows
         .filter((f) => f.followerId === userId)
         .map((f) => f.followedId),
+    );
+  }
+
+  /**
+   * Page d'utilisateurs à partir de liens de suivi triés du plus récent au
+   * plus ancien. Seuls les comptes ACTIFS sont retenus (les comptes
+   * supprimés/suspendus n'apparaissent pas dans les listes publiques) ;
+   * `total` compte ces mêmes comptes actifs.
+   */
+  private pageFollowUsers(
+    links: Array<{ userId: string; createdAt: Date }>,
+    params: PageParams,
+  ): PagedResult<User> {
+    const activeUsers: User[] = [];
+    for (const link of links.sort(byCreatedAtDesc)) {
+      const user = this.db.users.get(link.userId);
+      if (user && user.status === 'active') {
+        activeUsers.push(user);
+      }
+    }
+    return {
+      items: activeUsers
+        .slice(params.offset, params.offset + params.limit)
+        .map((u) => clone(u)),
+      total: activeUsers.length,
+    };
+  }
+
+  listFollowers(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<User>> {
+    return Promise.resolve(
+      this.pageFollowUsers(
+        this.db.follows
+          .filter((f) => f.followedId === userId)
+          .map((f) => ({ userId: f.followerId, createdAt: f.createdAt })),
+        params,
+      ),
+    );
+  }
+
+  listFollowing(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<User>> {
+    return Promise.resolve(
+      this.pageFollowUsers(
+        this.db.follows
+          .filter((f) => f.followerId === userId)
+          .map((f) => ({ userId: f.followedId, createdAt: f.createdAt })),
+        params,
+      ),
     );
   }
 
@@ -372,6 +455,27 @@ export class MockPostsRepository implements PostsRepository {
     return Promise.resolve(clone(post));
   }
 
+  countByAuthor(authorId: string): Promise<number> {
+    let count = 0;
+    for (const post of this.db.posts.values()) {
+      if (post.authorId === authorId && post.status === 'active') {
+        count++;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
+  listByAuthor(authorId: string): Promise<Post[]> {
+    // Export RGPD : TOUS les posts de l'auteur, quel que soit leur statut
+    // (le feed public, lui, passe par listFeed qui ne sert que les 'active').
+    return Promise.resolve(
+      [...this.db.posts.values()]
+        .filter((p) => p.authorId === authorId)
+        .sort(byCreatedAtDesc)
+        .map((p) => clone(p)),
+    );
+  }
+
   listFeed(params: ListFeedParams): Promise<Post[]> {
     let items = [...this.db.posts.values()].filter(
       (p) => p.status === 'active',
@@ -434,6 +538,16 @@ export class MockCommentsRepository implements CommentsRepository {
     return Promise.resolve(
       [...this.db.comments.values()]
         .filter((c) => c.postId === postId)
+        .sort(byCreatedAtAsc)
+        .map((c) => clone(c)),
+    );
+  }
+
+  listByAuthor(authorId: string): Promise<Comment[]> {
+    // Export RGPD : tous les commentaires de l'auteur, chronologiques.
+    return Promise.resolve(
+      [...this.db.comments.values()]
+        .filter((c) => c.authorId === authorId)
         .sort(byCreatedAtAsc)
         .map((c) => clone(c)),
     );
@@ -591,6 +705,16 @@ export class MockReactionsRepository implements ReactionsRepository {
         .filter(
           (r) => r.targetType === targetType && r.targetId === targetId,
         )
+        .sort(byCreatedAtDesc)
+        .map((r) => clone(r)),
+    );
+  }
+
+  listByUser(userId: string): Promise<Reaction[]> {
+    // Export RGPD : toutes les réactions émises par l'utilisateur.
+    return Promise.resolve(
+      [...this.db.reactions.values()]
+        .filter((r) => r.userId === userId)
         .sort(byCreatedAtDesc)
         .map((r) => clone(r)),
     );
@@ -800,6 +924,16 @@ export class MockReportsRepository implements ReportsRepository {
     }
     items.sort(byCreatedAtDesc);
     return Promise.resolve(items.map((r) => clone(r)));
+  }
+
+  listByReporter(reporterId: string): Promise<Report[]> {
+    // Export RGPD : signalements émis par l'utilisateur.
+    return Promise.resolve(
+      [...this.db.reports.values()]
+        .filter((r) => r.reporterId === reporterId)
+        .sort(byCreatedAtDesc)
+        .map((r) => clone(r)),
+    );
   }
 
   findById(id: string): Promise<Report | null> {

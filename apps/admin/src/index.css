@@ -1,5 +1,5 @@
 /*
-  Feuille de style globale du backoffice Endirek — Lot 1.
+  Feuille de style globale du backoffice Endirek — Lot 1, étape 3.
   CSS pur, sans framework UI. Charte graphique provisoire.
 */
 
@@ -7,6 +7,7 @@
   /* Bleu Endirek — placeholder à calibrer sur les mockups */
   --endirek-blue: #1173D4;
   --endirek-blue-dark: #0e5fae;
+  --endirek-blue-bg: #e3effc;
 
   --page-bg: #F6F7F8;
   --text: #111;
@@ -16,6 +17,8 @@
 
   --success: #157f3d;
   --success-bg: #e4f5ea;
+  --warning: #b45309;
+  --warning-bg: #fdf0dd;
   --danger: #c62f2f;
   --danger-bg: #fdeaea;
   --neutral: #5c6470;
@@ -72,12 +75,21 @@ code {
 /* ---------- Mise en page ---------- */
 
 .app {
-  max-width: 760px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 40px 20px 56px;
+  padding: 32px 20px 48px;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .app-title {
@@ -92,16 +104,39 @@ code {
   margin-top: 4px;
 }
 
+.app-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.app-session-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
 .app-main {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  flex: 1;
 }
 
 .app-footer {
   color: var(--text-muted);
   font-size: 0.85rem;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.muted {
+  color: var(--text-muted);
 }
 
 /* ---------- Carte blanche arrondie ---------- */
@@ -135,7 +170,7 @@ code {
   margin: 8px 0 16px;
 }
 
-/* ---------- Badges de statut ---------- */
+/* ---------- Badges (statuts, rôles, santé API) ---------- */
 
 .badge {
   display: inline-flex;
@@ -148,66 +183,44 @@ code {
   white-space: nowrap;
 }
 
+/* Vert : compte actif / API en ligne */
 .badge--success {
   color: var(--success);
   background: var(--success-bg);
 }
 
+/* Orange : compte suspendu */
+.badge--warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
+/* Rouge : erreur (API injoignable) */
 .badge--error {
   color: var(--danger);
   background: var(--danger-bg);
 }
 
+/* Gris : compte supprimé / neutre */
 .badge--neutral {
   color: var(--neutral);
   background: var(--neutral-bg);
 }
 
-/* ---------- Détails de santé de l'API ---------- */
-
-.health-details {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 20px;
+/* Bleu : rôles (Utilisateur / Modérateur / Super admin) */
+.badge--info {
+  color: var(--endirek-blue-dark);
+  background: var(--endirek-blue-bg);
 }
 
-.health-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-}
+/* ---------- Boutons ---------- */
 
-.health-row dt {
-  color: var(--text-muted);
-}
-
-.health-row dd {
-  font-weight: 600;
-}
-
-.health-error {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.health-hint {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-/* ---------- Bouton primaire ---------- */
-
-.button-primary {
+.button-primary,
+.button-ghost,
+.button-danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--endirek-blue);
-  color: #fff;
-  border: none;
   border-radius: 999px;
   padding: 10px 22px;
   font-weight: 600;
@@ -215,32 +228,314 @@ code {
   transition: background-color 0.15s ease;
 }
 
+.button-primary {
+  background: var(--endirek-blue);
+  color: #fff;
+  border: none;
+}
+
 .button-primary:hover:not(:disabled) {
   background: var(--endirek-blue-dark);
 }
 
-.button-primary:disabled {
+.button-ghost {
+  background: transparent;
+  color: var(--endirek-blue);
+  border: 1px solid var(--border);
+  padding: 6px 16px;
+  font-size: 0.9rem;
+}
+
+.button-ghost:hover:not(:disabled) {
+  background: var(--endirek-blue-bg);
+}
+
+.button-danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+}
+
+.button-danger:hover:not(:disabled) {
+  background: #a52626;
+}
+
+.button-primary:disabled,
+.button-ghost:disabled,
+.button-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* ---------- Liste des sections à venir ---------- */
+/* ---------- Formulaire de connexion ---------- */
 
-.sections-list {
-  list-style: none;
-  padding: 0;
+.login-card {
+  max-width: 420px;
+  width: 100%;
+  margin: 40px auto 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.form-field input,
+.users-search,
+.users-status-filter {
+  font: inherit;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+.form-field input:focus,
+.users-search:focus,
+.users-status-filter:focus {
+  outline: 2px solid var(--endirek-blue);
+  outline-offset: 1px;
+  border-color: var(--endirek-blue);
+}
+
+.form-error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+}
+
+/* ---------- Vue Utilisateurs ---------- */
+
+.users-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.users-layout--with-detail {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+@media (max-width: 960px) {
+  .users-layout--with-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.users-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.users-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+/* Tableau : défilement horizontal sur petits écrans, jamais la page. */
+.users-table-wrap {
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.users-table th,
+.users-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.users-table th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cell-number {
+  text-align: right !important;
+}
+
+.cell-muted {
+  color: var(--text-muted);
+}
+
+.user-row {
+  cursor: pointer;
+}
+
+.user-row:hover {
+  background: var(--page-bg);
+}
+
+.user-row--selected {
+  background: var(--endirek-blue-bg);
+}
+
+.user-row--selected:hover {
+  background: var(--endirek-blue-bg);
+}
+
+.user-cell {
+  display: inline-flex;
+  align-items: center;
   gap: 10px;
 }
 
-.section-item {
-  width: 100%;
-  text-align: left;
-  padding: 12px 16px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  background: var(--page-bg);
+.user-name {
+  font-weight: 600;
+}
+
+.users-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Avatar (image ou initiales) ---------- */
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--endirek-blue-bg);
+  color: var(--endirek-blue-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  object-fit: cover;
+}
+
+.avatar--large {
+  width: 56px;
+  height: 56px;
+  font-size: 1.05rem;
+}
+
+/* ---------- Panneau détail ---------- */
+
+.detail-panel {
+  position: sticky;
+  top: 24px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.detail-name {
+  font-weight: 700;
+}
+
+.detail-email {
   color: var(--text-muted);
-  cursor: not-allowed;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.detail-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.detail-bio {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  border-left: 3px solid var(--border);
+  padding-left: 12px;
+}
+
+.detail-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+
+.detail-row dt {
+  color: var(--text-muted);
+}
+
+.detail-row dd {
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.detail-locked {
+  font-size: 0.9rem;
+}
+
+/* ---------- Bandeau santé de l'API (pied de page) ---------- */
+
+.health-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.health-strip-label {
+  font-weight: 600;
+}
+
+.health-strip-meta {
+  color: var(--text-muted);
 }

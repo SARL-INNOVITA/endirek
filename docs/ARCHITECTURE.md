@@ -48,8 +48,8 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 |---|---|---|
 | `health` | `GET /health` (hors préfixe `api/v1`) — sonde de vie | 1 ✅ |
 | `database` | Accès données derrière une interface (`DB_DRIVER=postgres\|mock`), schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ |
-| `auth` | Email/mot de passe, JWT access+refresh ; endpoints OAuth Google/Apple en 501 | 3 |
-| `users` | Comptes, profils (photo, bio, ville), follows | 3 |
+| `auth` | Email/mot de passe, JWT access+refresh, guard global ; endpoints OAuth Google/Apple en 501 | 3 ✅ |
+| `users` | Comptes, profils (photo, bio, ville), follows, export + suppression RGPD (voir [RGPD.md](RGPD.md)) | 3 ✅ |
 | `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h | 4 |
 | `feed` | Algorithme simple : récence + proximité + type + popularité + abonnements | 4 |
 | `comments` | Commentaires (niveau 0) + réponses (niveau 1), pas de réponse à une réponse au MVP | 4 |
@@ -61,14 +61,16 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `notifications` | Notifications in-app persistées + adapter push (mock en dev) | 5 |
 | `realtime` | Gateway WebSocket (socle temps réel, consommé dès la carte live) | 5 |
 | `moderation` | Signalements, masquage de posts, outillage backoffice | 6 |
-| `admin` | Endpoints d'administration consommés par le backoffice | 6 |
+| `admin` | Endpoints d'administration consommés par le backoffice — la gestion des utilisateurs (liste, détail, suspension/réactivation) est faite à l'étape 3 ; le reste (modération, caméras…) arrive à l'étape 6 | 3 partiel / 6 |
 | `modules/_future/*` | Placeholders des lots suivants (voir §6) — **TODO Lot 2+** | — |
 
-> **État réel à l'étape 2** : seuls `health` et la couche `database`
-> (schéma SQL source de vérité + driver mock + seed La Réunion) sont
-> implémentés — la couche donnée est interne, aucune route métier ne
-> l'expose encore. Les autres modules listés ci-dessus décrivent le plan
-> de montage du Lot 1 ; le tableau est mis à jour au fil des étapes.
+> **État réel à l'étape 3** : `health`, la couche `database` (driver mock +
+> seed La Réunion), `auth` (register/login/refresh/logout/me, guard JWT
+> global, OAuth en 501), `users` (profils complet/public, follows, export et
+> suppression RGPD) et la partie « gestion des utilisateurs » d'`admin`
+> (liste/détail/statut, rôles moderator/super_admin) sont implémentés.
+> Les autres modules listés ci-dessus décrivent le plan de montage du
+> Lot 1 ; le tableau est mis à jour au fil des étapes.
 
 Conventions transverses :
 
@@ -118,7 +120,18 @@ Détail complet (comportements, variables, procédure de bascule) :
 - **`GET /health` hors préfixe** : URL stable pour les sondes
   (reverse proxy, orchestrateur), indépendante des versions d'API.
 - **JWT access + refresh** (`JWT_*` dans `.env`) : sessions mobiles longues
-  sans stocker de session serveur ; le refresh permet la révocation.
+  sans stocker de session serveur. Au Lot 1, le refresh est **stateless** :
+  aucune révocation côté serveur (le logout ne révoque rien, le client jette
+  ses jetons) — la révocation unitaire viendra avec la **persistance des
+  refresh tokens** (TODO, voir [RGPD.md](RGPD.md) §5).
+- **Guard JWT global + `@Public()`** : toutes les routes exigent un jeton
+  par défaut (`APP_GUARD`) ; seules les routes explicitement décorées
+  `@Public()` (register, login, refresh, placeholders OAuth) sont ouvertes —
+  impossible d'oublier de protéger un nouvel endpoint.
+- **Le guard recharge l'utilisateur à chaque requête** : le statut du compte
+  est toujours à jour — les jetons encore valides d'un compte supprimé
+  (RGPD) ou suspendu (modération) sont rejetés immédiatement (401/403), sans
+  liste de révocation.
 - **Gateway WebSocket posée à l'étape 5** : la carte live l'utilise dès le
   Lot 1, et elle sert de socle au temps réel futur (conversations
   Dealplace — TODO Lot 2+).
