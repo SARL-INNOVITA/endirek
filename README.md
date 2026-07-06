@@ -13,7 +13,7 @@ Réseau social mobile local **temps réel** centré sur La Réunion : fil d'actu
 | `apps/mobile` | Application mobile Flutter (Android / iOS / web de dev) |
 | `infra/` | Docker Compose PostgreSQL/PostGIS — voie recommandée quand Docker est installé |
 | `docs/` | Documentation : installation, architecture, services mockés, limites, TODO |
-| `01_PRD` … `04_ACCESS` | Documents produit (PRD global, mockups, prompts, matrice d'accès) |
+| `01_PRD` … `04_ACCESS` | Documents produit — **contexte local uniquement, non versionnés** (PRD global, mockups, prompts, matrice d'accès) |
 
 ## Démarrage rapide
 

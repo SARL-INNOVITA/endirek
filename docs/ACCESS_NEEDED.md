@@ -1,7 +1,8 @@
 # ENDIREK — Accès et clés à fournir
 
 Liste structurée des accès/API nécessaires plus tard, reprise et précisée
-depuis `04_ACCESS/ACCESS_MATRIX.md`. **En attendant, chaque service a un
+depuis `04_ACCESS/ACCESS_MATRIX.md` (document produit local, non versionné).
+**En attendant, chaque service a un
 mock fonctionnel** (voir [MOCKED_SERVICES.md](MOCKED_SERVICES.md)) : rien ne
 bloque le développement du Lot 1.
 

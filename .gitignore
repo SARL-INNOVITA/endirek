@@ -1,3 +1,9 @@
+# ── Documents produit (contexte local, non versionnés) ──
+/01_PRD/
+/02_MOCKUPS/
+/03_PROMPTS/
+/04_ACCESS/
+
 # ── Node ──────────────────────────────────────
 node_modules/
 dist/

@@ -26,7 +26,8 @@ et changer le driver — **aucun changement de code métier**.
 
 ## 2. Prévus architecturalement, non implémentés au Lot 1
 
-Repris de `04_ACCESS/ACCESS_MATRIX.md` : ces services n'ont **ni mock actif
+Repris de `04_ACCESS/ACCESS_MATRIX.md` (document produit local, non
+versionné) : ces services n'ont **ni mock actif
 ni variable requise** au Lot 1 — seulement des points d'ancrage
 (`apps/api/src/modules/_future/`, TODO Lot 2+ documentés).
 

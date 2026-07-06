@@ -30,8 +30,8 @@ ENDIREK/
 │                             # (+ MinIO en commentaire — TODO Lot 2+)
 ├── docs/                     # INSTALL, ARCHITECTURE, MOCKED_SERVICES,
 │                             # ACCESS_NEEDED, KNOWN_LIMITS, TODO_LOT_2
-├── 01_PRD/  02_MOCKUPS/      # Documents produit (source de vérité fonctionnelle)
-├── 03_PROMPTS/  04_ACCESS/   # Périmètre des lots, matrice d'accès
+├── 01_PRD/  02_MOCKUPS/      # Documents produit — contexte LOCAL, non versionnés
+├── 03_PROMPTS/  04_ACCESS/   # (source de vérité fonctionnelle, hors repo git)
 └── README.md
 ```
 
