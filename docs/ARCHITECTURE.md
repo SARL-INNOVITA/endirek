@@ -49,7 +49,7 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `users` | Comptes, profils (photo, bio, ville), follows | 3 |
 | `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h | 4 |
 | `feed` | Algorithme simple : récence + proximité + type + popularité + abonnements | 4 |
-| `comments` | Commentaires avec réponses (2 niveaux) | 4 |
+| `comments` | Commentaires (niveau 0) + réponses (niveau 1), pas de réponse à une réponse au MVP | 4 |
 | `reactions` | Réactions emoji (set MVP : 👍 ❤️ 😂 😮 😢 😡) | 4 |
 | `saved-posts` | Enregistrements (catégorie « Général » par défaut) | 4 |
 | `media` | Upload via l'adapter stockage (local en dev, S3 en prod) | 4 |

@@ -47,7 +47,7 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 | `media` | Upload et stockage des médias | 4 |
 | `posts` | Publications (libre, météo, trafic, danger, question) | 4 |
 | `feed` | Fil d'actualité (algorithme MVP) | 4 |
-| `comments` | Commentaires (2 niveaux max) | 4 |
+| `comments` | Commentaires (niveau 0) + réponses (niveau 1) — pas de réponse à une réponse au Lot 1 | 4 |
 | `reactions` | Réactions emoji (6 réactions MVP) | 4 |
 | `saved-posts` | Enregistrements (catégorie « Général » par défaut) | 4 |
 | `map` | Carte interactive — mode Météo & trafic | 5 |
