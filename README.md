@@ -33,7 +33,7 @@ Installation complète (dont PostgreSQL/PostGIS via Docker et l'alternative sans
 ## État du projet — Lot 1 (socle + expérience Live Local)
 
 - [x] Étape 1 — Socle du monorepo (API, admin, mobile, infra, docs)
-- [ ] Étape 2 — Schéma de base de données + seed La Réunion
+- [x] Étape 2 — Schéma de base de données + seed La Réunion
 - [ ] Étape 3 — Auth, utilisateurs, profils, follows
 - [ ] Étape 4 — Posts, feed, interactions sociales, médias
 - [ ] Étape 5 — Carte, caméras, notifications, temps réel

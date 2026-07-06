@@ -15,6 +15,8 @@ ENDIREK/
 ├── apps/
 │   ├── api/                  # Backend NestJS (port 3001)
 │   │   ├── .env.example      # Toutes les variables attendues (aucun secret)
+│   │   ├── db/migrations/    # Schéma SQL PostgreSQL/PostGIS — source de
+│   │   │                     # vérité (étape 2, voir DATABASE.md)
 │   │   ├── uploads/          # Médias en dev (créé à l'étape 4, non versionné)
 │   │   └── src/
 │   │       ├── config/       # Chargement de la configuration typée
@@ -28,8 +30,9 @@ ENDIREK/
 │                             # Cibles : Android / iOS (+ chrome en dev)
 ├── infra/                    # docker-compose.yml PostgreSQL/PostGIS
 │                             # (+ MinIO en commentaire — TODO Lot 2+)
-├── docs/                     # INSTALL, ARCHITECTURE, MOCKED_SERVICES,
-│                             # ACCESS_NEEDED, KNOWN_LIMITS, TODO_LOT_2
+├── docs/                     # INSTALL, ARCHITECTURE, DATABASE,
+│                             # MOCKED_SERVICES, ACCESS_NEEDED,
+│                             # KNOWN_LIMITS, TODO_LOT_2
 ├── 01_PRD/  02_MOCKUPS/      # Documents produit — contexte LOCAL, non versionnés
 ├── 03_PROMPTS/  04_ACCESS/   # (source de vérité fonctionnelle, hors repo git)
 └── README.md
@@ -44,7 +47,7 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | Module | Rôle | Étape Lot 1 |
 |---|---|---|
 | `health` | `GET /health` (hors préfixe `api/v1`) — sonde de vie | 1 ✅ |
-| `database` | Accès données derrière une interface (`DB_DRIVER=postgres\|mock`), schéma PostGIS + seed La Réunion | 2 |
+| `database` | Accès données derrière une interface (`DB_DRIVER=postgres\|mock`), schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ |
 | `auth` | Email/mot de passe, JWT access+refresh ; endpoints OAuth Google/Apple en 501 | 3 |
 | `users` | Comptes, profils (photo, bio, ville), follows | 3 |
 | `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h | 4 |
@@ -61,9 +64,11 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `admin` | Endpoints d'administration consommés par le backoffice | 6 |
 | `modules/_future/*` | Placeholders des lots suivants (voir §6) — **TODO Lot 2+** | — |
 
-> **État réel à l'étape 1** : seul `health` est implémenté. Les autres
-> modules listés ci-dessus décrivent le plan de montage du Lot 1 ; le
-> tableau est mis à jour au fil des étapes.
+> **État réel à l'étape 2** : seuls `health` et la couche `database`
+> (schéma SQL source de vérité + driver mock + seed La Réunion) sont
+> implémentés — la couche donnée est interne, aucune route métier ne
+> l'expose encore. Les autres modules listés ci-dessus décrivent le plan
+> de montage du Lot 1 ; le tableau est mis à jour au fil des étapes.
 
 Conventions transverses :
 
@@ -83,7 +88,7 @@ demande **aucun changement de code métier**, seulement du `.env`.
 
 | Adapter | Variable de sélection | Implémentation dev (actuelle) | Implémentation prod (cible) |
 |---|---|---|---|
-| Base de données | `DB_DRIVER` | `mock` (en mémoire, seed La Réunion — étape 2) | `postgres` (PostgreSQL + PostGIS) |
+| Base de données | `DB_DRIVER` | `mock` (en mémoire, seed La Réunion — **disponible depuis l'étape 2**, `DB_MOCK_SEED=true` par défaut) | `postgres` (PostgreSQL + PostGIS — driver à implémenter, voir [DATABASE.md](DATABASE.md) §7) |
 | Stockage médias | `MEDIA_STORAGE_DRIVER` | `local` (disque, `apps/api/uploads/`) | `s3` (S3/Hetzner) |
 | Géocodage inverse | `GEOCODING_PROVIDER` | `mock` (table des communes de La Réunion + plus proche voisin) | API de géocodage réelle (`GEOCODING_API_KEY`) |
 | Push | `PUSH_DRIVER` | `mock` (notifications persistées en base uniquement) | `fcm` (Firebase/APNs) |

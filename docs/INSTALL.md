@@ -4,11 +4,12 @@ Ce guide décrit l'installation complète de l'environnement de développement
 sur une machine locale (référence : Windows 11, mais les commandes sont
 identiques sur macOS/Linux sauf mention contraire).
 
-> **État actuel du projet (fin d'étape 1 du Lot 1)** : le socle du monorepo
-> est posé. Côté API, seul `GET /health` est réellement fonctionnel ; les
-> routes métier (`/api/v1/...`) et la base de données (réelle ou mockée)
-> arrivent à partir de l'étape 2. Ce guide restera valable pour toute la
-> suite du Lot 1.
+> **État actuel du projet (fin d'étape 2 du Lot 1)** : le socle du monorepo
+> est posé et la couche base de données est implémentée en mode mock
+> (`DB_DRIVER=mock`, seed La Réunion — voir [DATABASE.md](DATABASE.md)).
+> Côté routes, seul `GET /health` est fonctionnel ; les routes métier
+> (`/api/v1/...`) arrivent à partir de l'étape 3. Ce guide restera valable
+> pour toute la suite du Lot 1.
 
 ---
 
@@ -118,8 +119,9 @@ la machine de dev).
 
 ## 6. Base de données
 
-Le schéma **PostgreSQL/PostGIS est la source de vérité** (posé à l'étape 2).
-Deux voies possibles :
+Le schéma **PostgreSQL/PostGIS est la source de vérité** (posé à l'étape 2
+dans `apps/api/db/migrations/`, documenté table par table dans
+[DATABASE.md](DATABASE.md)). Deux voies possibles :
 
 ### Voie A — Docker (recommandée quand Docker est installé)
 
@@ -137,18 +139,35 @@ DATABASE_URL=postgresql://endirek:endirek@localhost:5432/endirek
 
 Détails (vérification, arrêt, reset du volume) : [../infra/README.md](../infra/README.md).
 
+> ⚠️ Le **driver postgres n'est pas encore implémenté** (étape 2 : seul le
+> schéma SQL existe) : `DB_DRIVER=postgres` fait volontairement échouer le
+> démarrage de l'API avec une erreur explicite. La procédure de bascule
+> complète (migrations `psql`, implémentation du driver, seed SQL) est
+> décrite dans [DATABASE.md](DATABASE.md) §7.
+
 ### Voie B — Sans Docker : `DB_DRIVER=mock` (état actuel)
 
 Docker n'étant pas installé sur la machine de dev actuelle, l'API tourne avec :
 
 ```env
 DB_DRIVER=mock
+DB_MOCK_SEED=true
 ```
 
-Un adapter local (implémenté à **l'étape 2**, derrière la même interface que
-le driver PostgreSQL) sert les données en mémoire, avec le seed La Réunion.
-Aucune installation supplémentaire n'est requise. Limites de ce mode :
-[KNOWN_LIMITS.md](KNOWN_LIMITS.md).
+L'adapter mock est **implémenté** (étape 2) derrière la même interface que le
+futur driver PostgreSQL : données en mémoire, contraintes du schéma reproduites
+en code. Avec `DB_MOCK_SEED=true` (défaut), le **seed de démonstration
+La Réunion** est chargé au démarrage — le boot de l'API affiche alors un log
+de la forme :
+
+```
+Mock DB prête : X utilisateurs, X follows, X posts (dont X visibles carte), ...
+```
+
+`DB_MOCK_SEED=false` démarre sur une base mock vide (seules les données de
+référence `post_types`/`reaction_types` sont chargées). Aucune installation
+supplémentaire n'est requise. Schéma et décisions : [DATABASE.md](DATABASE.md) ;
+limites de ce mode : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
 
 ---
 

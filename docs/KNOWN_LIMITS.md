@@ -1,28 +1,38 @@
 # ENDIREK — Limites connues
 
-État honnête des limites du projet **à l'étape 1 du Lot 1** (socle du
-monorepo). Ce fichier est mis à jour au fil des étapes.
+État honnête des limites du projet **à l'étape 2 du Lot 1** (socle du
+monorepo + couche base de données). Ce fichier est mis à jour au fil des
+étapes.
 
 ---
 
 ## 1. Pas de base de données réelle tant que Docker est absent
 
 Docker n'est pas installé sur la machine de dev (Windows 11). La cible
-PostgreSQL/PostGIS est prête côté infra (`infra/docker-compose.yml`) mais ne
+PostgreSQL/PostGIS est prête côté infra (`infra/docker-compose.yml`) et côté
+schéma (`apps/api/db/migrations/`, voir [DATABASE.md](DATABASE.md)) mais ne
 peut pas tourner localement. Conséquence :
 
-- l'API fonctionnera en `DB_DRIVER=mock` (adapter local implémenté à
-  **l'étape 2**, même interface que le driver PostgreSQL) ;
-- données en mémoire : **non persistées entre deux redémarrages** de l'API
-  (hors seed) ;
-- les requêtes géospatiales du mock (proximité) sont des approximations
+- l'API fonctionne en `DB_DRIVER=mock` (adapter local **implémenté à
+  l'étape 2**, mêmes interfaces de repositories que le futur driver
+  PostgreSQL) ;
+- données en mémoire : **non persistées entre deux redémarrages** de l'API.
+  Le seed de démonstration La Réunion est rechargé à chaque boot (si
+  `DB_MOCK_SEED=true`, défaut) avec des **timestamps relatifs au démarrage**
+  — la démo est donc toujours fraîche, mais toute donnée créée au runtime
+  est perdue au redémarrage ;
+- le SQL PostGIS n'a **pas encore été validé par exécution** contre une
+  vraie base (Docker absent) : la première application des migrations fait
+  partie de la procédure de bascule ([DATABASE.md](DATABASE.md) §7) ;
+- les requêtes géospatiales du mock (proximité, bbox) sont des approximations
   suffisantes pour le dev, pas des requêtes PostGIS réelles.
 
 ## 2. API réduite au healthcheck
 
-À l'étape 1, l'API n'expose que `GET /health` (+ la coquille Swagger sur
-`/docs`). **Aucune route métier `api/v1` n'existe encore** — elles arrivent
-aux étapes 3 à 6. Ne pas s'étonner de 404 partout ailleurs.
+À l'étape 2, l'API n'expose toujours que `GET /health` (+ la coquille Swagger
+sur `/docs`). **Aucune route métier `api/v1` n'existe encore** : la couche
+donnée (repositories, seed) est **interne** jusqu'à l'étape 3 — les routes
+métier arrivent aux étapes 3 à 6. Ne pas s'étonner de 404 partout ailleurs.
 
 ## 3. Pas de push réel
 

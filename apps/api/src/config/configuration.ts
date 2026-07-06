@@ -28,6 +28,9 @@ export interface DatabaseConfig {
   name: string;
   user: string;
   password: string;
+  /** Driver mock uniquement : charger le seed de démonstration La Réunion
+   * au démarrage (DB_MOCK_SEED, défaut true). */
+  mockSeed: boolean;
 }
 
 export interface AuthConfig {
@@ -113,6 +116,22 @@ function envInt(name: string, fallback: number): number {
 }
 
 /**
+ * Lit une variable d'environnement booléenne avec valeur de repli.
+ * Acceptés (insensible à la casse) : true/false, 1/0, yes/no, on/off.
+ * Toute autre valeur (ou l'absence) retombe sur le repli.
+ */
+function envBool(name: string, fallback: boolean): boolean {
+  const raw = env(name).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(raw)) {
+    return true;
+  }
+  if (['false', '0', 'no', 'off'].includes(raw)) {
+    return false;
+  }
+  return fallback;
+}
+
+/**
  * Factory de configuration chargée par ConfigModule.forRoot({ load: [configuration] }).
  * Accès dans les services : configService.get<AppConfig>('app'), etc.
  */
@@ -137,6 +156,7 @@ export default (): EndirekConfig => ({
     name: env('POSTGRES_DB', 'endirek'),
     user: env('POSTGRES_USER', 'endirek'),
     password: env('POSTGRES_PASSWORD', 'endirek'),
+    mockSeed: envBool('DB_MOCK_SEED', true),
   },
   auth: {
     jwtSecret: env('JWT_SECRET', 'change-me-in-production'),
