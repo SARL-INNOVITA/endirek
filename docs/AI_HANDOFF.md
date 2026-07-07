@@ -47,8 +47,8 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 7 | Application mobile Flutter (finition UI/mockups) | à faire |
 | 8 | Documentation, tests, données de démo | à faire |
 
-**Dernier commit connu : `<à compléter par le commit du checkpoint 5>`** — `feat: carte, caméras, notifications, temps réel — étape 5 du Lot 1` (TODO : renseigner le hash après le commit).
-Branche : `main`. Historique : `227063e` (socle) → `10a99b9` (untrack docs) → `a18a049` (option A) → `c365ce0` (DB) → `39c9c94` (auth) → `b308791` (social) → `<checkpoint 5>` (carte/caméras/notifications/temps réel).
+**Dernier commit connu : `1458221`** — `feat: carte, caméras, notifications, temps réel — étape 5 du Lot 1`.
+Branche : `main`. Historique : `227063e` (socle) → `10a99b9` (untrack docs) → `a18a049` (option A) → `c365ce0` (DB) → `39c9c94` (auth) → `b308791` (social) → `1458221` (carte/caméras/notifications/temps réel). Un commit de doc suit pour renseigner ce hash.
 
 ---
 
