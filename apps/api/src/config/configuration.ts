@@ -15,8 +15,10 @@ export interface AppConfig {
   /** URL publique de l'API (utilisée pour construire des liens absolus). */
   publicUrl: string;
   /** Origines autorisées pour le CORS (déjà découpées et nettoyées). */
-  corsOrigins: string[];
+  corsOrigins: CorsOrigin[];
 }
+
+export type CorsOrigin = string | RegExp;
 
 export interface DatabaseConfig {
   /** Driver de persistance : 'mock' (sans Docker) ou 'postgres' (cible PostGIS). */
@@ -133,6 +135,41 @@ function envBool(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
+function parseCorsOrigins(value: string): string[] {
+  return value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
+function uniqueCorsOrigins(origins: CorsOrigin[]): CorsOrigin[] {
+  const seen = new Set<string>();
+  return origins.filter((origin) => {
+    const key = origin instanceof RegExp ? origin.toString() : origin;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildCorsOrigins(appEnv: string): CorsOrigin[] {
+  const configuredOrigins = parseCorsOrigins(env('CORS_ORIGINS'));
+  if (appEnv === 'production') {
+    return configuredOrigins;
+  }
+
+  return uniqueCorsOrigins([
+    ...configuredOrigins,
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    /^http:\/\/localhost:\d+$/,
+    /^http:\/\/127\.0\.0\.1:\d+$/,
+  ]);
+}
+
 /**
  * Factory de configuration chargée par ConfigModule.forRoot({ load: [configuration] }).
  * Accès dans les services : configService.get<AppConfig>('app'), etc.
@@ -142,10 +179,7 @@ export default (): EndirekConfig => ({
     env: env('NODE_ENV', 'development'),
     port: envInt('PORT', 3001),
     publicUrl: env('API_PUBLIC_URL', 'http://localhost:3001'),
-    corsOrigins: env('CORS_ORIGINS', 'http://localhost:5173')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter((origin) => origin.length > 0),
+    corsOrigins: buildCorsOrigins(env('NODE_ENV', 'development')),
   },
   database: {
     driver: env('DB_DRIVER', 'mock'),

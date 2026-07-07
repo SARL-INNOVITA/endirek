@@ -73,8 +73,10 @@ Copy-Item apps/admin/.env.example apps/admin/.env
 
 Points d'attention :
 
-- `apps/api/.env` : `PORT=3001`, `CORS_ORIGINS` (doit inclure
-  `http://localhost:5173` pour le backoffice), et surtout les **drivers**
+- `apps/api/.env` : `PORT=3001`, `CORS_ORIGINS` (origines explicites ;
+  en développement l'API autorise aussi automatiquement
+  `http://localhost:<port>` et `http://127.0.0.1:<port>` pour Flutter Web),
+  et surtout les **drivers**
   d'adapters : `DB_DRIVER`, `MEDIA_STORAGE_DRIVER`, `PUSH_DRIVER`,
   `EMAIL_DRIVER` (voir [MOCKED_SERVICES.md](MOCKED_SERVICES.md)).
 - `apps/admin/.env` : `VITE_API_URL=http://localhost:3001`.
@@ -308,8 +310,11 @@ Ou changer le port : `PORT` dans `apps/api/.env` (penser à aligner
 
 ### Erreur CORS dans le backoffice ou le mobile web
 
-Vérifier que `CORS_ORIGINS` dans `apps/api/.env` contient l'origine
-appelante (ex. `http://localhost:5173`). Redémarrer l'API après modification.
+En `NODE_ENV=development`, l'API autorise automatiquement les origines locales
+`http://localhost:<port>` et `http://127.0.0.1:<port>` afin de couvrir le
+backoffice Vite et Flutter Web (port dynamique). En production, seules les
+origines listées dans `CORS_ORIGINS` sont autorisées. Redémarrer l'API après
+toute modification de `apps/api/.env`.
 
 ### `flutter run` échoue ou aucun appareil détecté
 

@@ -2,7 +2,7 @@ import { INestApplicationContext } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import type { ServerOptions } from 'socket.io';
-import { AppConfig } from '../../config/configuration';
+import type { AppConfig, CorsOrigin } from '../../config/configuration';
 
 /**
  * Adapter socket.io de l'API — étend l'IoAdapter standard de NestJS pour
@@ -17,7 +17,7 @@ import { AppConfig } from '../../config/configuration';
  * le guard HTTP et le service statique /uploads restent inchangés.
  */
 export class RealtimeIoAdapter extends IoAdapter {
-  private readonly corsOrigins: string[];
+  private readonly corsOrigins: CorsOrigin[];
 
   constructor(app: INestApplicationContext) {
     super(app);

@@ -198,7 +198,7 @@ Modèle complet et commenté : `apps/api/.env.example` (API) et `apps/admin/.env
 | `PUSH_DRIVER` | `mock` | notifications in-app (base + WebSocket), pas de push distant |
 | `EMAIL_DRIVER` | `mock` | emails logués en console |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | `change-me-*` | **valeurs factices** — à remplacer en production |
-| `CORS_ORIGINS` | `http://localhost:5173` | origines autorisées (backoffice) |
+| `CORS_ORIGINS` | `http://localhost:5173,http://localhost:3000,http://localhost:3001` | origines explicites ; en `NODE_ENV=development`, l'API ajoute aussi `http://localhost:<port>` et `http://127.0.0.1:<port>` pour Flutter Web |
 | `VITE_API_URL` (admin) | `http://localhost:3001` | URL de l'API pour le backoffice |
 
 ---
