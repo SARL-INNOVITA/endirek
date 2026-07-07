@@ -6,12 +6,14 @@ réel de La Réunion.
 **Stack** : React 19 + Vite 7 + TypeScript — CSS pur, sans framework UI,
 sans routeur (un simple état de vue suffit à ce stade).
 
-## Fonctionnalités (Lot 1, étapes 3 à 5)
+## Fonctionnalités (Lot 1, étapes 3 à 6)
 
 Backoffice de gestion des **utilisateurs** (étape 3), des **publications**
-et des **signalements** (étape 4) et des **caméras** météo / trafic
-(checkpoint 5), avec une navigation par onglets simples dans l'en-tête
-connecté — l'onglet « Signalements » porte le nombre de signalements ouverts.
+et des **signalements** (étape 4), des **caméras** météo / trafic
+(checkpoint 5), puis des **paramètres Lot 1** (types de posts, commentaires
+signalés, notification système dev/mock) au checkpoint 6. Navigation par
+onglets simples dans l'en-tête connecté — l'onglet « Signalements » porte le
+nombre de signalements ouverts.
 
 ### Connexion et session
 
@@ -30,8 +32,8 @@ connecté — l'onglet « Signalements » porte le nombre de signalements ouvert
   (20 par page, précédent/suivant, total) avec avatar/initiales, nom, email,
   ville, rôle (badge bleu), statut (badge vert actif / orange suspendu /
   gris supprimé), abonnés, publications et date d'inscription. Recherche
-  nom/email avec debounce et filtre par statut (tous/actifs/suspendus/
-  supprimés).
+  nom/email avec debounce et filtres par statut (tous/actifs/suspendus/
+  supprimés) et rôle (`user`/`moderator`/`super_admin`).
 - **Panneau détail** au clic (`GET /api/v1/admin/users/:id`) : profil
   complet + action « Suspendre » / « Réactiver »
   (`PATCH /api/v1/admin/users/:id/status`) avec confirmation. Le statut d'un
@@ -47,7 +49,8 @@ connecté — l'onglet « Signalements » porte le nombre de signalements ouvert
   chargé une fois, jamais hardcodés), extrait titre/corps tronqué, auteur,
   statut (badge Active / Masquée / Supprimée), réactions, commentaires,
   signalements ouverts (badge rouge si > 0) et date de création. Filtres
-  type + statut et recherche titre/corps/nom d'auteur avec debounce.
+  type + statut + visibilité carte (`mapVisible`) et recherche
+  titre/corps/nom d'auteur avec debounce.
 - **Panneau détail** au clic (`GET /api/v1/admin/posts/:id`) : contenu
   complet, vignettes des médias (cliquables : l'original s'ouvre dans un
   nouvel onglet), commune, localisation, expiration carte, compteurs, et la
@@ -64,8 +67,9 @@ connecté — l'onglet « Signalements » porte le nombre de signalements ouvert
   Publication/Commentaire + extrait ≤ 140 caractères fourni par l'API),
   motif en français (Spam / Contenu haineux / Contenu dangereux / Fausse
   information / Autre), signaleur, statut (badge Ouvert / Examiné / Action
-  prise / Rejeté) et date. Filtre par statut, **« Ouverts » par défaut**
-  (rappel : `open` = « pending » de la spécification produit).
+  prise / Rejeté) et date. Filtres par statut et type de cible, **« Ouverts »
+  par défaut** (rappel : `open` = « pending » de la spécification produit ;
+  l'API accepte aussi `status=pending` comme alias).
 - **Panneau détail** au clic : message complet du signaleur, extrait de la
   cible avec son statut, décisions **« Marquer examiné »** (`reviewed`),
   **« Action prise »** (`action_taken`) et **« Rejeter »** (`dismissed`)
@@ -78,6 +82,9 @@ connecté — l'onglet « Signalements » porte le nombre de signalements ouvert
   voir la publication → masquer → action prise » se fait sans quitter la vue.
 - L'onglet « Signalements » de l'en-tête porte le **nombre de signalements
   ouverts** (un fetch minimal du total, rechargé après chaque décision).
+- Si la cible est un commentaire : actions **Masquer**, **Réactiver** ou
+  **Soft-delete** (`PATCH /api/v1/admin/comments/:id/status`). Un commentaire
+  `deleted` n'est pas restauré par le backoffice.
 
 ### Caméras (checkpoint 5)
 
@@ -120,11 +127,23 @@ Réservée, comme les autres sections, aux rôles `moderator` et `super_admin`
   (`GET /api/v1/cameras/:id` → `404 « Caméra introuvable »`, sans divulguer
   son existence). Toute action recharge la liste.
 
+### Paramètres (checkpoint 6)
+
+- **Types de posts** (`GET /api/v1/admin/post-types`,
+  `PATCH /api/v1/admin/post-types/:slug`) : liste tous types actifs/inactifs,
+  édition du libellé, icône, couleur, activation, `showsOnMap`, localisation
+  requise, durée carte par défaut et ordre. Le slug est immuable ; seuls
+  `weather`, `traffic`, `danger` sont éligibles carte au Lot 1. Les changements
+  de durée ne recalculent pas les posts existants.
+- **Notification système dev/mock** (`POST /api/v1/admin/notifications/system`) :
+  envoi à un utilisateur actif ou à tous les comptes actifs, via le service
+  notifications in-app + WebSocket. Aucun push FCM/APNs réel.
+
 ### Découpage (`src/`)
 
 | Fichier               | Rôle                                                          |
 | --------------------- | ------------------------------------------------------------- |
-| `api.ts`              | Client HTTP typé (auth + admin users/posts/reports/caméras) et jeton |
+| `api.ts`              | Client HTTP typé (auth + admin users/posts/reports/caméras/types/notifs) et jeton |
 | `App.tsx`             | État de session + onglets (badge signalements ouverts)        |
 | `LoginView.tsx`       | Formulaire de connexion + garde-fou de rôle                   |
 | `UsersView.tsx`       | Tableau utilisateurs, recherche, filtre statut, pagination    |
@@ -134,6 +153,7 @@ Réservée, comme les autres sections, aux rôles `moderator` et `super_admin`
 | `ReportsView.tsx`     | File de modération + décisions et note de résolution          |
 | `CamerasView.tsx`     | Tableau caméras, filtres, actions de statut, masquage doux    |
 | `CameraForm.tsx`      | Formulaire création / édition d'une caméra (validation client) |
+| `SettingsView.tsx`    | Types de posts pilotables + notification système dev/mock     |
 | `HealthCard.tsx`      | Bandeau compact « État de l'API » (pied de page)              |
 | `ui.tsx`              | Badges (rôles, statuts, types, caméras), avatar, dates, hook types |
 
@@ -182,17 +202,13 @@ publiques).
 npm run admin:build   # tsc -b && vite build → apps/admin/dist
 ```
 
-## Périmètre prévu à l'étape 6
+## Limites restantes
 
-- **Publications** : mise en avant (la modération masquer/réactiver est
-  livrée à l'étape 4) ;
-- **Commentaires** : modération dédiée (aujourd'hui : signalements de
-  commentaires visibles dans la file, extrait inclus) ;
-- **Paramètres des types de posts** : configuration des catégories de
-  publications (la table `post_types` est déjà pilotable côté API).
-
-> Les **caméras météo/trafic** — pressenties pour l'étape 6 — sont **livrées
-> par anticipation au checkpoint 5** (voir la section « Caméras » ci-dessus).
+- Les notifications système sont un outil dev/mock in-app ; pas de push distant.
+- Les types de posts ne sont ni créés ni supprimés au checkpoint 6 ; les slugs
+  Lot 1 restent les clés métier.
+- Les changements de durée carte des types ne recalculent pas les posts
+  existants.
 
 <!-- TODO Lot 2+ : statistiques d'usage, gestion fine des rôles,
      notifications push administrées, exports. -->

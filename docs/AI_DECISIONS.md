@@ -3,7 +3,7 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : fin du checkpoint 5 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 6 (2026-07-07)._
 
 ---
 
@@ -67,3 +67,10 @@ _Dernière mise à jour : fin du checkpoint 5 (2026-07-07)._
 - **D38.** **Caméra masquée = suppression douce** : `DELETE /admin/cameras/:id` passe la caméra en statut `hidden` (jamais de suppression dure), le `cameraNumber` est préservé. Une caméra non `active` n'est **jamais** exposée côté public (carte ni `GET /cameras/:id` → 404 sans divulguer son existence). `cameraNumber` auto-attribué par le repository ; `cityName` déduite par géocodage mock si absente.
 - **D39.** **Notifications : point d'entrée unique** (`NotificationsService.create`, persistance **puis** émission socket) pour tous les producteurs. Types branchés au Lot 1 : `comment`, `reply`, **`reaction`**, **`report_handled`** (traitement de signalement). **Jamais de notification à soi-même** ; lecture strictement limitée aux notifications du user courant (404 si elle appartient à un autre).
 - **D40.** **Affichage caméra = image seulement** : seul `streamType='image'` est rendu dans l'app (image live + badge LIVE) ; `video`/`iframe` affichent un repli explicite (lecteur vidéo/webview reporté). **Pas de présence temps réel** (« N personnes ici » du mockup non implémenté).
+
+## Consolidation backoffice (checkpoint 6 — 2026-07-07)
+
+- **D41.** **Slugs `post_types` immuables au Lot 1** : le backoffice peut modifier libellé, icône, couleur, activation, ordre, `showsOnMap` et durée carte, mais ne crée/supprime/renomme pas de slug. Les 5 slugs Lot 1 (`free`, `weather`, `traffic`, `danger`, `question`) restent les clés métier.
+- **D42.** **Changements de durée carte non rétroactifs** : modifier `default_map_duration_minutes` s'applique aux nouvelles publications uniquement ; les `map_expires_at` déjà posés sur les posts existants ne sont pas recalculés.
+- **D43.** **Commentaires admin : `deleted` est définitif**. Le backoffice peut masquer (`hidden`) et réactiver un commentaire masqué, mais ne restaure pas un commentaire déjà `deleted`. Une racine hidden/deleted avec des réponses actives reste affichée comme emplacement vide.
+- **D44.** **Notifications système checkpoint 6 = in-app dev/mock seulement** : créées depuis le backoffice via `NotificationsService.create`, elles sont persistées et émises en WebSocket, mais ne déclenchent aucun push FCM/APNs.

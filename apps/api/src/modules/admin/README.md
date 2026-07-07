@@ -1,9 +1,8 @@
 # Module `admin` — Endpoints du backoffice minimal
 
-**Statut : PARTIEL — gestion des utilisateurs livrée à l'étape 3, modération
-des publications et file des signalements livrées à l'étape 4 ; le reste du
-backoffice (caméras + paramétrage des types de posts) arrive à l'étape 6 du
-Lot 1.**
+**Statut : LIVRÉ pour le Lot 1 — gestion des utilisateurs, publications,
+signalements, caméras, types de posts, commentaires signalés et notifications
+système dev/mock.**
 
 Rôle : API consommée par le backoffice web (`apps/admin`), réservée aux
 comptes administrateurs (rôles `moderator` et `super_admin`).
@@ -16,10 +15,11 @@ utilisateur simple). Elles renvoient le **PROFIL COMPLET** (email, role,
 status, settings inclus — forme réservée aux administrateurs, mutualisée
 via `src/common/mappers/profile.mapper.ts`).
 
-- `GET /api/v1/admin/users?search=&status=&limit=&offset=` — liste paginée
+- `GET /api/v1/admin/users?search=&status=&role=&limit=&offset=` — liste paginée
   `{ items, total }` ; `search` filtre sur nom affiché et email (insensible
   à la casse), `status` filtre par statut (`active`, `suspended`,
-  `deleted` — les comptes supprimés restent visibles pour l'audit).
+  `deleted` — les comptes supprimés restent visibles pour l'audit), `role`
+  filtre `user | moderator | super_admin`.
 - `GET /api/v1/admin/users/:id` — profil complet quel que soit le statut ;
   404 uniquement si l'identifiant n'existe pas.
 - `PATCH /api/v1/admin/users/:id/status` `{status}` — suspension /
@@ -47,10 +47,12 @@ module `posts` — source unique avec le feed public), enrichi de
 
 ### Publications — `admin-posts`
 
-- `GET /api/v1/admin/posts?typeSlug=&status=&search=&limit=&offset=` —
+- `GET /api/v1/admin/posts?typeSlug=&status=&mapVisible=&search=&limit=&offset=` —
   liste paginée `{ items, total }`, **tous statuts** (`active`, `hidden`,
   `deleted` — audit), antéchronologique ; `search` cherche dans le titre,
   le corps et le nom affiché de l'auteur (insensible à la casse).
+  `mapVisible=true` filtre les posts actuellement visibles sur la carte
+  (actifs, géolocalisés, non expirés) ; `false` filtre le reste.
 - `GET /api/v1/admin/posts/:id` — FEED_POST quel que soit le statut +
   `reports` liés `[{ id, reasonCode, message, status, createdAt,
   reporter: AUTEUR }]` ; 404 uniquement si l'identifiant n'existe pas.
@@ -70,7 +72,8 @@ module `posts` — source unique avec le feed public), enrichi de
   (forme AUTEUR) et `target`, un **extrait de la cible** (corps ≤ 140
   caractères) : pour un post `{id, title, body, typeSlug, status,
   urlSlug}`, pour un commentaire `{id, body, status, postId}`, `null` si
-  la cible est introuvable (ou de type `user` — Lot 2+).
+  la cible est introuvable (ou de type `user` — Lot 2+). `status=pending`
+  est accepté comme alias de `open`.
 - `PATCH /api/v1/admin/reports/:id` `{status, resolutionNote?}` — pose la
   décision (`reviewed`, `action_taken` ou `dismissed`) avec `handledBy` =
   admin courant et `handledAt` = now. Le contenu visé n'est **pas**
@@ -78,14 +81,25 @@ module `posts` — source unique avec le feed public), enrichi de
 - Équivalence documentée : le statut `open` correspond au « pending » de
   la spécification produit.
 
-## À venir à l'étape 6 (backoffice minimal complet)
+## Fait aux checkpoints 5 et 6 — caméras, types, commentaires, notifications
 
-- gérer les **caméras météo/trafic** : créer, modifier, supprimer,
-  activer/désactiver (numéro auto type `#23`, ville déduite par géocodage
-  mocké et ajustable — voir module `cameras`) ;
-- **paramétrer les types de posts** (table `post_types` pilotable :
-  libellés, couleurs, durées carte, activation) ;
-- modération des **commentaires** côté backoffice si nécessaire (le
-  signalement d'un commentaire existe déjà dans la file).
+- **Caméras** : routes `/api/v1/admin/cameras` (liste tous statuts, création,
+  détail, édition, changement de statut, `DELETE` = masquage doux `hidden`).
+  Le numéro est auto-attribué, les coordonnées sont validées sur La Réunion
+  et `cityName` est déduit par géocodage mock si absent.
+- **Types de posts** :
+  - `GET /api/v1/admin/post-types` — tous les types, actifs ou non ;
+  - `PATCH /api/v1/admin/post-types/:slug` — libellé, icône, couleur,
+    activation, `showsOnMap`, durée carte, ordre. Le slug reste immuable ;
+    seuls `weather`, `traffic`, `danger` peuvent être éligibles carte au Lot 1 ;
+    une durée changée ne recalcule pas les posts existants.
+- **Commentaires signalés** :
+  `PATCH /api/v1/admin/comments/:id/status` (`active | hidden | deleted`).
+  `deleted` est une suppression douce définitive ; une racine hidden/deleted
+  avec des réponses actives reste servie comme emplacement vide.
+- **Notifications système dev/mock** :
+  `POST /api/v1/admin/notifications/system` vers un user actif ou tous les
+  comptes actifs ; type `system`, payload `{ title, message, source }`, via
+  le même service de notifications in-app + WebSocket.
 
 Anticipation : backoffice avancé et analytics (TODO Lot 2+).

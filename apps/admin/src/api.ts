@@ -59,6 +59,7 @@ export interface PagedUsers {
 export interface ListUsersParams {
   search?: string
   status?: UserStatus
+  role?: UserRole
   limit: number
   offset: number
 }
@@ -133,7 +134,28 @@ export interface PostType {
   requiresLocationForMap: boolean
   showsOnMap: boolean
   defaultMapDurationMinutes: number | null
+  isActive: boolean
   position: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** Type de publication vu par le backoffice (inclut actifs + inactifs). */
+export interface AdminPostType extends PostType {
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface UpdatePostTypePayload {
+  labelFr?: string
+  icon?: string
+  color?: string
+  requiresLocationForMap?: boolean
+  showsOnMap?: boolean
+  defaultMapDurationMinutes?: number | null
+  isActive?: boolean
+  position?: number
 }
 
 /** Motifs de signalement (codes pilotés côté app — libellés dans ui.tsx). */
@@ -181,8 +203,23 @@ export interface ReportPostTarget {
 export interface ReportCommentTarget {
   id: string
   body: string
-  status: 'active' | 'hidden' | 'deleted'
+  status: CommentStatus
   postId: string
+}
+
+export type CommentStatus = 'active' | 'hidden' | 'deleted'
+
+export interface AdminCommentView {
+  id: string
+  postId: string
+  parentCommentId: string | null
+  depth: 0 | 1
+  body: string
+  status: CommentStatus
+  reactionCount: number
+  createdAt: string
+  updatedAt: string
+  author: PostAuthor
 }
 
 /**
@@ -221,6 +258,7 @@ export interface PagedAdminReports {
 export interface AdminListPostsParams {
   typeSlug?: string
   status?: PostStatus
+  mapVisible?: boolean
   search?: string
   limit: number
   offset: number
@@ -313,6 +351,18 @@ export interface UpdateCameraPayload {
   location?: { lat: number; lng: number }
   cityName?: string
   districtName?: string
+}
+
+export interface AdminSystemNotificationPayload {
+  userId?: string
+  broadcast?: boolean
+  title?: string
+  message: string
+}
+
+export interface AdminSystemNotificationResult {
+  createdCount: number
+  userIds: string[]
 }
 
 // ─── Configuration ───────────────────────────────────────────────────────────
@@ -507,6 +557,7 @@ export function listUsers(
   const query = new URLSearchParams()
   if (params.search) query.set('search', params.search)
   if (params.status) query.set('status', params.status)
+  if (params.role) query.set('role', params.role)
   query.set('limit', String(params.limit))
   query.set('offset', String(params.offset))
   return request<PagedUsers>(`/admin/users?${query.toString()}`, { signal })
@@ -539,6 +590,22 @@ export function listPostTypes(signal?: AbortSignal): Promise<PostType[]> {
   return request<PostType[]>('/posts/types', { signal })
 }
 
+/** GET /admin/post-types — tous les types, actifs ou non. */
+export function adminListPostTypes(signal?: AbortSignal): Promise<AdminPostType[]> {
+  return request<AdminPostType[]>('/admin/post-types', { signal })
+}
+
+/** PATCH /admin/post-types/:slug — parametres pilotables. */
+export function adminUpdatePostType(
+  slug: string,
+  payload: UpdatePostTypePayload,
+): Promise<AdminPostType> {
+  return request<AdminPostType>(`/admin/post-types/${encodeURIComponent(slug)}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
 // ─── Administration des publications ─────────────────────────────────────────
 
 /** GET /admin/posts?typeSlug=&status=&search=&limit=&offset= — tous statuts. */
@@ -549,6 +616,9 @@ export function adminListPosts(
   const query = new URLSearchParams()
   if (params.typeSlug) query.set('typeSlug', params.typeSlug)
   if (params.status) query.set('status', params.status)
+  if (params.mapVisible !== undefined) {
+    query.set('mapVisible', String(params.mapVisible))
+  }
   if (params.search) query.set('search', params.search)
   query.set('limit', String(params.limit))
   query.set('offset', String(params.offset))
@@ -612,6 +682,17 @@ export function adminHandleReport(
   })
 }
 
+/** PATCH /admin/comments/:id/status — action de moderation commentaire. */
+export function adminSetCommentStatus(
+  id: string,
+  status: CommentStatus,
+): Promise<AdminCommentView> {
+  return request<AdminCommentView>(
+    `/admin/comments/${encodeURIComponent(id)}/status`,
+    { method: 'PATCH', body: { status } },
+  )
+}
+
 // ─── Administration des caméras (checkpoint 5) ───────────────────────────────
 
 /** GET /admin/cameras?category=&status=&search=&limit=&offset= — tous statuts,
@@ -670,5 +751,15 @@ export function adminSetCameraStatus(
 export function adminDeleteCamera(id: string): Promise<void> {
   return request<void>(`/admin/cameras/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+  })
+}
+
+/** POST /admin/notifications/system — notification systeme dev/mock. */
+export function adminCreateSystemNotification(
+  payload: AdminSystemNotificationPayload,
+): Promise<AdminSystemNotificationResult> {
+  return request<AdminSystemNotificationResult>('/admin/notifications/system', {
+    method: 'POST',
+    body: payload,
   })
 }

@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsIn, IsOptional } from 'class-validator';
 import {
   ReportStatus,
@@ -13,6 +14,7 @@ const FILTERABLE_REPORT_STATUSES: ReportStatus[] = [
   'action_taken',
   'dismissed',
 ];
+const QUERY_REPORT_STATUSES = [...FILTERABLE_REPORT_STATUSES, 'pending'] as const;
 
 /** Types de cible filtrables — 'user' est déjà supporté par le schéma
  * (cible polymorphe) même si le signalement d'un profil n'ouvre qu'au
@@ -29,10 +31,12 @@ const FILTERABLE_TARGET_TYPES: ReportTargetType[] = [
  */
 export class AdminListReportsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Filtre par statut de signalement',
-    enum: FILTERABLE_REPORT_STATUSES,
+    description:
+      'Filtre par statut de signalement ("pending" est accepte comme alias de "open")',
+    enum: QUERY_REPORT_STATUSES,
   })
   @IsOptional()
+  @Transform(({ value }) => (value === 'pending' ? 'open' : value))
   @IsIn(FILTERABLE_REPORT_STATUSES, {
     message:
       'Le statut doit être « open », « reviewed », « action_taken » ou ' +

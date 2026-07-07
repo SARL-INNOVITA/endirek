@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { ApiError, listUsers, toErrorMessage } from './api'
-import type { FullProfile, PagedUsers, UserStatus } from './api'
+import type { FullProfile, PagedUsers, UserRole, UserStatus } from './api'
 import UserDetail from './UserDetail'
 import { Avatar, RoleBadge, StatusBadge, formatDate } from './ui'
 
@@ -18,6 +18,7 @@ const SEARCH_DEBOUNCE_MS = 300
 
 /** '' = tous les statuts (pas de filtre envoyé à l'API). */
 type StatusFilter = '' | UserStatus
+type RoleFilter = '' | UserRole
 
 type ListState =
   | { kind: 'loading' }
@@ -33,6 +34,7 @@ export default function UsersView({ onSessionExpired }: UsersViewProps) {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('')
   const [offset, setOffset] = useState(0)
   const [list, setList] = useState<ListState>({ kind: 'loading' })
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -58,6 +60,7 @@ export default function UsersView({ onSessionExpired }: UsersViewProps) {
       {
         search: debouncedSearch || undefined,
         status: statusFilter || undefined,
+        role: roleFilter || undefined,
         limit: PAGE_SIZE,
         offset,
       },
@@ -75,7 +78,7 @@ export default function UsersView({ onSessionExpired }: UsersViewProps) {
 
     return () => controller.abort()
     // onSessionExpired est stable (useCallback côté App).
-  }, [debouncedSearch, statusFilter, offset, refreshCount, onSessionExpired])
+  }, [debouncedSearch, statusFilter, roleFilter, offset, refreshCount, onSessionExpired])
 
   /** Un profil vient d'être modéré : recharge la liste (compteurs, statut…). */
   function handleUserUpdated(_updated: FullProfile) {
@@ -123,6 +126,20 @@ export default function UsersView({ onSessionExpired }: UsersViewProps) {
             <option value="active">Actifs</option>
             <option value="suspended">Suspendus</option>
             <option value="deleted">Supprimés</option>
+          </select>
+          <select
+            className="users-status-filter"
+            aria-label="Filtrer par rôle"
+            value={roleFilter}
+            onChange={(event) => {
+              setRoleFilter(event.target.value as RoleFilter)
+              setOffset(0)
+            }}
+          >
+            <option value="">Tous les rôles</option>
+            <option value="user">Utilisateurs</option>
+            <option value="moderator">Modérateurs</option>
+            <option value="super_admin">Super admins</option>
           </select>
         </div>
 

@@ -13,7 +13,7 @@ import {
   POSTS_REPOSITORY,
   USERS_REPOSITORY,
 } from '../../database/database.tokens';
-import { User, UserStatus } from '../../database/domain/entities';
+import { User, UserRole, UserStatus } from '../../database/domain/entities';
 import {
   PostsRepository,
   UsersRepository,
@@ -30,6 +30,7 @@ export interface PagedFullProfiles {
 export interface AdminListUsersParams {
   search?: string;
   status?: UserStatus;
+  role?: UserRole;
   limit: number;
   offset: number;
 }
@@ -64,6 +65,7 @@ export class AdminUsersService {
     const page = await this.usersRepository.list({
       search: params.search,
       status: params.status,
+      role: params.role,
       limit: params.limit,
       offset: params.offset,
     });

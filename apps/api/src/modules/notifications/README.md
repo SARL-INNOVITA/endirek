@@ -33,12 +33,14 @@ La règle **« jamais à soi-même »** reste de la responsabilité de l'appelan
 | `reply`         | une réponse est postée à un commentaire principal       | auteur du commentaire   | `{ ...comment, parentCommentId }`                                      |
 | `reaction`      | une réaction est **ajoutée** à un **post** (pas retrait)| auteur du post          | `{ postId, fromUserId, fromDisplayName, emoji }`                       |
 | `report_handled`| un admin traite un signalement (reviewed/action/dismiss)| auteur du signalement   | `{ reportId, status, targetType }`                                     |
-| `system`        | réservé (alertes système)                               | —                       | libre                                                                  |
+| `system`        | notification système créée depuis le backoffice dev/mock | utilisateur actif ou tous actifs | `{ title?, message, source: 'admin', broadcast }`                      |
 
 Les réactions **sur commentaire** et les **retraits** de réaction ne notifient
 personne au Lot 1 (hors périmètre). Les producteurs vivent dans leurs modules
 respectifs (`comments`, `reactions`, `admin` / admin-reports), qui importent
 `NotificationsModule` pour appeler `NotificationsService.create`.
+Les notifications `system` passent par `POST /api/v1/admin/notifications/system`
+et restent in-app + WebSocket uniquement : aucun push FCM/APNs réel au Lot 1.
 
 ## Endpoints (authentifié — mes notifications uniquement)
 

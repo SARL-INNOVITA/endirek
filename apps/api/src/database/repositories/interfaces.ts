@@ -77,6 +77,7 @@ export type UpdateUserPatch = Partial<
 
 export interface ListUsersParams {
   status?: UserStatus;
+  role?: UserRole;
   /** Recherche insensible à la casse sur displayName et email. */
   search?: string;
   limit: number;
@@ -142,6 +143,8 @@ export type UpdatePostTypePatch = Partial<
 >;
 
 export interface PostTypesRepository {
+  /** Tous les types, actifs ou non, triés par position (backoffice). */
+  listAll(): Promise<PostType[]>;
   /** Types actifs triés par position (composer d'un post, filtres du feed). */
   listActive(): Promise<PostType[]>;
   findBySlug(slug: string): Promise<PostType | null>;
@@ -210,6 +213,8 @@ export interface ListAuthorPostsParams {
 export interface AdminListPostsParams {
   typeSlug?: string;
   status?: PostStatus;
+  /** true = publication actuellement visible sur la carte, false = hors carte. */
+  mapVisible?: boolean;
   search?: string;
   limit: number;
   offset: number;

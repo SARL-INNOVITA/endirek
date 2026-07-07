@@ -3,6 +3,12 @@ import { CamerasModule } from '../cameras/cameras.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
 import { AdminCamerasController } from './admin-cameras.controller';
+import { AdminCommentsController } from './admin-comments.controller';
+import { AdminCommentsService } from './admin-comments.service';
+import { AdminNotificationsController } from './admin-notifications.controller';
+import { AdminNotificationsService } from './admin-notifications.service';
+import { AdminPostTypesController } from './admin-post-types.controller';
+import { AdminPostTypesService } from './admin-post-types.service';
 import { AdminPostsController } from './admin-posts.controller';
 import { AdminPostsService } from './admin-posts.service';
 import { AdminReportsController } from './admin-reports.controller';
@@ -40,7 +46,17 @@ import { AdminUsersService } from './admin-users.service';
     AdminPostsController,
     AdminReportsController,
     AdminCamerasController,
+    AdminPostTypesController,
+    AdminCommentsController,
+    AdminNotificationsController,
   ],
-  providers: [AdminUsersService, AdminPostsService, AdminReportsService],
+  providers: [
+    AdminUsersService,
+    AdminPostsService,
+    AdminReportsService,
+    AdminPostTypesService,
+    AdminCommentsService,
+    AdminNotificationsService,
+  ],
 })
 export class AdminModule {}

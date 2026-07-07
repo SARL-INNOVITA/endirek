@@ -93,6 +93,7 @@ export class AdminPostsService {
     const page = await this.postsRepository.listAdmin({
       typeSlug: query.typeSlug,
       status: query.status,
+      mapVisible: query.mapVisible,
       search: query.search,
       limit: query.limit,
       offset: query.offset,

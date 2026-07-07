@@ -56,6 +56,11 @@ Droit à l'**effacement** (article 17), implémenté en
   autres utilisateurs (pas de posts orphelins, pas de fils troués). L'auteur
   y apparaît comme « Utilisateur supprimé », sans avatar — plus aucune donnée
   personnelle n'y est associée.
+- Depuis le checkpoint 6, le backoffice peut masquer (`hidden`) ou
+  soft-delete (`deleted`) un commentaire signalé. Cette action est une mesure
+  de modération : la ligne reste conservée pour cohérence du fil et audit,
+  et une racine non active avec réponses actives reste affichée comme
+  emplacement vide.
 - **La ligne du compte anonymisée est conservée** : elle sert de cible aux
   clés étrangères (posts, commentaires, follows historiques) et reste
   visible du backoffice pour l'audit (`GET /admin/users?status=deleted`).

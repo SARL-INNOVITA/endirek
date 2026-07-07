@@ -14,14 +14,23 @@
  */
 
 import { useEffect, useState } from 'react'
-import { adminHandleReport, adminListReports, toErrorMessage } from './api'
+import {
+  adminHandleReport,
+  adminListReports,
+  adminSetCommentStatus,
+  toErrorMessage,
+} from './api'
 import type {
   AdminFeedPost,
+  AdminCommentView,
   AdminReport,
+  CommentStatus,
   PagedAdminReports,
+  ReportCommentTarget,
   ReportDecision,
   ReportPostTarget,
   ReportStatus,
+  ReportTargetType,
 } from './api'
 import PostDetailAdmin from './PostDetailAdmin'
 import {
@@ -38,6 +47,7 @@ const PAGE_SIZE = 20
 
 /** '' = tous les statuts. Par défaut : 'open' (la file à traiter). */
 type StatusFilter = '' | ReportStatus
+type TargetFilter = '' | ReportTargetType
 
 type ListState =
   | { kind: 'loading' }
@@ -58,6 +68,7 @@ interface ReportsViewProps {
 
 export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
+  const [targetFilter, setTargetFilter] = useState<TargetFilter>('')
   const [offset, setOffset] = useState(0)
   const [list, setList] = useState<ListState>({ kind: 'loading' })
   const [selected, setSelected] = useState<AdminReport | null>(null)
@@ -74,6 +85,7 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
     adminListReports(
       {
         status: statusFilter || undefined,
+        targetType: targetFilter || undefined,
         limit: PAGE_SIZE,
         offset,
       },
@@ -95,7 +107,7 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
       })
 
     return () => controller.abort()
-  }, [statusFilter, offset, refreshCount])
+  }, [statusFilter, targetFilter, offset, refreshCount])
 
   /** Un signalement vient d'être traité : liste + badge d'en-tête à jour. */
   function handleReportHandled(updated: AdminReport) {
@@ -107,6 +119,27 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
   /** La publication vue a été modérée : l'extrait de cible doit refléter
    * son nouveau statut. */
   function handlePostUpdated(_updated: AdminFeedPost) {
+    setRefreshCount((count) => count + 1)
+  }
+
+  function handleCommentUpdated(updated: AdminCommentView) {
+    setSelected((current) => {
+      if (
+        !current ||
+        current.targetType !== 'comment' ||
+        current.target?.id !== updated.id
+      ) {
+        return current
+      }
+      return {
+        ...current,
+        target: {
+          ...current.target,
+          body: updated.body,
+          status: updated.status,
+        },
+      }
+    })
     setRefreshCount((count) => count + 1)
   }
 
@@ -150,6 +183,20 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
             <option value="action_taken">Action prise</option>
             <option value="dismissed">Rejetés</option>
             <option value="">Tous les statuts</option>
+          </select>
+          <select
+            className="users-status-filter"
+            aria-label="Filtrer par cible"
+            value={targetFilter}
+            onChange={(event) => {
+              setTargetFilter(event.target.value as TargetFilter)
+              setOffset(0)
+            }}
+          >
+            <option value="">Toutes les cibles</option>
+            <option value="post">Publications</option>
+            <option value="comment">Commentaires</option>
+            <option value="user">Profils</option>
           </select>
         </div>
 
@@ -255,6 +302,7 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
             onClose={() => setSelected(null)}
             onHandled={handleReportHandled}
             onViewPost={(postId) => setViewedPostId(postId)}
+            onCommentModerated={handleCommentUpdated}
           />
         )
       )}
@@ -271,12 +319,21 @@ interface ReportPanelProps {
   onHandled: (updated: AdminReport) => void
   /** Ouvre le panneau publication (cible de type post uniquement). */
   onViewPost: (postId: string) => void
+  onCommentModerated: (updated: AdminCommentView) => void
 }
 
-function ReportPanel({ report, onClose, onHandled, onViewPost }: ReportPanelProps) {
+function ReportPanel({
+  report,
+  onClose,
+  onHandled,
+  onViewPost,
+  onCommentModerated,
+}: ReportPanelProps) {
   const [note, setNote] = useState('')
   const [acting, setActing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [commentActing, setCommentActing] = useState<CommentStatus | null>(null)
+  const [commentError, setCommentError] = useState<string | null>(null)
 
   // Repart d'une note vierge quand on passe à un autre signalement.
   useEffect(() => {
@@ -288,6 +345,10 @@ function ReportPanel({ report, onClose, onHandled, onViewPost }: ReportPanelProp
   const postTarget =
     report.targetType === 'post' && report.target
       ? (report.target as ReportPostTarget)
+      : null
+  const commentTarget =
+    report.targetType === 'comment' && report.target
+      ? (report.target as ReportCommentTarget)
       : null
 
   /** Enregistre une décision de modération après confirmation. */
@@ -308,6 +369,27 @@ function ReportPanel({ report, onClose, onHandled, onViewPost }: ReportPanelProp
       setActionError(toErrorMessage(caught))
     } finally {
       setActing(false)
+    }
+  }
+
+  async function applyCommentStatus(status: CommentStatus) {
+    if (!commentTarget) return
+    const labels: Record<CommentStatus, string> = {
+      active: 'Réactiver ce commentaire ?',
+      hidden: 'Masquer ce commentaire ?',
+      deleted: 'Supprimer ce commentaire en soft-delete ?',
+    }
+    if (!window.confirm(labels[status])) return
+
+    setCommentActing(status)
+    setCommentError(null)
+    try {
+      const updated = await adminSetCommentStatus(commentTarget.id, status)
+      onCommentModerated(updated)
+    } catch (caught) {
+      setCommentError(toErrorMessage(caught))
+    } finally {
+      setCommentActing(null)
     }
   }
 
@@ -366,6 +448,48 @@ function ReportPanel({ report, onClose, onHandled, onViewPost }: ReportPanelProp
                 >
                   Voir la publication
                 </button>
+              )}
+              {commentTarget && (
+                <div className="report-actions">
+                  {commentTarget.status === 'active' && (
+                    <button
+                      type="button"
+                      className="button-ghost"
+                      disabled={commentActing !== null}
+                      onClick={() => void applyCommentStatus('hidden')}
+                    >
+                      {commentActing === 'hidden' ? 'En cours…' : 'Masquer'}
+                    </button>
+                  )}
+                  {commentTarget.status === 'hidden' && (
+                    <button
+                      type="button"
+                      className="button-primary"
+                      disabled={commentActing !== null}
+                      onClick={() => void applyCommentStatus('active')}
+                    >
+                      {commentActing === 'active' ? 'En cours…' : 'Réactiver'}
+                    </button>
+                  )}
+                  {commentTarget.status !== 'deleted' && (
+                    <button
+                      type="button"
+                      className="button-danger"
+                      disabled={commentActing !== null}
+                      onClick={() => void applyCommentStatus('deleted')}
+                    >
+                      {commentActing === 'deleted' ? 'En cours…' : 'Soft-delete'}
+                    </button>
+                  )}
+                  {commentTarget.status === 'deleted' && (
+                    <p className="muted">Commentaire déjà supprimé.</p>
+                  )}
+                </div>
+              )}
+              {commentError && (
+                <p className="form-error" role="alert">
+                  {commentError}
+                </p>
               )}
             </div>
           )}

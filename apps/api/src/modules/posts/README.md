@@ -27,7 +27,9 @@ ici — voir `../feed/README.md`).
   carte SANS location est **légal** (feed-only, aucun blocage) ;
 - expiration **carte** : `mapExpiresAt = créé + defaultMapDurationMinutes`
   **du type** (piloté par `post_types`, jamais de « 120 » en dur) — le post
-  reste au feed après expiration ;
+  reste au feed après expiration ; depuis le checkpoint 6, modifier cette
+  durée au backoffice s'applique aux nouvelles créations uniquement (pas de
+  recalcul rétroactif des posts existants) ;
 - `city` déduite de la commune la plus proche (référentiel 12 communes +
   haversine, `common/geo/nearest-commune.ts`) si location sans ville ;
 - chaque post porte un **`url_slug`** unique (slugify + suffixe aléatoire,

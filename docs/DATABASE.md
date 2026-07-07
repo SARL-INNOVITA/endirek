@@ -96,6 +96,10 @@ Index : `follows_followed_id_idx` (liste des abonnés d'un compte).
 | `created_at`, `updated_at` | trigger `set_updated_at()` |
 
 Lignes insérées par `0002_reference_data.sql` (rejouable, `ON CONFLICT DO NOTHING`).
+Depuis le checkpoint 6, le backoffice expose `GET /admin/post-types` et
+`PATCH /admin/post-types/:slug` sur ces colonnes existantes. Le slug reste
+immuable ; une modification de `default_map_duration_minutes` ne recalcule
+pas les `map_expires_at` déjà posés sur les posts existants.
 
 ### 2.4 `reaction_types` (référence pilotable backoffice)
 
@@ -166,6 +170,11 @@ Index : `comments_parent_comment_id_idx`,
 `comments_post_id_created_at_idx` (composite, tri chronologique par post ;
 couvre aussi les recherches sur `post_id` seul — pas d'index simple séparé),
 `comments_author_id_idx`.
+
+Le checkpoint 6 expose `PATCH /admin/comments/:id/status` pour masquer,
+réactiver ou soft-delete un commentaire signalé. Une racine non active avec
+des réponses actives reste servie comme emplacement vide par le module
+`comments`, afin de ne pas casser le fil des réponses.
 
 ### 2.8 `reactions`
 
@@ -253,6 +262,10 @@ Index : `reports_target_idx` (`(target_type, target_id)`), `reports_status_idx`
 Index : `notifications_user_created_idx` (`(user_id, created_at DESC)`),
 `notifications_user_unread_idx` (**partiel** `WHERE read_at IS NULL` — badge
 « non lues »).
+
+Le checkpoint 6 utilise le type `system` pour les notifications créées depuis
+le backoffice dev/mock (`payload.title`, `payload.message`, `payload.source`).
+Elles restent in-app + WebSocket ; aucun push FCM/APNs réel n'est envoyé.
 
 ---
 

@@ -1,8 +1,9 @@
 # ENDIREK — Limites connues
 
-État honnête des limites du projet **à l'étape 5 du Lot 1** (socle, couche
+État honnête des limites du projet **au checkpoint 6 du Lot 1** (socle, couche
 base de données, auth/profils/follows/RGPD, posts/feed/interactions/médias,
-puis carte/caméras/notifications/temps réel). Ce fichier est mis à jour au
+puis carte/caméras/notifications/temps réel et consolidation backoffice).
+Ce fichier est mis à jour au
 fil des étapes.
 
 ---
@@ -28,7 +29,7 @@ peut pas tourner localement. Conséquence :
 - les requêtes géospatiales du mock (proximité, bbox) sont des approximations
   suffisantes pour le dev, pas des requêtes PostGIS réelles.
 
-## 2. Périmètre de l'API à l'étape 5
+## 2. Périmètre de l'API au checkpoint 6
 
 L'API expose désormais, en plus de `GET /health` et de Swagger (`/docs`),
 les routes métier `api/v1` des étapes 3 à 5 :
@@ -59,18 +60,20 @@ les routes métier `api/v1` des étapes 3 à 5 :
   `unreadCount`), `GET /notifications/unread-count`,
   `PATCH /notifications/read-all`, `PATCH /notifications/:id/read`
   (uniquement les notifications de l'utilisateur courant) ;
-- **admin** (étapes 3 à 5) : `GET /admin/users[/:id]`,
+- **admin** (étapes 3 à 6) : `GET /admin/users[/:id]`,
   `PATCH /admin/users/:id/status`, `GET /admin/posts[/:id]`,
   `PATCH /admin/posts/:id/status`, `GET /admin/reports`,
   `PATCH /admin/reports/:id`, et les 6 routes caméras
   `GET|POST /admin/cameras`, `GET|PATCH|DELETE /admin/cameras/:id`,
-  `PATCH /admin/cameras/:id/status` (rôles moderator/super_admin ;
-  `DELETE` = masquage doux).
+  `PATCH /admin/cameras/:id/status`, `GET|PATCH /admin/post-types`,
+  `PATCH /admin/comments/:id/status`,
+  `POST /admin/notifications/system` (rôles moderator/super_admin ;
+  `DELETE` caméra = masquage doux).
 
 Le temps réel passe par un socket WebSocket (socket.io, namespace par défaut,
-non préfixé `api/v1`), pas par une route HTTP. Le complément backoffice
-(paramètres des types de posts, affinages) arrive à l'étape 6 : ne pas
-s'étonner de 404 sur le reste.
+non préfixé `api/v1`), pas par une route HTTP. Les modules des lots futurs
+restent volontairement absents : ne pas s'étonner de 404 sur Dealplace,
+conversations, pages ou News.
 
 ## 2 bis. Limites de l'authentification (étape 3)
 
@@ -113,6 +116,14 @@ s'étonner de 404 sur le reste.
   n'existe** — `posts.share_count` n'est jamais incrémenté au Lot 1 (il
   reste à 0 ; la colonne et le compteur du contrat FEED_POST sont prêts).
   **TODO** (lot ultérieur) : partage natif + endpoint de comptage.
+- **Paramètres `post_types` non rétroactifs** : changer
+  `default_map_duration_minutes`, `showsOnMap` ou `isActive` agit sur les
+  nouvelles créations et sur les listes référentielles, mais ne recalcule pas
+  `map_expires_at` des posts existants.
+- **Signalement de commentaires côté utilisateur absent** : le schéma et la
+  file admin supportent `targetType=comment`, et le backoffice peut
+  masquer/soft-delete un commentaire signalé, mais l'UI mobile n'expose pas
+  encore d'action « signaler ce commentaire » au Lot 1.
 - **Pagination du feed en offset/limit** : suffisant sur le mock, mais un
   vrai cursor (keyset) est prévu avec le driver postgres — l'offset se
   décale quand de nouveaux posts arrivent entre deux pages.
@@ -158,7 +169,9 @@ s'étonner de 404 sur le reste.
 
 `PUSH_DRIVER=mock` : aucune notification push n'est envoyée (pas de projet
 Firebase ni de certificats APNs). Les notifications sont persistées en base
-et visibles **in-app uniquement**. Voir [ACCESS_NEEDED.md](ACCESS_NEEDED.md) §4.
+et visibles **in-app uniquement**. Les notifications système créées depuis le
+backoffice checkpoint 6 sont également in-app + WebSocket seulement. Voir
+[ACCESS_NEEDED.md](ACCESS_NEEDED.md) §4.
 
 ## 4. OAuth Google / Apple désactivé
 

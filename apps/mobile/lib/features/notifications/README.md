@@ -14,7 +14,8 @@ garanti côté API).
   - `reply` → « X a répondu à votre commentaire »
   - `reaction` → « X a réagi à votre publication » (+ emoji si présent)
   - `report_handled` → « Votre signalement a été traité »
-  - `system` / type inconnu → « Notification système » (jamais d'erreur)
+  - `system` / type inconnu → `payload.title`, sinon `payload.message`,
+    sinon « Notification système » (jamais d'erreur)
 - `application/notifications_controller.dart` : état de l'écran, marquage lu
   **optimiste** (UI + badge mis à jour immédiatement, resynchro si l'appel échoue),
   insertion en tête d'une notification reçue en temps réel.

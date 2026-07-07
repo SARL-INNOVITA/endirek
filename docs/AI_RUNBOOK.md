@@ -3,11 +3,12 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : fin du checkpoint 5 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 6 (2026-07-07)._
 
 Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. Docker **optionnel** (non requis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
 > Sur la machine de dev actuelle, Flutter/adb/Java ne sont pas dans le PATH système. Chemins : Flutter `C:\Users\User\flutter\bin\flutter.bat`, JDK `C:\Program Files\Android\Android Studio\jbr`, Android SDK `C:\Users\User\AppData\Local\Android\Sdk`. Un autre environnement aura ces outils dans le PATH — adapter en conséquence.
+> Sous PowerShell Windows, utiliser `npm.cmd` si l'exécution de `npm.ps1` est bloquée par la politique d'exécution locale.
 
 ---
 
@@ -111,6 +112,40 @@ plus simple pour vérifier bout-en-bout est de lancer l'app mobile connectée
 notification en direct (badge de la cloche), et la création d'un post visible
 carte déclenche un rafraîchissement (`map.updated`). Sans socket, le badge se
 met à jour par polling (~45 s).
+
+## 4 ter. Vérifier le backoffice consolidé (checkpoint 6)
+
+Toutes ces routes demandent un token `moderator` ou `super_admin`.
+
+```bash
+# Types de posts pilotables
+curl "http://localhost:3001/api/v1/admin/post-types" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl -X PATCH "http://localhost:3001/api/v1/admin/post-types/weather" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" \
+  -H "Content-Type: application/json" \
+  -d '{"defaultMapDurationMinutes":120,"showsOnMap":true,"isActive":true}'
+
+# Filtres admin ajoutés
+curl "http://localhost:3001/api/v1/admin/users?role=moderator&limit=20&offset=0" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/posts?mapVisible=true&limit=20&offset=0" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/reports?status=pending&targetType=comment&limit=20&offset=0" -H "Authorization: Bearer <TOKEN_ADMIN>"
+
+# Modération d'un commentaire signalé (remplacer COMMENT_ID)
+curl -X PATCH "http://localhost:3001/api/v1/admin/comments/<COMMENT_ID>/status" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"hidden"}'
+
+# Notification système dev/mock
+curl -X POST "http://localhost:3001/api/v1/admin/notifications/system" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" \
+  -H "Content-Type: application/json" \
+  -d '{"broadcast":true,"title":"Info Endirek","message":"Message de test"}'
+```
+
+Rappels : le slug d'un type de post n'est pas modifiable, les changements de
+durée carte ne recalculent pas les posts existants, et les notifications
+système sont in-app + WebSocket uniquement (pas de push FCM/APNs réel).
 
 ## 5. Log de boot attendu (seed mock)
 

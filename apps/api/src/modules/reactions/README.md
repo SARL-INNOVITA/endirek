@@ -26,6 +26,9 @@ Règles métier appliquées :
 - la popularité issue des réactions alimente le scoring du feed
   (voir `modules/posts/feed.service.ts`).
 
-TODO (étape 5) : notification in-app `reaction` pour l'auteur du post —
-les endpoints notifications n'existant pas encore, l'écriture est différée
-avec eux.
+Depuis le checkpoint 5, les réactions sur une publication créent aussi une
+notification in-app `reaction` pour l'auteur du post (jamais à soi-même),
+via `NotificationsService.create` : persistance, compteur de non-lues et
+émission socket `notification.created` sont centralisés au même endroit.
+Les réactions sur commentaires mettent à jour le compteur mais ne notifient
+pas encore au Lot 1.

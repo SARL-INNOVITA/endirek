@@ -60,6 +60,7 @@ export class AdminUsersController {
     return this.adminUsersService.listUsers({
       search: query.search,
       status: query.status,
+      role: query.role,
       limit: query.limit,
       offset: query.offset,
     });

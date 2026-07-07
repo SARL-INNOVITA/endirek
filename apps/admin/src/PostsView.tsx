@@ -29,6 +29,7 @@ const SEARCH_DEBOUNCE_MS = 300
 
 /** '' = tous les statuts (pas de filtre envoyé à l'API). */
 type StatusFilter = '' | PostStatus
+type MapFilter = '' | 'visible' | 'hidden'
 
 type ListState =
   | { kind: 'loading' }
@@ -40,6 +41,7 @@ export default function PostsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
+  const [mapFilter, setMapFilter] = useState<MapFilter>('')
   const [offset, setOffset] = useState(0)
   const [list, setList] = useState<ListState>({ kind: 'loading' })
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -68,6 +70,10 @@ export default function PostsView() {
       {
         typeSlug: typeFilter || undefined,
         status: statusFilter || undefined,
+        mapVisible:
+          mapFilter === ''
+            ? undefined
+            : mapFilter === 'visible',
         search: debouncedSearch || undefined,
         limit: PAGE_SIZE,
         offset,
@@ -82,7 +88,7 @@ export default function PostsView() {
       })
 
     return () => controller.abort()
-  }, [debouncedSearch, typeFilter, statusFilter, offset, refreshCount])
+  }, [debouncedSearch, typeFilter, statusFilter, mapFilter, offset, refreshCount])
 
   /** Une publication vient d'être modérée : recharge la page courante. */
   function handlePostUpdated(_updated: AdminFeedPost) {
@@ -146,6 +152,19 @@ export default function PostsView() {
             <option value="active">Actives</option>
             <option value="hidden">Masquées</option>
             <option value="deleted">Supprimées</option>
+          </select>
+          <select
+            className="users-status-filter"
+            aria-label="Filtrer par visibilité carte"
+            value={mapFilter}
+            onChange={(event) => {
+              setMapFilter(event.target.value as MapFilter)
+              setOffset(0)
+            }}
+          >
+            <option value="">Carte : toutes</option>
+            <option value="visible">Actuellement sur carte</option>
+            <option value="hidden">Hors carte</option>
           </select>
         </div>
 

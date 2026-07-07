@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import { PostStatus } from '../../../database/domain/entities';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -33,6 +34,24 @@ export class AdminListPostsQueryDto extends PaginationQueryDto {
     message: 'Le statut doit être « active », « hidden » ou « deleted »',
   })
   status?: PostStatus;
+
+  @ApiPropertyOptional({
+    description:
+      'Filtre carte : true = visible actuellement sur la carte, false = hors carte',
+    type: Boolean,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
+  )
+  @IsBoolean({
+    message: 'Le parametre mapVisible doit etre true ou false',
+  })
+  mapVisible?: boolean;
 
   @ApiPropertyOptional({
     description:

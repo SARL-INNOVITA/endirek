@@ -344,6 +344,9 @@ export class MockUsersRepository implements UsersRepository {
     if (params.status !== undefined) {
       items = items.filter((u) => u.status === params.status);
     }
+    if (params.role !== undefined) {
+      items = items.filter((u) => u.role === params.role);
+    }
     if (params.search !== undefined && params.search.trim() !== '') {
       const needle = params.search.trim().toLowerCase();
       items = items.filter(
@@ -370,6 +373,14 @@ export class MockUsersRepository implements UsersRepository {
 @Injectable()
 export class MockPostTypesRepository implements PostTypesRepository {
   constructor(private readonly db: MockDatabaseService) {}
+
+  listAll(): Promise<PostType[]> {
+    return Promise.resolve(
+      [...this.db.postTypes.values()]
+        .sort((a, b) => a.position - b.position || a.slug.localeCompare(b.slug))
+        .map((t) => clone(t)),
+    );
+  }
 
   listActive(): Promise<PostType[]> {
     return Promise.resolve(
@@ -583,6 +594,17 @@ export class MockPostsRepository implements PostsRepository {
     }
     if (params.status !== undefined) {
       items = items.filter((p) => p.status === params.status);
+    }
+    if (params.mapVisible !== undefined) {
+      const now = Date.now();
+      items = items.filter((p) => {
+        const isVisible =
+          p.status === 'active' &&
+          p.location !== null &&
+          p.mapExpiresAt !== null &&
+          p.mapExpiresAt.getTime() > now;
+        return params.mapVisible ? isVisible : !isVisible;
+      });
     }
     if (params.search !== undefined && params.search.trim() !== '') {
       const needle = params.search.trim().toLowerCase();

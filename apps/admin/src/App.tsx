@@ -31,6 +31,7 @@ import HealthCard from './HealthCard'
 import LoginView from './LoginView'
 import PostsView from './PostsView'
 import ReportsView from './ReportsView'
+import SettingsView from './SettingsView'
 import UsersView from './UsersView'
 import { RoleBadge } from './ui'
 
@@ -41,16 +42,17 @@ type Session =
   | { kind: 'authenticated'; admin: FullProfile }
 
 /** Onglets du backoffice connecté. */
-type Tab = 'users' | 'posts' | 'reports' | 'cameras'
+type Tab = 'users' | 'posts' | 'reports' | 'cameras' | 'settings'
 
 const TAB_LABELS: Record<Tab, string> = {
   users: 'Utilisateurs',
   posts: 'Publications',
   reports: 'Signalements',
   cameras: 'Caméras',
+  settings: 'Paramètres',
 }
 
-const TABS: Tab[] = ['users', 'posts', 'reports', 'cameras']
+const TABS: Tab[] = ['users', 'posts', 'reports', 'cameras', 'settings']
 
 export default function App() {
   const [session, setSession] = useState<Session>({ kind: 'restoring' })
@@ -138,7 +140,7 @@ export default function App() {
             <h1 className="app-title">ENDIREK</h1>
             <p className="app-subtitle">
               Backoffice — Lot 1 · utilisateurs, publications, signalements &
-              caméras
+              caméras, paramètres
             </p>
           </div>
 
@@ -197,11 +199,12 @@ export default function App() {
           <ReportsView onOpenCountChanged={refreshOpenReportsCount} />
         )}
         {session.kind === 'authenticated' && tab === 'cameras' && <CamerasView />}
+        {session.kind === 'authenticated' && tab === 'settings' && <SettingsView />}
       </main>
 
       <footer className="app-footer">
         <HealthCard />
-        <p>Endirek — La Réunion · Lot 1 · étape 5</p>
+        <p>Endirek — La Réunion · Lot 1 · checkpoint 6</p>
       </footer>
     </div>
   )

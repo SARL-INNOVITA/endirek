@@ -65,11 +65,11 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `cameras` | Caméras météo/trafic (numéro auto, ville déduite par géocodage, statuts) — détail public `GET /cameras/:id` (caméra `active` uniquement) ; gestion backoffice sous `/admin/cameras` | 5 ✅ |
 | `notifications` | Notifications in-app persistées + émission temps réel — lecture `GET /notifications`, `/unread-count`, `PATCH /read-all`, `/:id/read` ; types `comment`/`reply`/`reaction`/`report_handled` créés via un point d'entrée unique (persistance + push socket) | 5 ✅ |
 | `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` (room privée `user:<id>`) et `map.updated` (room `map`) ; fallback polling REST côté client | 5 ✅ |
-| `moderation` | Signalements, masquage de posts, outillage backoffice — le signalement côté utilisateur (`POST /posts/:id/report`, anti-doublon 409) est fait à l'étape 4 | 4 partiel (signalements) / 6 |
-| `admin` | Endpoints d'administration consommés par le backoffice — gestion des utilisateurs (étape 3), modération des publications et file des signalements (étape 4) ; le reste (caméras, types de posts…) arrive à l'étape 6 | 3-4 partiel / 6 |
+| `moderation` | Signalements, masquage de posts, modération de commentaires signalés ; le signalement utilisateur de posts (`POST /posts/:id/report`, anti-doublon 409) reste le flux public Lot 1 | 4 + 6 ✅ |
+| `admin` | Endpoints d'administration consommés par le backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires signalés, notifications système dev/mock | 3-6 ✅ |
 | `modules/_future/*` | Placeholders des lots suivants (voir §6) — **TODO Lot 2+** | — |
 
-> **État réel à l'étape 5** : le socle est en place — `health`, la couche
+> **État réel au checkpoint 6** : le socle est en place — `health`, la couche
 > `database` (driver mock + seed La Réunion), `auth` et `users` (étape 3) —
 > ainsi que le cœur social de l'étape 4 : `posts` (CRUD, détail par id et
 > par `url_slug`, listes de profil), le feed scoré (`GET /posts/feed`),
@@ -85,8 +85,9 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 > de non-lues ; types `comment`/`reply`/`reaction`/`report_handled` créés via
 > un point d'entrée unique) et le **temps réel** (gateway socket.io, events
 > `notification.created` et `map.updated`, auth handshake JWT + fallback
-> polling côté client). Reste le complément backoffice de l'étape 6
-> (paramètres des types de posts, affinages). Le tableau est mis à jour au
+> polling côté client). Le checkpoint 6 consolide le backoffice :
+> filtres `role`/`mapVisible`/`targetType`, gestion des `post_types`, actions
+> sur commentaires signalés et notifications système dev/mock. Le tableau est mis à jour au
 > fil des étapes.
 
 Conventions transverses :

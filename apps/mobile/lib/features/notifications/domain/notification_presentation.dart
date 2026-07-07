@@ -29,7 +29,7 @@ class NotificationPresentation {
 /// - reply          → « X a répondu à votre commentaire »
 /// - reaction       → « X a réagi à votre publication » (+ emoji si présent)
 /// - report_handled → « Votre signalement a été traité »
-/// - system / autre → « Notification système »
+/// - system / autre → titre/message du payload, puis « Notification système »
 String libelleNotification(AppNotification notif) {
   final String auteur = _auteur(notif);
   return switch (notif.type) {
@@ -37,7 +37,7 @@ String libelleNotification(AppNotification notif) {
     'reply' => '$auteur a répondu à votre commentaire',
     'reaction' => _libelleReaction(notif, auteur),
     'report_handled' => 'Votre signalement a été traité',
-    _ => 'Notification système',
+    _ => _libelleSysteme(notif),
   };
 }
 
@@ -76,4 +76,18 @@ String _auteur(AppNotification notif) {
     return valeur.trim();
   }
   return 'Quelqu\'un';
+}
+
+/// Notification systeme creee depuis le backoffice dev/mock : on affiche le
+/// titre si present, sinon le message court, sinon un repli generique.
+String _libelleSysteme(AppNotification notif) {
+  final dynamic titre = notif.payload['title'];
+  if (titre is String && titre.trim().isNotEmpty) {
+    return titre.trim();
+  }
+  final dynamic message = notif.payload['message'];
+  if (message is String && message.trim().isNotEmpty) {
+    return message.trim();
+  }
+  return 'Notification système';
 }

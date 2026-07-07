@@ -1,8 +1,8 @@
 # Module `moderation` — Signalements et modération
 
-**Statut : PARTIELLEMENT LIVRÉ — signalement côté utilisateur ET traitement
-backoffice livrés à l'étape 4 ; le signalement des commentaires et la
-notification « signalement traité » restent pour l'étape 6 du Lot 1.**
+**Statut : LIVRÉ pour le périmètre Lot 1 — signalement de publications,
+traitement backoffice, notification `report_handled` et modération des
+commentaires signalés.**
 
 Rôle : signalement des contenus par les utilisateurs et traitement
 par les modérateurs.
@@ -37,11 +37,21 @@ Livré (étape 4, côté backoffice — voir module `admin`) :
   (`PATCH /api/v1/admin/posts/:id/status { status: active|hidden }` —
   `deleted` refusé : la suppression appartient à l'auteur ou au flux RGPD).
 
-Périmètre restant (étape 6) :
-- signaler un commentaire côté utilisateur (le schéma ET la file backoffice
-  le supportent déjà : cible polymorphe) ;
-- notification « post signalé traité » envoyée à l'auteur du signalement
-  (via le module `notifications`).
+Livré (checkpoint 6, côté backoffice) :
+- `GET /api/v1/admin/reports?targetType=comment` permet de filtrer les
+  commentaires signalés déjà présents en base (la cible polymorphe existait
+  depuis l'étape 4) ;
+- `PATCH /api/v1/admin/comments/:id/status { status }` permet de masquer,
+  réactiver ou soft-delete un commentaire. Un commentaire `deleted` n'est pas
+  restauré par le backoffice ; une racine masquée/supprimée qui a encore des
+  réponses actives reste servie au public comme emplacement vide ;
+- quand un signalement est traité, `AdminReportsService` crée une
+  notification `report_handled` pour l'auteur du signalement (sauf si c'est
+  l'admin qui traite son propre signalement), via `NotificationsService.create`.
+
+Limite restante : l'endpoint utilisateur pour signaler directement un
+commentaire n'est pas exposé au Lot 1 ; le schéma et la file admin le
+supportent, mais l'UI mobile ne propose pas encore cette action.
 
 Anticipation : la modération s'étendra aux pages, deals et News IA
 supervisées (TODO Lot 2+).
