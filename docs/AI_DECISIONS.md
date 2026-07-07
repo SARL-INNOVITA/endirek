@@ -3,7 +3,7 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : fin du checkpoint 4 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 5 (2026-07-07)._
 
 ---
 
@@ -35,7 +35,7 @@ _Dernière mise à jour : fin du checkpoint 4 (2026-07-07)._
 - **D18.** **Docker absent pour l'instant** — ne pas l'exiger, ne pas bloquer dessus.
 - **D19.** **PostgreSQL / PostGIS** est la **cible réelle** ; le schéma SQL source de vérité est dans `apps/api/db/migrations/` (non exécuté tant que Docker manque). Procédure de bascule documentée dans `docs/DATABASE.md`.
 - **D20.** **Port de l'API : 3001** (le 3000 est fréquemment occupé par d'autres projets de dev sur la machine).
-- **D21.** Stack : **Flutter** (mobile) + **NestJS/TypeScript** (API) + **React/Vite** (backoffice) + **PostgreSQL/PostGIS** (cible). Carte : **MapLibre/OSM** (sans clé en dev).
+- **D21.** Stack : **Flutter** (mobile) + **NestJS/TypeScript** (API) + **React/Vite** (backoffice) + **PostgreSQL/PostGIS** (cible). Carte mobile : **`flutter_map` + tuiles OSM** sans clé en dev (détail D34-D35). Temps réel : **socket.io** (D36).
 - **D22.** Pattern **« adapters remplaçables »** pour toute intégration externe (base, médias, géocodage, push, email) : interface stable + implémentation sélectionnée par variable d'environnement.
 - **D23.** Auth : **JWT access + refresh**, mots de passe **bcrypt**. Guard JWT **global** (`@Public()` pour les exceptions) qui **recharge l'utilisateur à chaque requête** (invalide les comptes supprimés/suspendus sans liste de révocation). Refresh **stateless** (non révocable au Lot 1).
 - **D24.** **OAuth Google / Apple = placeholders 501** pour l'instant. Auth email/mot de passe suffit au Lot 1.
@@ -57,3 +57,13 @@ _Dernière mise à jour : fin du checkpoint 4 (2026-07-07)._
 
 - **D32.** Tout agent IA doit commencer par lire `docs/AI_HANDOFF.md`, `docs/AI_DECISIONS.md`, `docs/AI_RUNBOOK.md`, puis vérifier `git status` avant de modifier le code.
 - **D33.** À la fin de **chaque checkpoint**, mettre à jour `docs/AI_HANDOFF.md` (toujours), `docs/AI_DECISIONS.md` (si nouvelle décision) et `docs/AI_RUNBOOK.md` (si une commande, procédure ou compte de test change).
+
+## Carte & temps réel (checkpoint 5 — 2026-07-07)
+
+- **D34.** **Carte mobile : `flutter_map` + tuiles OSM sans clé** (dépendances mobiles `flutter_map`, `latlong2`). Tuiles publiques OpenStreetMap en **dev uniquement** ; provider dédié en prod via `MAP_TILE_URL`/`MAP_API_KEY`, **sans changement de code**. Pas de MapLibre natif au Lot 1.
+- **D35.** **Clustering des marqueurs = client-side, grille maison** (regroupement des marqueurs proches, barycentre affiché). Suffisant au volume du Lot 1 ; l'architecture reste prête pour un **clustering serveur** à grande échelle (à ne pas implémenter maintenant).
+- **D36.** **Temps réel = socket.io** (dépendance mobile `socket_io_client`), namespace par défaut, **auth au handshake** (access token JWT vérifié, compte rechargé/revérifié). Deux events sortants seulement : `notification.created` (room privée `user:<id>`) et `map.updated` (room `map`). **Fallback polling REST** (`GET /notifications/unread-count`, ~45 s) quand le socket est indisponible. Le temps réel est un **confort, pas une source de vérité**. **Pas de messagerie au Lot 1.**
+- **D37.** **`REUNION_BBOX` = source unique partagée** (`common/geo/reunion.ts`), importée par `posts` (création) et `cameras` (création/mise à jour). Aucune constante d'emprise dupliquée.
+- **D38.** **Caméra masquée = suppression douce** : `DELETE /admin/cameras/:id` passe la caméra en statut `hidden` (jamais de suppression dure), le `cameraNumber` est préservé. Une caméra non `active` n'est **jamais** exposée côté public (carte ni `GET /cameras/:id` → 404 sans divulguer son existence). `cameraNumber` auto-attribué par le repository ; `cityName` déduite par géocodage mock si absente.
+- **D39.** **Notifications : point d'entrée unique** (`NotificationsService.create`, persistance **puis** émission socket) pour tous les producteurs. Types branchés au Lot 1 : `comment`, `reply`, **`reaction`**, **`report_handled`** (traitement de signalement). **Jamais de notification à soi-même** ; lecture strictement limitée aux notifications du user courant (404 si elle appartient à un autre).
+- **D40.** **Affichage caméra = image seulement** : seul `streamType='image'` est rendu dans l'app (image live + badge LIVE) ; `video`/`iframe` affichent un repli explicite (lecteur vidéo/webview reporté). **Pas de présence temps réel** (« N personnes ici » du mockup non implémenté).

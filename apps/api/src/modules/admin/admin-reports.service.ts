@@ -23,6 +23,7 @@ import {
   PostsRepository,
   ReportsRepository,
 } from '../../database/repositories/interfaces';
+import { NotificationsService } from '../notifications/notifications.service';
 import { FeedPostAssembler } from '../posts/feed-post.assembler';
 import { AdminListReportsQueryDto } from './dto/admin-list-reports-query.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
@@ -101,6 +102,7 @@ export class AdminReportsService {
     private readonly postsRepository: PostsRepository,
     @Inject(COMMENTS_REPOSITORY)
     private readonly commentsRepository: CommentsRepository,
+    private readonly notificationsService: NotificationsService,
     private readonly assembler: FeedPostAssembler,
   ) {}
 
@@ -140,6 +142,22 @@ export class AdminReportsService {
       handledBy: admin.userId,
       resolutionNote: dto.resolutionNote ?? null,
     });
+
+    // Notification 'report_handled' au reporter — JAMAIS si le reporter est
+    // l'admin qui traite (il vient d'agir, se notifier n'aurait aucun sens).
+    // Persistance + émission temps réel via NotificationsService.
+    if (handled.reporterId !== admin.userId) {
+      await this.notificationsService.create({
+        userId: handled.reporterId,
+        type: 'report_handled',
+        payload: {
+          reportId: handled.id,
+          status: handled.status,
+          targetType: handled.targetType,
+        },
+      });
+    }
+
     const [view] = await this.toViews([handled]);
     return view;
   }

@@ -748,6 +748,126 @@ code {
   font-size: 0.9rem;
 }
 
+/* ---------- Checkpoint 5 : caméras ---------- */
+
+/* Badge sombre : caméra masquée (« hidden ») — plus appuyé que le gris neutre
+   d'une simple caméra « inactive », pour signaler un retrait volontaire. */
+.badge--dark {
+  color: #fff;
+  background: #3a4149;
+}
+
+/* En-tête de carte avec actions (compteur + bouton « Nouvelle caméra ») */
+.card-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Bouton primaire compact (en-tête de liste) */
+.button-compact {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+}
+
+/* Numéro de caméra en tête de ligne (colonne étroite, tabulaire) */
+.camera-number {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* Aperçu de coordonnées (lat, lng) — mono, discret */
+.camera-coords {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Lien d'ouverture du flux caméra (nouvel onglet) */
+.camera-link {
+  color: var(--endirek-blue);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.camera-link:hover {
+  text-decoration: underline;
+}
+
+/* Champ texte du formulaire caméra (même habillage que les champs existants) */
+.form-input {
+  font: inherit;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text);
+  width: 100%;
+}
+
+.form-input:focus {
+  outline: 2px solid var(--endirek-blue);
+  outline-offset: 1px;
+  border-color: var(--endirek-blue);
+}
+
+/* Aide sous un champ (déduction de la ville, rappel statut…) */
+.form-hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+/* Formulaire caméra (création / édition) dans le panneau latéral */
+.camera-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Deux champs côte à côte (catégorie/flux, latitude/longitude) */
+.camera-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .camera-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Boutons d'action du formulaire / du détail caméra */
+.camera-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Boutons de changement de statut (Activer / Désactiver / En erreur) */
+.camera-status-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.camera-status-actions .button-primary,
+.camera-status-actions .button-ghost {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+}
+
+/* Rappel avant masquage (suppression douce) */
+.camera-delete-hint {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
 /* ---------- Bandeau santé de l'API (pied de page) ---------- */
 
 .health-strip {

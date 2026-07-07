@@ -9,7 +9,6 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PostAuthor, toPostAuthor } from '../../common/mappers/post.mapper';
 import {
   COMMENTS_REPOSITORY,
-  NOTIFICATIONS_REPOSITORY,
   POSTS_REPOSITORY,
   REACTIONS_REPOSITORY,
   USERS_REPOSITORY,
@@ -21,12 +20,12 @@ import {
 } from '../../database/domain/entities';
 import {
   CommentsRepository,
-  NotificationsRepository,
   PageParams,
   PostsRepository,
   ReactionsRepository,
   UsersRepository,
 } from '../../database/repositories/interfaces';
+import { NotificationsService } from '../notifications/notifications.service';
 import { FeedPostAssembler } from '../posts/feed-post.assembler';
 import { PostsService } from '../posts/posts.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -97,8 +96,7 @@ export class CommentsService {
     private readonly reactionsRepository: ReactionsRepository,
     @Inject(USERS_REPOSITORY)
     private readonly usersRepository: UsersRepository,
-    @Inject(NOTIFICATIONS_REPOSITORY)
-    private readonly notificationsRepository: NotificationsRepository,
+    private readonly notificationsService: NotificationsService,
     private readonly postsService: PostsService,
     private readonly assembler: FeedPostAssembler,
   ) {}
@@ -308,10 +306,9 @@ export class CommentsService {
    * - JAMAIS de notification à soi-même.
    *
    * Payload utile : { postId, commentId, fromUserId, fromDisplayName,
-   * excerpt } (+ parentCommentId pour un 'reply'). Les endpoints de LECTURE
-   * arrivent à l'étape 5 — on ne fait qu'écrire via NotificationsRepository ;
-   * en attendant, les notifications sont visibles dans l'export RGPD
-   * (GET /users/me/export).
+   * excerpt } (+ parentCommentId pour un 'reply'). Depuis l'étape 5, la
+   * création passe par NotificationsService.create qui PERSISTE puis ÉMET en
+   * temps réel (room privée du destinataire) — une seule source.
    */
   private async notifyCreation(
     post: Post,
@@ -330,14 +327,14 @@ export class CommentsService {
     const notified = new Set<string>([comment.authorId]); // jamais à soi-même
     if (parent && !notified.has(parent.authorId)) {
       notified.add(parent.authorId);
-      await this.notificationsRepository.create({
+      await this.notificationsService.create({
         userId: parent.authorId,
         type: 'reply',
         payload: { ...payload, parentCommentId: parent.id },
       });
     }
     if (!notified.has(post.authorId)) {
-      await this.notificationsRepository.create({
+      await this.notificationsService.create({
         userId: post.authorId,
         type: 'comment',
         payload,

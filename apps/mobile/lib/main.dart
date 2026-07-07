@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/realtime/realtime_bridge.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/endirek_theme.dart';
 
@@ -16,6 +17,10 @@ class EndirekApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Garde le pont temps réel en vie pour toute la durée de l'app : il ouvre
+    // le socket socket.io à la connexion, écoute les notifications et les
+    // rafraîchissements carte, et assure le polling de repli du badge.
+    ref.watch(realtimeBridgeProvider);
     return MaterialApp.router(
       title: 'Endirek',
       debugShowCheckedModeBanner: false,

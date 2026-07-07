@@ -234,6 +234,87 @@ export interface AdminListReportsParams {
   offset: number
 }
 
+// ─── Types du contrat d'API (checkpoint 5 — caméras) ─────────────────────────
+
+/** Type de flux d'une caméra (image fixe rafraîchie, vidéo, ou iframe intégrée). */
+export type CameraStreamType = 'image' | 'video' | 'iframe'
+
+/** Catégorie d'une caméra (les deux catégories du Lot 1). */
+export type CameraCategory = 'weather' | 'traffic'
+
+/** Cycle de vie d'une caméra. Le public ne voit que 'active' ; le backoffice
+ * voit tous les statuts. La suppression backoffice est un masquage doux (hidden). */
+export type CameraStatus = 'active' | 'inactive' | 'error' | 'hidden'
+
+/**
+ * Forme CAMERA_ADMIN du contrat (CAMERA_PUBLIC + status + updatedAt) — la
+ * forme servie au backoffice, tous statuts confondus. Les dates sont
+ * sérialisées en chaînes ISO par le JSON.
+ */
+export interface Camera {
+  id: string
+  cameraNumber: number
+  name: string
+  streamType: CameraStreamType
+  url: string
+  category: CameraCategory
+  description: string
+  location: { lat: number; lng: number }
+  cityName: string
+  districtName: string | null
+  status: CameraStatus
+  createdAt: string
+  updatedAt: string
+}
+
+/** Page de la liste backoffice des caméras (GET /admin/cameras). */
+export interface PagedCameras {
+  items: Camera[]
+  total: number
+}
+
+/** Paramètres de GET /admin/cameras — mêmes noms que la query string. */
+export interface AdminListCamerasParams {
+  category?: CameraCategory
+  status?: CameraStatus
+  search?: string
+  limit: number
+  offset: number
+}
+
+/**
+ * Corps de POST /admin/cameras. `cameraNumber` est attribué automatiquement
+ * (jamais fourni). `cityName` est déduite par géocodage côté serveur si absente
+ * ou vide. `location` doit se situer à La Réunion (400 sinon). `status` par
+ * défaut 'active'.
+ */
+export interface CreateCameraPayload {
+  name: string
+  streamType: CameraStreamType
+  url: string
+  category: CameraCategory
+  description?: string
+  location: { lat: number; lng: number }
+  cityName?: string
+  districtName?: string
+  status?: CameraStatus
+}
+
+/**
+ * Corps de PATCH /admin/cameras/:id — modification partielle (le statut a sa
+ * route dédiée). Tout champ omis reste inchangé.
+ */
+export interface UpdateCameraPayload {
+  name?: string
+  streamType?: CameraStreamType
+  url?: string
+  category?: CameraCategory
+  description?: string
+  location?: { lat: number; lng: number }
+  cityName?: string
+  districtName?: string
+}
+
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 /** URL de base de l'API (surchargée via `.env` → VITE_API_URL). */
@@ -528,5 +609,66 @@ export function adminHandleReport(
       status: decision,
       ...(resolutionNote ? { resolutionNote } : {}),
     },
+  })
+}
+
+// ─── Administration des caméras (checkpoint 5) ───────────────────────────────
+
+/** GET /admin/cameras?category=&status=&search=&limit=&offset= — tous statuts,
+ * triés par numéro croissant côté API. */
+export function adminListCameras(
+  params: AdminListCamerasParams,
+  signal?: AbortSignal,
+): Promise<PagedCameras> {
+  const query = new URLSearchParams()
+  if (params.category) query.set('category', params.category)
+  if (params.status) query.set('status', params.status)
+  if (params.search) query.set('search', params.search)
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedCameras>(`/admin/cameras?${query.toString()}`, { signal })
+}
+
+/** GET /admin/cameras/:id — CAMERA_ADMIN quel que soit le statut (404 si
+ * inexistante). */
+export function adminGetCamera(id: string, signal?: AbortSignal): Promise<Camera> {
+  return request<Camera>(`/admin/cameras/${encodeURIComponent(id)}`, { signal })
+}
+
+/** POST /admin/cameras — crée une caméra (201). cameraNumber auto, cityName
+ * déduite si absente, location validée « à La Réunion » (400 sinon). */
+export function adminCreateCamera(payload: CreateCameraPayload): Promise<Camera> {
+  return request<Camera>('/admin/cameras', { method: 'POST', body: payload })
+}
+
+/** PATCH /admin/cameras/:id — modifie les champs fournis (le statut a sa
+ * propre route). */
+export function adminUpdateCamera(
+  id: string,
+  payload: UpdateCameraPayload,
+): Promise<Camera> {
+  return request<Camera>(`/admin/cameras/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+/** PATCH /admin/cameras/:id/status — change le statut (active | inactive |
+ * error | hidden). */
+export function adminSetCameraStatus(
+  id: string,
+  status: CameraStatus,
+): Promise<Camera> {
+  return request<Camera>(`/admin/cameras/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    body: { status },
+  })
+}
+
+/** DELETE /admin/cameras/:id — suppression DOUCE (204) : la caméra passe en
+ * statut 'hidden' côté API (pas de suppression dure, cameraNumber préservé). */
+export function adminDeleteCamera(id: string): Promise<void> {
+  return request<void>(`/admin/cameras/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
   })
 }

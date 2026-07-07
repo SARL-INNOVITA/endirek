@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listPostTypes } from './api'
 import type {
+  CameraCategory,
+  CameraStatus,
   PostStatus,
   PostType,
   ReportReasonCode,
@@ -74,6 +76,32 @@ const REPORT_STATUS_BADGE_CLASSES: Record<ReportStatus, string> = {
   dismissed: 'badge badge--neutral',
 }
 
+/** Catégories de caméra (checkpoint 5) : météo / trafic. */
+export const CAMERA_CATEGORY_LABELS: Record<CameraCategory, string> = {
+  weather: 'Météo',
+  traffic: 'Trafic',
+}
+
+/** Statuts de caméra (checkpoint 5) — libellés français du backoffice. */
+export const CAMERA_STATUS_LABELS: Record<CameraStatus, string> = {
+  active: 'Active',
+  inactive: 'Inactive',
+  error: 'En erreur',
+  hidden: 'Masquée',
+}
+
+/**
+ * Classe de badge par statut de caméra : vert (active), gris (inactive),
+ * rouge (error) et sombre (hidden — masquée volontairement, plus appuyé que
+ * le gris neutre d'un simple « inactive »).
+ */
+const CAMERA_STATUS_BADGE_CLASSES: Record<CameraStatus, string> = {
+  active: 'badge badge--success',
+  inactive: 'badge badge--neutral',
+  error: 'badge badge--error',
+  hidden: 'badge badge--dark',
+}
+
 /** Formate une date ISO en date française courte (ex. « 06/07/2026 »). */
 export function formatDate(iso: string): string {
   const date = new Date(iso)
@@ -114,6 +142,22 @@ export function ReportStatusBadge({ status }: { status: ReportStatus }) {
   return (
     <span className={REPORT_STATUS_BADGE_CLASSES[status]}>
       {REPORT_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+/** Badge de catégorie de caméra (Météo / Trafic). */
+export function CameraCategoryBadge({ category }: { category: CameraCategory }) {
+  return (
+    <span className="badge badge--info">{CAMERA_CATEGORY_LABELS[category]}</span>
+  )
+}
+
+/** Badge de statut de caméra (Active / Inactive / En erreur / Masquée). */
+export function CameraStatusBadge({ status }: { status: CameraStatus }) {
+  return (
+    <span className={CAMERA_STATUS_BADGE_CLASSES[status]}>
+      {CAMERA_STATUS_LABELS[status]}
     </span>
   )
 }

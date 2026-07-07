@@ -8,6 +8,7 @@ import { resolveUploadDir } from './adapters/media-storage/upload-dir';
 import { APP_VERSION } from './app-version';
 import { AppModule } from './app.module';
 import type { AppConfig, MediaConfig } from './config/configuration';
+import { RealtimeIoAdapter } from './modules/realtime/realtime.adapter';
 
 /**
  * Point d'entrée de l'API Endirek.
@@ -33,6 +34,12 @@ async function bootstrap(): Promise<void> {
 
   // CORS : origines autorisées via CORS_ORIGINS (déjà découpées par la config).
   app.enableCors({ origin: appConfig.corsOrigins });
+
+  // Temps réel (étape 5) : l'adapter socket.io applique la MÊME politique CORS
+  // que l'API HTTP (app.corsOrigins). Doit être posé AVANT app.listen. Il ne
+  // touche que le transport WebSocket — préfixe api/v1, Swagger, guard HTTP et
+  // service statique /uploads restent inchangés.
+  app.useWebSocketAdapter(new RealtimeIoAdapter(app));
 
   // Préfixe global des routes métier : /api/v1 — le healthcheck reste exposé à la racine.
   app.setGlobalPrefix('api/v1', { exclude: ['health'] });

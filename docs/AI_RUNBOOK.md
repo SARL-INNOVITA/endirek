@@ -3,7 +3,7 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : fin du checkpoint 4 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 5 (2026-07-07)._
 
 Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. Docker **optionnel** (non requis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
@@ -47,6 +47,8 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3001   # émulateur → A
 ```
 > `10.0.2.2` = localhost de la machine hôte vu depuis l'émulateur Android. Émulateur disponible : `Pixel_3a_API_34`.
 
+> **Dépendances mobiles du checkpoint 5** (déjà dans `apps/mobile/pubspec.yaml`, installées par `flutter pub get`) : `flutter_map` (carte + tuiles OSM), `latlong2` (coordonnées), `socket_io_client` (temps réel). Aucune autre dépendance à ajouter.
+
 ---
 
 ## 3. Commandes de build & test (à lancer avant tout commit)
@@ -73,8 +75,42 @@ flutter test                         # doit afficher "All tests passed!"
 | `http://localhost:3001/docs` | Documentation Swagger (OpenAPI) de toutes les routes |
 | `http://localhost:3001/api/v1/...` | Routes métier (préfixe global, JWT requis sauf `@Public`) |
 | `http://localhost:3001/uploads/...` | Médias uploadés (statique, public) |
+| `ws://localhost:3001` (socket.io) | Temps réel (namespace par défaut, hors préfixe) — auth au handshake, events `notification.created` / `map.updated` |
 
 ---
+
+## 4 bis. Vérifier la carte, les caméras, les notifications (checkpoint 5)
+
+Toutes ces routes exigent un Bearer token (voir §6 pour l'obtenir). Elles
+sont aussi testables dans Swagger (`/docs`, bouton « Authorize »).
+
+```bash
+# Carte : posts + caméras en un seul appel (bbox optionnelle)
+curl "http://localhost:3001/api/v1/map/overview" -H "Authorization: Bearer <TOKEN>"
+
+# Caméras actives de la carte (filtre de catégorie optionnel)
+curl "http://localhost:3001/api/v1/map/cameras?categories=traffic" -H "Authorization: Bearer <TOKEN>"
+
+# Détail public d'une caméra active (404 si masquée/inactive/inexistante)
+curl "http://localhost:3001/api/v1/cameras/<CAMERA_ID>" -H "Authorization: Bearer <TOKEN>"
+
+# Notifications de l'utilisateur courant (+ total et unreadCount)
+curl "http://localhost:3001/api/v1/notifications?limit=20" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/notifications/unread-count" -H "Authorization: Bearer <TOKEN>"
+curl -X PATCH "http://localhost:3001/api/v1/notifications/read-all" -H "Authorization: Bearer <TOKEN>"
+
+# Caméras au backoffice (rôle moderator/super_admin — 403 sinon)
+curl "http://localhost:3001/api/v1/admin/cameras?status=hidden" -H "Authorization: Bearer <TOKEN_ADMIN>"
+```
+
+**Temps réel** : le socket WebSocket (socket.io) écoute sur le **même port
+que l'API** (3001), namespace par défaut, **hors préfixe `api/v1`**.
+L'authentification se fait au handshake (`auth.token` = access token). Le
+plus simple pour vérifier bout-en-bout est de lancer l'app mobile connectée
+à l'API : une réaction/un commentaire d'un autre compte fait apparaître la
+notification en direct (badge de la cloche), et la création d'un post visible
+carte déclenche un rafraîchissement (`map.updated`). Sans socket, le badge se
+met à jour par polling (~45 s).
 
 ## 5. Log de boot attendu (seed mock)
 
@@ -117,8 +153,12 @@ Modèle complet et commenté : `apps/api/.env.example` (API) et `apps/admin/.env
 | `DB_MOCK_SEED` | `true` | charge le seed La Réunion au boot |
 | `MEDIA_STORAGE_DRIVER` | `local` | `local` (disque) ou `s3` (non implémenté) |
 | `MEDIA_MAX_FILE_SIZE_MB` | `8` | taille max d'upload image |
-| `GEOCODING_PROVIDER` | `mock` | géocodage mock (communes) |
-| `PUSH_DRIVER` | `mock` | notifications en base, pas d'envoi |
+| `GEOCODING_PROVIDER` | `mock` | géocodage inverse mock (12 communes, plus proche voisin) ; autre valeur → throw au boot |
+| `GEOCODING_API_KEY` | *(vide)* | clé du géocodage réel (inutilisée en mock) |
+| `MAP_PROVIDER` | `osm` | provider de tuiles (osm en dev) |
+| `MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | URL des tuiles (public OSM en dev, provider dédié en prod) |
+| `MAP_API_KEY` | *(vide)* | clé du provider de tuiles en prod (inutilisée avec OSM) |
+| `PUSH_DRIVER` | `mock` | notifications in-app (base + WebSocket), pas de push distant |
 | `EMAIL_DRIVER` | `mock` | emails logués en console |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | `change-me-*` | **valeurs factices** — à remplacer en production |
 | `CORS_ORIGINS` | `http://localhost:5173` | origines autorisées (backoffice) |

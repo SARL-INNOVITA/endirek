@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/notifications/application/unread_count_controller.dart';
 import '../theme/endirek_theme.dart';
 
-/// Coquille de navigation de l'app connectée : header Endirek commun
-/// (logo texte centré + icônes messagerie/notifications à droite, INACTIVES
-/// au Lot 1) et bottom nav 4 onglets (Accueil, Carte, News, Dealplace).
+/// Coquille de navigation de l'app connectée : header Endirek commun (logo
+/// texte centré + cloche de notifications ACTIVE à droite avec badge de
+/// non-lues) et bottom nav 4 onglets (Accueil, Carte, News, Dealplace).
 ///
-/// Portée par un StatefulShellRoute.indexedStack : chaque onglet conserve
-/// son état (position de scroll du fil incluse) en changeant de branche.
+/// Portée par un StatefulShellRoute.indexedStack : chaque onglet conserve son
+/// état (position de scroll du fil, carte chargée…) en changeant de branche.
 class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.navigationShell});
 
@@ -29,16 +31,13 @@ class AppShell extends StatelessWidget {
         ),
         centerTitle: true,
         actions: const [
-          // Messagerie (Lot 2) et notifications (étape 5) : icônes présentes
-          // mais INACTIVES — le tooltip s'affiche à l'appui long.
+          // Messagerie (Lot 2) : icône présente mais INACTIVE.
           _ActionInactive(
             icone: Icons.chat_bubble_outline,
             tooltip: 'Messagerie — bientôt disponible',
           ),
-          _ActionInactive(
-            icone: Icons.notifications_none,
-            tooltip: 'Notifications — bientôt disponibles',
-          ),
+          // Notifications (étape 5) : ACTIVE, avec badge de non-lues.
+          _ClocheNotifications(),
           SizedBox(width: 4),
         ],
       ),
@@ -79,8 +78,30 @@ class AppShell extends StatelessWidget {
   }
 }
 
-/// Icône d'action du header volontairement INACTIVE (fonctionnalité d'un
-/// lot ultérieur) : grisée, avec tooltip « bientôt » à l'appui long.
+/// Cloche de notifications ACTIVE : ouvre /notifications au tap et affiche un
+/// badge du nombre de non-lues (unreadCountProvider — alimenté par le socket
+/// temps réel et le polling de repli).
+class _ClocheNotifications extends ConsumerWidget {
+  const _ClocheNotifications();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final int nonLues = ref.watch(unreadCountProvider);
+    return IconButton(
+      tooltip: 'Notifications',
+      onPressed: () => context.push('/notifications'),
+      icon: Badge(
+        isLabelVisible: nonLues > 0,
+        label: Text(nonLues > 99 ? '99+' : '$nonLues'),
+        backgroundColor: const Color(0xFFDC2626),
+        child: const Icon(Icons.notifications_none),
+      ),
+    );
+  }
+}
+
+/// Icône d'action du header volontairement INACTIVE (fonctionnalité d'un lot
+/// ultérieur) : grisée, avec tooltip « bientôt » à l'appui long.
 class _ActionInactive extends StatelessWidget {
   const _ActionInactive({required this.icone, required this.tooltip});
 

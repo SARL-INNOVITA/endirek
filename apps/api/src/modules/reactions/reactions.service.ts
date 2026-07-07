@@ -10,13 +10,16 @@ import {
   COMMENTS_REPOSITORY,
   POSTS_REPOSITORY,
   REACTIONS_REPOSITORY,
+  USERS_REPOSITORY,
 } from '../../database/database.tokens';
 import { Comment } from '../../database/domain/entities';
 import {
   CommentsRepository,
   PostsRepository,
   ReactionsRepository,
+  UsersRepository,
 } from '../../database/repositories/interfaces';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PostsService } from '../posts/posts.service';
 
 /** Réponse des réactions sur un POST (contrat étape 4). */
@@ -44,8 +47,11 @@ export interface CommentReactionsSummary {
  *   sont recalculés par le repository à chaque mutation ;
  * - réagir à un COMMENTAIRE exige que son post parent soit visible par le
  *   viewer (mêmes règles que partout : PostsService.loadVisiblePost) ;
- * - pas de notification 'reaction' à cette étape (endpoints notifications
- *   à l'étape 5 — TODO documenté dans le README du module notifications).
+ * - notification 'reaction' à l'AJOUT d'une réaction sur un POST (étape 5) :
+ *   l'auteur du post est notifié (jamais soi-même), payload { postId,
+ *   fromUserId, fromDisplayName, emoji } — via NotificationsService.create
+ *   (persistance + émission temps réel). Pas de notification au retrait, ni
+ *   sur les réactions de commentaire (hors périmètre Lot 1).
  */
 @Injectable()
 export class ReactionsService {
@@ -56,6 +62,9 @@ export class ReactionsService {
     private readonly postsRepository: PostsRepository,
     @Inject(COMMENTS_REPOSITORY)
     private readonly commentsRepository: CommentsRepository,
+    @Inject(USERS_REPOSITORY)
+    private readonly usersRepository: UsersRepository,
+    private readonly notificationsService: NotificationsService,
     private readonly postsService: PostsService,
   ) {}
 
@@ -63,7 +72,8 @@ export class ReactionsService {
   // Réactions sur un post
   // ──────────────────────────────────────────────────────────────────────────
 
-  /** Réagit à un post visible (upsert : changer d'emoji remplace). */
+  /** Réagit à un post visible (upsert : changer d'emoji remplace). Notifie
+   * l'auteur du post (jamais soi-même) via NotificationsService. */
   async reactToPost(
     viewer: AuthenticatedUser,
     postId: string,
@@ -72,6 +82,7 @@ export class ReactionsService {
     const post = await this.postsService.loadVisiblePost(viewer, postId);
     await this.assertValidEmoji(emoji);
     await this.reactionsRepository.upsert(viewer.userId, 'post', post.id, emoji);
+    await this.notifyPostReaction(post.authorId, post.id, viewer.userId, emoji);
     return this.postSummary(post.id, emoji);
   }
 
@@ -119,6 +130,33 @@ export class ReactionsService {
   // ──────────────────────────────────────────────────────────────────────────
   // Aides privées
   // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Notifie l'auteur d'un post d'une réaction reçue — JAMAIS à soi-même.
+   * Payload { postId, fromUserId, fromDisplayName, emoji }. Passe par
+   * NotificationsService (persistance + émission temps réel).
+   */
+  private async notifyPostReaction(
+    postAuthorId: string,
+    postId: string,
+    fromUserId: string,
+    emoji: string,
+  ): Promise<void> {
+    if (postAuthorId === fromUserId) {
+      return; // Jamais de notification à soi-même.
+    }
+    const from = await this.usersRepository.findById(fromUserId);
+    await this.notificationsService.create({
+      userId: postAuthorId,
+      type: 'reaction',
+      payload: {
+        postId,
+        fromUserId,
+        fromDisplayName: from?.displayName ?? 'Utilisateur supprimé',
+        emoji,
+      },
+    });
+  }
 
   /** Valide l'emoji CONTRE la table reaction_types — 400 avec la liste des
    * emojis valides sinon (palette pilotée par le backoffice). */

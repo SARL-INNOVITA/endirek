@@ -6,12 +6,12 @@ réel de La Réunion.
 **Stack** : React 19 + Vite 7 + TypeScript — CSS pur, sans framework UI,
 sans routeur (un simple état de vue suffit à ce stade).
 
-## Fonctionnalités (Lot 1, étapes 3 et 4)
+## Fonctionnalités (Lot 1, étapes 3 à 5)
 
 Backoffice de gestion des **utilisateurs** (étape 3), des **publications**
-et des **signalements** (étape 4), avec une navigation par onglets simples
-dans l'en-tête connecté — l'onglet « Signalements » porte le nombre de
-signalements ouverts.
+et des **signalements** (étape 4) et des **caméras** météo / trafic
+(checkpoint 5), avec une navigation par onglets simples dans l'en-tête
+connecté — l'onglet « Signalements » porte le nombre de signalements ouverts.
 
 ### Connexion et session
 
@@ -79,11 +79,52 @@ signalements ouverts.
 - L'onglet « Signalements » de l'en-tête porte le **nombre de signalements
   ouverts** (un fetch minimal du total, rechargé après chaque décision).
 
+### Caméras (checkpoint 5)
+
+Gestion des **caméras météo / trafic** affichées sur la carte de l'app mobile.
+Réservée, comme les autres sections, aux rôles `moderator` et `super_admin`
+(guard JWT global + `RolesGuard` côté API — 403 pour un compte simple).
+
+- **Vue Caméras** (`GET /api/v1/admin/cameras`) : tableau paginé (20 par page)
+  de TOUTES les caméras, tous statuts confondus (`active` / `inactive` /
+  `error` / `hidden`). Colonnes : **numéro** (`cameraNumber`, attribué
+  automatiquement par l'API), **nom**, **catégorie** (badge Météo / Trafic),
+  **statut** (badge Active vert / Inactive gris / En erreur rouge / Masquée
+  sombre), **ville**, **coordonnées** courtes (lat, lng à 4 décimales) et un
+  lien **« Ouvrir ↗ »** vers le flux (nouvel onglet). Filtres **catégorie** +
+  **statut** et **recherche** nom / ville / description avec debounce.
+- **Bouton « + Nouvelle caméra »** : ouvre le formulaire de création
+  (`CameraForm`) en panneau latéral (`POST /api/v1/admin/cameras`, `201`).
+- **Formulaire création / édition** (`CameraForm.tsx`) : nom, catégorie
+  (Météo / Trafic), type de flux (Image / Vidéo / Iframe), URL, description,
+  latitude, longitude, ville et quartier.
+  - **Ville laissée vide** → **déduite automatiquement côté serveur** à partir
+    des coordonnées (géocodage inverse) — indiqué sous le champ.
+  - **Validation côté client** avant l'appel : nom (1–120 caractères), URL
+    `http`/`https` (protocole obligatoire), et coordonnées dans l'**emprise
+    approximative de La Réunion** (latitude −21.6…−20.7, longitude 55.0…56.0,
+    mêmes bornes que l'API). Un point hors emprise est refusé avec un message
+    clair, sans aller-retour ; l'API reste l'autorité et renvoie sinon un
+    `400 « La caméra doit être située à La Réunion »`, affiché tel quel.
+- **Panneau détail** au clic sur une ligne : description, type de flux, lien
+  vers le flux, ville, quartier, coordonnées et dates, avec :
+  - **Modifier** (`PATCH /api/v1/admin/cameras/:id`, champs partiels) ;
+  - **Changement de statut** (`PATCH /api/v1/admin/cameras/:id/status`) :
+    **Activer** / **Désactiver** / **Marquer en erreur** ;
+  - **Masquer** (`DELETE /api/v1/admin/cameras/:id`) = **suppression douce**
+    avec confirmation (`window.confirm`) : la caméra passe en statut `hidden`,
+    **aucune suppression dure**, le `cameraNumber` est préservé.
+- **Sécurité (rappel du contrat)** : la carte publique ne sert **jamais** que
+  les caméras `active`. Masquer (ou passer en `inactive` / `error`) une caméra
+  la **retire immédiatement de la carte** et de son détail public
+  (`GET /api/v1/cameras/:id` → `404 « Caméra introuvable »`, sans divulguer
+  son existence). Toute action recharge la liste.
+
 ### Découpage (`src/`)
 
 | Fichier               | Rôle                                                          |
 | --------------------- | ------------------------------------------------------------- |
-| `api.ts`              | Client HTTP typé (auth + admin users/posts/reports) et jeton  |
+| `api.ts`              | Client HTTP typé (auth + admin users/posts/reports/caméras) et jeton |
 | `App.tsx`             | État de session + onglets (badge signalements ouverts)        |
 | `LoginView.tsx`       | Formulaire de connexion + garde-fou de rôle                   |
 | `UsersView.tsx`       | Tableau utilisateurs, recherche, filtre statut, pagination    |
@@ -91,8 +132,10 @@ signalements ouverts.
 | `PostsView.tsx`       | Tableau publications, filtres type/statut, recherche          |
 | `PostDetailAdmin.tsx` | Panneau détail publication + Masquer/Réactiver                |
 | `ReportsView.tsx`     | File de modération + décisions et note de résolution          |
+| `CamerasView.tsx`     | Tableau caméras, filtres, actions de statut, masquage doux    |
+| `CameraForm.tsx`      | Formulaire création / édition d'une caméra (validation client) |
 | `HealthCard.tsx`      | Bandeau compact « État de l'API » (pied de page)              |
-| `ui.tsx`              | Badges (rôles, statuts, types), avatar, dates, hook types     |
+| `ui.tsx`              | Badges (rôles, statuts, types, caméras), avatar, dates, hook types |
 
 ## Compte de test (seed de développement)
 
@@ -145,9 +188,11 @@ npm run admin:build   # tsc -b && vite build → apps/admin/dist
   livrée à l'étape 4) ;
 - **Commentaires** : modération dédiée (aujourd'hui : signalements de
   commentaires visibles dans la file, extrait inclus) ;
-- **Caméras météo/trafic** : gestion des flux affichés dans l'app mobile ;
 - **Paramètres des types de posts** : configuration des catégories de
   publications (la table `post_types` est déjà pilotable côté API).
+
+> Les **caméras météo/trafic** — pressenties pour l'étape 6 — sont **livrées
+> par anticipation au checkpoint 5** (voir la section « Caméras » ci-dessus).
 
 <!-- TODO Lot 2+ : statistiques d'usage, gestion fine des rôles,
      notifications push administrées, exports. -->

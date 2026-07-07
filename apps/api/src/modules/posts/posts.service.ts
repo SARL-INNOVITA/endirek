@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { findNearestCommune } from '../../common/geo/nearest-commune';
+import { isWithinReunion } from '../../common/geo/reunion';
 import { FeedPost } from '../../common/mappers/post.mapper';
 import { AppConfig } from '../../config/configuration';
 import {
@@ -23,6 +24,7 @@ import {
   PostTypesRepository,
   UsersRepository,
 } from '../../database/repositories/interfaces';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreatePostDto, PostMediaInputDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { FeedPostAssembler } from './feed-post.assembler';
@@ -31,24 +33,6 @@ import { randomSlugSuffix, slugify, slugSource } from './slug.util';
 /** Nombre de tentatives de génération d'un urlSlug unique avant d'abandonner
  * (36^4 suffixes possibles par base : une collision répétée est improbable). */
 const SLUG_MAX_ATTEMPTS = 5;
-
-/**
- * Emprise géographique GÉNÉREUSE de La Réunion (WGS84) — garde de création :
- * le produit est mono-île au Lot 1, une position hors de cette boîte est
- * nécessairement une erreur client (GPS d'un voyageur, coordonnées forgées)
- * et fausserait la déduction de commune (« Le Port » attribué à un point à
- * 9 000 km) tout en polluant /map/posts.
- *
- * TODO (exportabilité) : quand le produit couvrira d'autres territoires,
- * cette constante sera remplacée par une table de territoires (emprise par
- * territoire, pilotable backoffice) — voir la feuille de route Lot 2+.
- */
-const REUNION_BBOX = {
-  latMin: -21.6,
-  latMax: -20.7,
-  lngMin: 55.0,
-  lngMax: 56.0,
-} as const;
 
 /** Type de publication du contrat (GET /posts/types) — le mobile construit
  * sa bottom sheet de composition avec cette liste, rien n'est hardcodé. */
@@ -89,6 +73,7 @@ export class PostsService {
     private readonly usersRepository: UsersRepository,
     private readonly assembler: FeedPostAssembler,
     private readonly configService: ConfigService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -148,15 +133,9 @@ export class PostsService {
     // Garde mono-île du Lot 1 : une position hors de l'emprise de La Réunion
     // est refusée AVANT toute déduction — sinon le marqueur serait servi par
     // /map/posts et la commune la plus proche serait absurde (voir
-    // REUNION_BBOX). La déduction de city ne s'exécute donc que sur des
-    // positions plausibles.
-    if (
-      location &&
-      (location.lat < REUNION_BBOX.latMin ||
-        location.lat > REUNION_BBOX.latMax ||
-        location.lng < REUNION_BBOX.lngMin ||
-        location.lng > REUNION_BBOX.lngMax)
-    ) {
+    // isWithinReunion / REUNION_BBOX, common/geo/reunion.ts). La déduction de
+    // city ne s'exécute donc que sur des positions plausibles.
+    if (location && !isWithinReunion(location)) {
       throw new BadRequestException(
         'La position doit se situer à La Réunion',
       );
@@ -206,6 +185,14 @@ export class PostsService {
       urlSlug,
       media,
     });
+
+    // Événement léger 'map.updated' : un post nouvellement VISIBLE sur la
+    // carte (mapExpiresAt futur) invite les clients de la carte à recharger
+    // leurs marqueurs. Émis après persistance ; sans effet sur les posts
+    // feed-only (mapExpiresAt null). Recommandé, non bloquant.
+    if (mapExpiresAt !== null && mapExpiresAt.getTime() > Date.now()) {
+      this.realtime.emitMapUpdated('post.created');
+    }
 
     return this.assembler.assembleOne(post, userId);
   }

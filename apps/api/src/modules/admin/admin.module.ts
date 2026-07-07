@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
+import { CamerasModule } from '../cameras/cameras.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
+import { AdminCamerasController } from './admin-cameras.controller';
 import { AdminPostsController } from './admin-posts.controller';
 import { AdminPostsService } from './admin-posts.service';
 import { AdminReportsController } from './admin-reports.controller';
@@ -19,20 +22,24 @@ import { AdminUsersService } from './admin-users.service';
  * Toutes les routes sont réservées aux rôles moderator et super_admin
  * (guard JWT global + RolesGuard sur chaque contrôleur).
  *
- * Étape 6 (reste du backoffice minimal) : gestion des caméras météo/trafic
- * et paramétrage des types de posts — voir README.md du module.
+ * Étape 5 : gestion des CAMÉRAS météo/trafic (les 6 routes /admin/cameras),
+ * déléguée à CamerasService (source unique partagée avec la carte publique).
+ * Le paramétrage des types de posts arrive à l'étape 6.
  *
  * PostsModule est importé pour FeedPostAssembler : la forme FEED_POST servie
  * au backoffice est assemblée par la MÊME source unique que le feed public.
- * Les repositories sont fournis par DatabaseModule (@Global) via les tokens
- * d'injection.
+ * CamerasModule fournit CamerasService (backoffice caméras) ;
+ * NotificationsModule fournit NotificationsService (notification
+ * « report_handled » émise au traitement d'un signalement). Les repositories
+ * sont fournis par DatabaseModule (@Global) via les tokens d'injection.
  */
 @Module({
-  imports: [PostsModule],
+  imports: [PostsModule, CamerasModule, NotificationsModule],
   controllers: [
     AdminUsersController,
     AdminPostsController,
     AdminReportsController,
+    AdminCamerasController,
   ],
   providers: [AdminUsersService, AdminPostsService, AdminReportsService],
 })

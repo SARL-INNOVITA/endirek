@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
 import { CommentReactionsController } from './comment-reactions.controller';
 import { PostReactionsController } from './post-reactions.controller';
@@ -11,11 +12,12 @@ import { ReactionsService } from './reactions.service';
  * jamais hardcodée), compteurs dénormalisés maintenus par les repositories.
  *
  * Importe PostsModule pour la règle de visibilité des posts
- * (PostsService.loadVisiblePost). Les repositories viennent de
- * DatabaseModule (@Global).
+ * (PostsService.loadVisiblePost) et NotificationsModule pour la notification
+ * 'reaction' à l'auteur d'un post (NotificationsService — persistance +
+ * émission temps réel). Les repositories viennent de DatabaseModule (@Global).
  */
 @Module({
-  imports: [PostsModule],
+  imports: [PostsModule, NotificationsModule],
   controllers: [PostReactionsController, CommentReactionsController],
   providers: [ReactionsService],
 })

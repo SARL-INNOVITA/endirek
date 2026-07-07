@@ -61,29 +61,33 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `reactions` | Réactions emoji sur posts et commentaires (upsert, palette validée contre la table `reaction_types`) | 4 ✅ |
 | `saved-posts` | Enregistrements (collection « Général » par défaut, idempotents) | 4 ✅ |
 | `media` | Upload d'images via l'adapter stockage (local implémenté, S3 en prod) : validation par décodage réel, miniatures sharp, `/uploads/` statique | 4 ✅ |
-| `map` | Marqueurs par viewport/mode, géocodage inverse (adapter), proximité — endpoints préparatoires `GET /map/communes` et `GET /map/posts` livrés à l'étape 4, l'écran carte complet (caméras incluses) arrive à l'étape 5 | 4 partiel (préparatoire) / 5 |
-| `cameras` | Caméras météo/trafic (numéro auto, ville déduite, statut) | 5 |
-| `notifications` | Notifications in-app persistées + adapter push (mock en dev) — les notifications `comment`/`reply` sont déjà CRÉÉES à l'étape 4, les endpoints de lecture arrivent à l'étape 5 | 5 |
-| `realtime` | Gateway WebSocket (socle temps réel, consommé dès la carte live) | 5 |
+| `map` | Marqueurs par viewport/bbox, géocodage inverse (adapter), caméras + posts en un appel — `GET /map/overview`, `/map/cameras`, `/map/posts`, `/map/communes` ; seuls les types `showsOnMap` (météo/trafic/danger) sortent sur la carte | 5 ✅ |
+| `cameras` | Caméras météo/trafic (numéro auto, ville déduite par géocodage, statuts) — détail public `GET /cameras/:id` (caméra `active` uniquement) ; gestion backoffice sous `/admin/cameras` | 5 ✅ |
+| `notifications` | Notifications in-app persistées + émission temps réel — lecture `GET /notifications`, `/unread-count`, `PATCH /read-all`, `/:id/read` ; types `comment`/`reply`/`reaction`/`report_handled` créés via un point d'entrée unique (persistance + push socket) | 5 ✅ |
+| `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` (room privée `user:<id>`) et `map.updated` (room `map`) ; fallback polling REST côté client | 5 ✅ |
 | `moderation` | Signalements, masquage de posts, outillage backoffice — le signalement côté utilisateur (`POST /posts/:id/report`, anti-doublon 409) est fait à l'étape 4 | 4 partiel (signalements) / 6 |
 | `admin` | Endpoints d'administration consommés par le backoffice — gestion des utilisateurs (étape 3), modération des publications et file des signalements (étape 4) ; le reste (caméras, types de posts…) arrive à l'étape 6 | 3-4 partiel / 6 |
 | `modules/_future/*` | Placeholders des lots suivants (voir §6) — **TODO Lot 2+** | — |
 
-> **État réel à l'étape 4** : `health`, la couche `database` (driver mock +
-> seed La Réunion), `auth`, `users` (étape 3) sont en place, et le cœur
-> social de l'étape 4 est implémenté : `posts` (CRUD, détail par id et par
-> `url_slug`, listes de profil), le feed scoré (`GET /posts/feed`, service
-> dans le module posts), `comments` (deux niveaux option A, soft-delete,
-> notifications in-app `comment`/`reply` créées), `reactions` (posts et
-> commentaires, upsert), `saved-posts`, `media` (`POST /media/upload`,
-> driver local + miniatures sharp), le signalement utilisateur de
-> `moderation` (`POST /posts/:id/report`) et l'extension d'`admin`
-> (modération des publications + file des signalements, en plus de la
-> gestion des utilisateurs de l'étape 3). Le module `map` n'expose que ses
-> endpoints préparatoires (`/map/communes`, `/map/posts`). Restent à venir :
-> carte complète, caméras, lecture des notifications, temps réel (étape 5)
-> et le complément backoffice (étape 6). Le tableau est mis à jour au fil
-> des étapes.
+> **État réel à l'étape 5** : le socle est en place — `health`, la couche
+> `database` (driver mock + seed La Réunion), `auth` et `users` (étape 3) —
+> ainsi que le cœur social de l'étape 4 : `posts` (CRUD, détail par id et
+> par `url_slug`, listes de profil), le feed scoré (`GET /posts/feed`),
+> `comments` (deux niveaux option A, soft-delete), `reactions`,
+> `saved-posts`, `media` (`POST /media/upload`, driver local + miniatures
+> sharp), le signalement utilisateur (`POST /posts/:id/report`) et
+> l'administration des utilisateurs, publications et signalements.
+> L'étape 5 est désormais livrée : la **carte** complète (`GET /map/overview`
+> pour posts + caméras en un appel, `/map/cameras`, `/map/posts`,
+> `/map/communes`), les **caméras** (détail public `GET /cameras/:id` limité
+> aux caméras `active` ; gestion backoffice complète sous `/admin/cameras`,
+> masquage doux), les **notifications** in-app (endpoints de lecture, badge
+> de non-lues ; types `comment`/`reply`/`reaction`/`report_handled` créés via
+> un point d'entrée unique) et le **temps réel** (gateway socket.io, events
+> `notification.created` et `map.updated`, auth handshake JWT + fallback
+> polling côté client). Reste le complément backoffice de l'étape 6
+> (paramètres des types de posts, affinages). Le tableau est mis à jour au
+> fil des étapes.
 
 Conventions transverses :
 
@@ -105,7 +109,7 @@ demande **aucun changement de code métier**, seulement du `.env`.
 |---|---|---|---|
 | Base de données | `DB_DRIVER` | `mock` (en mémoire, seed La Réunion — **disponible depuis l'étape 2**, `DB_MOCK_SEED=true` par défaut) | `postgres` (PostgreSQL + PostGIS — driver à implémenter, voir [DATABASE.md](DATABASE.md) §7) |
 | Stockage médias | `MEDIA_STORAGE_DRIVER` | `local` (**implémenté à l'étape 4** : upload d'images + miniatures sharp, fichiers écrits sous `UPLOAD_DIR` — `apps/api/uploads/` — et servis statiquement sur `/uploads/`) | `s3` (S3/Hetzner — non implémenté : le démarrage échoue avec une erreur explicite) |
-| Géocodage inverse | `GEOCODING_PROVIDER` | `mock` (table des communes de La Réunion + plus proche voisin) | API de géocodage réelle (`GEOCODING_API_KEY`) |
+| Géocodage inverse | `GEOCODING_PROVIDER` | `mock` (**implémenté à l'étape 5**, `GEOCODING_PROVIDER=mock` : table des 12 communes de La Réunion + plus proche voisin — déduit `cityName` d'une caméra créée sans ville ; tout autre provider → `throw` explicite au démarrage) | API de géocodage réelle (`GEOCODING_API_KEY`) |
 | Push | `PUSH_DRIVER` | `mock` (notifications persistées en base uniquement) | `fcm` (Firebase/APNs) |
 | Email | `EMAIL_DRIVER` | `mock` (log console) | `brevo` |
 
@@ -145,9 +149,38 @@ Détail complet (comportements, variables, procédure de bascule) :
   est toujours à jour — les jetons encore valides d'un compte supprimé
   (RGPD) ou suspendu (modération) sont rejetés immédiatement (401/403), sans
   liste de révocation.
-- **Gateway WebSocket posée à l'étape 5** : la carte live l'utilise dès le
-  Lot 1, et elle sert de socle au temps réel futur (conversations
-  Dealplace — TODO Lot 2+).
+- **Temps réel = socket.io, canal minimal** (étape 5) : gateway sur le
+  namespace par défaut, **authentification au handshake** (access token JWT
+  dans `handshake.auth.token`, rejeté si compte supprimé/suspendu — même
+  politique que le guard HTTP). Deux events sortants seulement :
+  `notification.created` (room privée `user:<id>`) et `map.updated` (room
+  `map`, rejointe via `map.subscribe`). Le temps réel est un **confort, pas
+  une source de vérité** : si le socket est indisponible, le client retombe
+  sur du **polling REST** (`GET /notifications/unread-count`, ~45 s). La
+  gateway sert de socle au temps réel futur (conversations Dealplace —
+  TODO Lot 2+). **Pas de messagerie au Lot 1.**
+- **Carte : flutter_map + tuiles OSM sans clé** (étape 5) : rendu client via
+  `flutter_map`, tuiles publiques OpenStreetMap (dev uniquement, provider
+  dédié en prod via `MAP_TILE_URL`/`MAP_API_KEY` — voir
+  [KNOWN_LIMITS.md](KNOWN_LIMITS.md)). **Clustering client-side** par grille
+  maison (regroupement des marqueurs proches, barycentre affiché) —
+  suffisant au volume du Lot 1 ; l'architecture reste prête pour un
+  clustering serveur à grande échelle. La carte est centrée sur l'île (pas
+  de « autour de moi » : GPS réel non branché).
+- **`REUNION_BBOX` partagée** : l'emprise géographique de La Réunion est une
+  **source unique** (`common/geo/reunion.ts`), importée par les modules
+  `posts` (création) et `cameras` (création/mise à jour) — aucune constante
+  dupliquée ; l'exportabilité future passera par une table de territoires.
+- **Caméra masquée = suppression douce** : `DELETE /admin/cameras/:id` passe
+  la caméra en statut `hidden` (jamais de suppression dure) — le
+  `cameraNumber` est préservé (numérotation stable, traçabilité). Une caméra
+  non `active` n'apparaît jamais côté public (carte ni `GET /cameras/:id`,
+  404 pour ne pas divulguer son existence).
+- **Notifications : point d'entrée unique** (étape 5) : tous les producteurs
+  (`comment`, `reply`, `reaction`, `report_handled`) passent par
+  `NotificationsService.create`, qui **persiste puis émet** en temps réel —
+  une seule source pour la base et la diffusion. Jamais de notification à
+  soi-même. Lecture strictement limitée aux notifications du user courant.
 - **Scoring du feed à poids centralisés** : les poids de l'algorithme
   (récence, proximité, type, popularité, abonnements) vivent dans une seule
   constante extensible (`FEED_WEIGHTS`, `posts/feed.service.ts`) — aucune
@@ -175,6 +208,42 @@ Détail complet (comportements, variables, procédure de bascule) :
   utilisateur) sans migration cassante — TODO Lot 2+.
 - **Expiration carte ≠ expiration feed** : les posts météo/trafic/danger
   disparaissent de la carte après 2 h (par défaut) mais restent dans le feed.
+
+---
+
+## 5 bis. Carte & temps réel (étape 5)
+
+**Carte (HTTP).** L'écran carte mobile consomme le module `map` :
+
+- `GET /map/overview` — **point d'entrée mobile** : un seul appel ramène les
+  marqueurs de posts *et* les caméras actives (mêmes filtres de bbox et de
+  catégorie). `GET /map/posts` et `GET /map/cameras` restent disponibles pour
+  un rafraîchissement ciblé, `GET /map/communes` fournit le référentiel des
+  12 centres-villes.
+- **bbox optionnelle** : les 4 bornes (`minLat/minLng/maxLat/maxLng`) vont
+  ensemble (toutes → filtre, aucune → toute l'île, partiel/inversé → 400).
+- **Filtre de sécurité** : seuls les types de posts `showsOnMap`
+  (météo/trafic/danger, piloté par `post_types`) et les posts non expirés
+  (`mapExpiresAt` futur) sortent sur la carte — un post libre/question
+  géolocalisé n'y apparaît jamais. Les caméras servies sont `active`
+  uniquement, en projection `CAMERA_PUBLIC` (sans `status`/`updatedAt`).
+
+**Temps réel (socket.io).** Le module `realtime` expose une gateway sur le
+namespace par défaut, dont le CORS reprend `app.corsOrigins` via
+`RealtimeIoAdapter` (branché au boot dans `main.ts`) :
+
+- **Handshake authentifié** : le client fournit son access token
+  (`handshake.auth.token` ou `?token=`) ; la gateway vérifie la signature,
+  recharge l'utilisateur et refuse la connexion s'il est absent/non `active`.
+- **Rooms** : chaque connexion rejoint sa room privée `user:<id>` ; l'écran
+  carte rejoint la room commune `map` en émettant `map.subscribe`.
+- **Events sortants** : `notification.created` (`{ notification, unreadCount }`
+  vers la room du destinataire, émis par `NotificationsService.create` après
+  persistance) et `map.updated` (`{ reason }` vers la room `map`, émis à la
+  création d'un post visible carte — le client recharge alors `/map/overview`).
+- **Fallback** : si le socket est indisponible, le client poll
+  `GET /notifications/unread-count` (~45 s). Aucun message entrant traité
+  hormis l'abonnement carte — **pas de messagerie au Lot 1**.
 
 ---
 

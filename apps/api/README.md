@@ -3,13 +3,18 @@
 API REST + WebSocket (NestJS 11) du réseau social mobile local temps réel de La Réunion.
 Elle sert l'application mobile Flutter (`apps/mobile`) et le backoffice (`apps/admin`).
 
-> **État actuel — étape 4** : configuration typée, healthcheck, couche
+> **État actuel — étape 5** : configuration typée, healthcheck, couche
 > persistance (driver mock + seed La Réunion), authentification JWT (guard
-> global), profils/follows/RGPD (étape 3) puis le cœur social (étape 4) :
+> global), profils/follows/RGPD (étape 3), le cœur social (étape 4 :
 > publications, feed scoré, commentaires deux niveaux, réactions,
-> enregistrements, upload d'images (adapter local + sharp), signalements et
-> modération backoffice (posts + reports). La carte complète, les caméras,
-> la lecture des notifications et le temps réel arrivent à l'étape 5.
+> enregistrements, upload d'images, signalements et modération backoffice)
+> puis l'étape 5 : **carte** (`/map/overview`, `/map/cameras`, `/map/posts`,
+> `/map/communes`), **caméras** (`GET /cameras/:id` public + gestion
+> `/admin/cameras`), **notifications** in-app (lecture + badge de non-lues,
+> types `comment`/`reply`/`reaction`/`report_handled`) et **temps réel**
+> (gateway socket.io, events `notification.created` / `map.updated`, auth
+> handshake JWT + fallback polling). Reste le complément backoffice de
+> l'étape 6.
 
 ## Lancement
 
@@ -55,17 +60,17 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 | `comments` | Commentaires (niveau 0) + réponses (niveau 1) — pas de réponse à une réponse au Lot 1 ; notifications in-app `comment`/`reply` créées | **4 ✅** |
 | `reactions` | Réactions emoji sur posts et commentaires (upsert, palette validée contre `reaction_types`) | **4 ✅** |
 | `saved-posts` | Enregistrements (collection « Général » par défaut, idempotents) | **4 ✅** |
-| `map` | Carte interactive — mode Météo & trafic ; **endpoints préparatoires faits à l'étape 4** (`GET /map/communes`, `GET /map/posts`) | **4 partiel** / 5 |
-| `cameras` | Caméras météo/trafic | 5 |
-| `notifications` | Notifications in-app (push préparé) — créées dès l'étape 4 (comment/reply), endpoints de lecture à l'étape 5 | 5 |
-| `realtime` | Gateway WebSocket temps réel | 5 |
+| `map` | Carte interactive — mode Météo & trafic : `GET /map/overview` (posts + caméras en un appel), `/map/cameras`, `/map/posts`, `/map/communes` ; seuls les types `showsOnMap` non expirés sortent sur la carte | **5 ✅** |
+| `cameras` | Caméras météo/trafic — `GET /cameras/:id` public (caméra `active` uniquement) ; numéro auto, ville déduite par géocodage, statuts | **5 ✅** |
+| `notifications` | Notifications in-app — lecture (`GET /notifications`, `/unread-count`, `PATCH /read-all`, `/:id/read`), types `comment`/`reply`/`reaction`/`report_handled` via un point d'entrée unique (persistance + émission socket) | **5 ✅** |
+| `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` / `map.updated`, CORS aligné via `RealtimeIoAdapter` | **5 ✅** |
 | `moderation` | Signalements et traitement — **signalement utilisateur fait à l'étape 4** (`POST /posts/:id/report`, anti-doublon 409) | **4 partiel** / 6 |
-| `admin` | Endpoints du backoffice — **utilisateurs (étape 3), publications et signalements (étape 4)** ; le reste (caméras, types de posts) à l'étape 6 | **3-4 partiel** / 6 |
+| `admin` | Endpoints du backoffice — **utilisateurs (étape 3), publications et signalements (étape 4), caméras (étape 5 : 6 routes `/admin/cameras`)** ; les paramètres des types de posts à l'étape 6 | **3-5 partiel** / 6 |
 | `_future/*` | Lots 2+ (pages, dealplace, deals, conversations, news, billing) | TODO Lot 2+ |
 
 Chaque dossier de module contient un `README.md` détaillant son périmètre et
-les règles métier du Lot 1 ; les modules des étapes 5 et 6 n'ont pas encore
-de code (hors parties partielles ci-dessus), seuls leurs README documentent
+les règles métier du Lot 1 ; les modules de l'étape 6 n'ont pas encore de
+code (hors parties partielles ci-dessus), seuls leurs README documentent
 l'architecture cible.
 
 ## Exemples rapides (étape 4)
@@ -104,6 +109,34 @@ curl -X POST http://localhost:3001/api/v1/media/upload \
   -H "Authorization: Bearer <TOKEN>" -F "file=@photo.jpg"
 ```
 
+## Exemples rapides — carte & notifications (étape 5)
+
+```bash
+# Carte : posts + caméras en un seul appel (bbox et filtres optionnels)
+curl "http://localhost:3001/api/v1/map/overview" -H "Authorization: Bearer <TOKEN>"
+
+# Caméras actives (filtre de catégorie optionnel : weather|traffic)
+curl "http://localhost:3001/api/v1/map/cameras?categories=traffic" \
+  -H "Authorization: Bearer <TOKEN>"
+
+# Détail public d'une caméra active (404 si masquée/inactive/inexistante)
+curl "http://localhost:3001/api/v1/cameras/<CAMERA_ID>" -H "Authorization: Bearer <TOKEN>"
+
+# Mes notifications (avec total et unreadCount) puis compteur de non-lues
+curl "http://localhost:3001/api/v1/notifications?limit=20" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/notifications/unread-count" -H "Authorization: Bearer <TOKEN>"
+curl -X PATCH "http://localhost:3001/api/v1/notifications/read-all" -H "Authorization: Bearer <TOKEN>"
+
+# Backoffice caméras (rôle moderator/super_admin ; DELETE = masquage doux)
+curl -X POST http://localhost:3001/api/v1/admin/cameras \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" -H "Content-Type: application/json" \
+  -d '{"name":"Caméra Saint-Denis Barachois","streamType":"image","url":"https://exemple.re/cam.jpg","category":"traffic","description":"Vue front de mer","location":{"lat":-20.87,"lng":55.45},"status":"active"}'
+```
+
+Le temps réel (socket.io) écoute sur le même port (3001), hors préfixe
+`api/v1` ; il se vérifie surtout depuis l'app mobile (voir
+[docs/AI_RUNBOOK.md](../../docs/AI_RUNBOOK.md) §4 bis).
+
 ## Comptes de test (seed)
 
 Avec `DB_DRIVER=mock` et `DB_MOCK_SEED=true` (défauts), 15 comptes de
@@ -127,7 +160,7 @@ blocage si un service externe manque :
 | Domaine | Variable | Drivers |
 |---|---|---|
 | Stockage médias | `MEDIA_STORAGE_DRIVER` | `local` (dev) → `s3` (Hetzner) |
-| Géocodage | `GEOCODING_PROVIDER` | `mock` (dev) → API réelle plus tard |
+| Géocodage inverse | `GEOCODING_PROVIDER` | `mock` (implémenté : 12 communes + plus proche voisin) → API réelle plus tard |
 | Notifications push | `PUSH_DRIVER` | `mock` (dev) → Firebase/APNs plus tard |
 | Email transactionnel | `EMAIL_DRIVER` | `mock` (dev) → Brevo plus tard |
 

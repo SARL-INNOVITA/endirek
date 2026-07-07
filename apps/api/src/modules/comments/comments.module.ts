@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
@@ -13,10 +14,12 @@ import { PostCommentsController } from './post-comments.controller';
  * Importe PostsModule pour la règle de visibilité des posts
  * (PostsService.loadVisiblePost) et la forme AUTEUR
  * (FeedPostAssembler.loadAuthors) — source unique, rien n'est réassemblé
- * à la main. Les repositories viennent de DatabaseModule (@Global).
+ * à la main. Importe NotificationsModule pour créer les notifications
+ * 'comment'/'reply' via NotificationsService (persistance + émission temps
+ * réel). Les repositories viennent de DatabaseModule (@Global).
  */
 @Module({
-  imports: [PostsModule],
+  imports: [PostsModule, NotificationsModule],
   controllers: [PostCommentsController, CommentsController],
   providers: [CommentsService],
 })

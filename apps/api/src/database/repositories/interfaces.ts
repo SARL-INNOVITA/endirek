@@ -409,6 +409,18 @@ export interface ListCamerasParams {
   status?: CameraStatus;
 }
 
+/** Paramètres de la liste BACKOFFICE des caméras : TOUS statuts par défaut,
+ * filtres facultatifs par catégorie et statut, recherche insensible à la
+ * casse sur name/cityName/description, pagination bornée par le DTO
+ * appelant. */
+export interface AdminListCamerasParams {
+  category?: CameraCategory;
+  status?: CameraStatus;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
 export interface CamerasRepository {
   list(params?: ListCamerasParams): Promise<Camera[]>;
   listInBbox(bbox: BoundingBox): Promise<Camera[]>;
@@ -416,6 +428,14 @@ export interface CamerasRepository {
   /** Attribue automatiquement un cameraNumber croissant (affiché « #23 »). */
   create(input: CreateCameraInput): Promise<Camera>;
   update(id: string, patch: UpdateCameraPatch): Promise<Camera>;
+  /** Change le statut d'une caméra (activation/désactivation, masquage doux —
+   * DELETE = status 'hidden'). Plus explicite qu'un update générique. */
+  setStatus(id: string, status: CameraStatus): Promise<Camera>;
+  /** Liste BACKOFFICE paginée : tous statuts, filtres catégorie/statut et
+   * recherche name/cityName/description (insensible à la casse), triée par
+   * cameraNumber croissant (ordre d'affichage « #1, #2, ... »). Le driver
+   * postgres fera un ILIKE + LIMIT/OFFSET. */
+  listAdmin(params: AdminListCamerasParams): Promise<PagedResult<Camera>>;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -494,6 +514,9 @@ export interface CreateNotificationInput {
 
 export interface NotificationsRepository {
   create(input: CreateNotificationInput): Promise<Notification>;
+  /** Notification par id — contrôle d'ownership avant markRead (le service
+   * répond 404 si elle n'appartient pas au user courant). */
+  findById(id: string): Promise<Notification | null>;
   /** Liste antéchronologique paginée des notifications d'un utilisateur. */
   listByUser(
     userId: string,

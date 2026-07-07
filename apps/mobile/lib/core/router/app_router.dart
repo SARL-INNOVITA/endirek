@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/camera_detail/presentation/camera_detail_screen.dart';
 import '../../features/feed/presentation/feed_screen.dart';
+import '../../features/map/presentation/map_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/post_composer/presentation/create_post_screen.dart';
 import '../../features/post_detail/presentation/post_detail_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
@@ -20,9 +23,9 @@ import '../shell/placeholder_screen.dart';
 /// Navigation :
 /// - /login, /register : hors shell (plein écran) ;
 /// - shell à 4 onglets (StatefulShellRoute.indexedStack — chaque onglet
-///   garde son état) : /home (fil RÉEL), /map, /news, /dealplace
-///   (placeholders propres, Carte → étape 5, News/Dealplace → lots
-///   suivants) ;
+///   garde son état) : /home (fil RÉEL) et /map (carte RÉELLE, mode « Météo &
+///   trafic », étape 5) ; /news et /dealplace restent des placeholders propres
+///   (lots suivants) ;
 /// - /post/:id (détail), /compose (création) et /profile (+ /profile/edit) :
 ///   hors shell, poussés PLEIN ÉCRAN au-dessus des onglets — le profil est
 ///   accessible via l'avatar du composer du fil.
@@ -71,13 +74,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/map',
-                builder: (context, state) => const PlaceholderScreen(
-                  icone: Icons.map_outlined,
-                  titre: 'La carte arrive à l\'étape 5',
-                  message:
-                      'Publications géolocalisées, alertes météo et trafic '
-                      'de toute l\'île, en temps réel.',
-                ),
+                builder: (context, state) => const MapScreen(),
               ),
             ],
           ),
@@ -112,6 +109,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/post/:id',
         builder: (context, state) =>
             PostDetailScreen(postId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/camera/:id',
+        builder: (context, state) =>
+            CameraDetailScreen(cameraId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
       GoRoute(
         path: '/compose',

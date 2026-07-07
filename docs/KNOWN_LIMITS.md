@@ -1,8 +1,9 @@
 # ENDIREK — Limites connues
 
-État honnête des limites du projet **à l'étape 4 du Lot 1** (socle, couche
-base de données, auth/profils/follows/RGPD, posts/feed/interactions/médias).
-Ce fichier est mis à jour au fil des étapes.
+État honnête des limites du projet **à l'étape 5 du Lot 1** (socle, couche
+base de données, auth/profils/follows/RGPD, posts/feed/interactions/médias,
+puis carte/caméras/notifications/temps réel). Ce fichier est mis à jour au
+fil des étapes.
 
 ---
 
@@ -27,10 +28,10 @@ peut pas tourner localement. Conséquence :
 - les requêtes géospatiales du mock (proximité, bbox) sont des approximations
   suffisantes pour le dev, pas des requêtes PostGIS réelles.
 
-## 2. Périmètre de l'API à l'étape 4
+## 2. Périmètre de l'API à l'étape 5
 
 L'API expose désormais, en plus de `GET /health` et de Swagger (`/docs`),
-les routes métier `api/v1` des étapes 3 et 4 :
+les routes métier `api/v1` des étapes 3 à 5 :
 
 - **auth** (étape 3) : `POST /auth/register|login|refresh|logout`,
   `GET /auth/me`, placeholders OAuth `POST /auth/oauth/google|apple` (501) ;
@@ -49,15 +50,27 @@ les routes métier `api/v1` des étapes 3 et 4 :
 - **médias** (étape 4) : `POST /media/upload` (+ fichiers statiques publics
   sur `/uploads/`, hors préfixe et hors guard) ;
 - **signalements** (étape 4) : `POST /posts/:id/report` (anti-doublon 409) ;
-- **carte — préparatoire** (étape 4) : `GET /map/communes`, `GET /map/posts`
-  (marqueurs) — l'écran carte complet arrive à l'étape 5 ;
-- **admin** (étapes 3 et 4) : `GET /admin/users[/:id]`,
+- **carte** (étape 5) : `GET /map/overview` (posts + caméras en un appel),
+  `GET /map/cameras`, `GET /map/posts` (marqueurs), `GET /map/communes` —
+  bbox et filtres de type/catégorie optionnels ;
+- **caméras** (étape 5) : `GET /cameras/:id` (détail public, caméra `active`
+  uniquement — 404 sinon, sans divulguer l'existence d'une caméra masquée) ;
+- **notifications** (étape 5) : `GET /notifications` (paginé, avec `total` et
+  `unreadCount`), `GET /notifications/unread-count`,
+  `PATCH /notifications/read-all`, `PATCH /notifications/:id/read`
+  (uniquement les notifications de l'utilisateur courant) ;
+- **admin** (étapes 3 à 5) : `GET /admin/users[/:id]`,
   `PATCH /admin/users/:id/status`, `GET /admin/posts[/:id]`,
   `PATCH /admin/posts/:id/status`, `GET /admin/reports`,
-  `PATCH /admin/reports/:id` (rôles moderator/super_admin).
+  `PATCH /admin/reports/:id`, et les 6 routes caméras
+  `GET|POST /admin/cameras`, `GET|PATCH|DELETE /admin/cameras/:id`,
+  `PATCH /admin/cameras/:id/status` (rôles moderator/super_admin ;
+  `DELETE` = masquage doux).
 
-Les routes carte complète/caméras/notifications arrivent à l'étape 5, le
-reste du backoffice à l'étape 6 : ne pas s'étonner de 404 sur le reste.
+Le temps réel passe par un socket WebSocket (socket.io, namespace par défaut,
+non préfixé `api/v1`), pas par une route HTTP. Le complément backoffice
+(paramètres des types de posts, affinages) arrive à l'étape 6 : ne pas
+s'étonner de 404 sur le reste.
 
 ## 2 bis. Limites de l'authentification (étape 3)
 
@@ -107,14 +120,39 @@ reste du backoffice à l'étape 6 : ne pas s'étonner de 404 sur le reste.
   `active` les plus récents (`FEED_WEIGHTS.windowSize`) ; `total` renvoyé =
   taille de cette fenêtre, pas le nombre total de posts en base. Un post
   plus ancien que la fenêtre disparaît du feed même s'il est populaire.
-- **Notifications créées mais pas encore lisibles** : les commentaires et
-  réponses créent des notifications in-app (`comment`, `reply` — jamais à
-  soi-même), mais les **endpoints de lecture** (liste, badge non-lues,
-  marquage lu) arrivent à l'étape 5. D'ici là, elles ne sont visibles que
-  dans l'export RGPD. Pas de notification `reaction` à cette étape.
-- **Tuiles et écran carte : toujours à l'étape 5** : l'étape 4 ne livre que
-  les endpoints préparatoires (`GET /map/communes`, `GET /map/posts`) —
-  l'onglet Carte du mobile reste un placeholder, aucune tuile n'est chargée.
+## 2 quater. Limites de la carte, des caméras et du temps réel (étape 5)
+
+- **Tuiles OSM = développement uniquement** : la carte mobile charge les
+  tuiles publiques d'OpenStreetMap (`flutter_map`), toléré en dev mais
+  **interdit en production à volume réel** — provider dédié à prévoir via
+  `MAP_TILE_URL`/`MAP_API_KEY`, sans changement de code (rappel détaillé en
+  §5).
+- **Flux caméra vidéo/iframe non affichés dans l'app** : seul
+  `streamType='image'` est rendu (image live + badge LIVE) ; les flux
+  `video`/`iframe` affichent une vignette et « Flux non affichable dans
+  l'application » — l'intégration lecteur vidéo/webview arrive plus tard.
+- **Pas de présence temps réel** : le « N personnes ici » des mockups n'est
+  **pas implémenté** (aucun comptage de présence sur la carte au Lot 1).
+- **Temps réel = notifications + `map.updated` seulement** : le socket
+  (socket.io) ne pousse que `notification.created` et `map.updated`. **Pas
+  de messagerie** ni de présence. Le temps réel est un **confort, pas une
+  source de vérité** : les listes et le badge restent alimentés par REST.
+- **Fallback polling ~45 s** : si le socket est indisponible (réseau, proxy),
+  le client retombe sur `GET /notifications/unread-count` toutes les ~45 s —
+  la fraîcheur des non-lues est donc dégradée hors socket.
+- **Clustering client-side** : le regroupement des marqueurs proches se fait
+  côté client (grille maison). Suffisant au volume du Lot 1 ; un clustering
+  serveur est à prévoir à grande échelle.
+- **GPS réel toujours absent** : la carte est centrée sur l'île, sans
+  géolocalisation de l'appareil — pas de « autour de moi », la position de
+  publication reste choisie par commune (voir §8).
+
+## 2 quinquies. Autres limites du cœur social (étape 4)
+
+- **Notification `reaction` désormais branchée** : les réactions sur un post
+  notifient son auteur (`reaction`, jamais à soi-même), au même titre que
+  `comment`/`reply` et `report_handled` (traitement de signalement) — toutes
+  lisibles via les endpoints de l'étape 5.
 
 ## 3. Pas de push réel
 
@@ -131,8 +169,9 @@ email/mot de passe est fonctionnelle (étape 3 faite).
 
 ## 5. Tuiles OSM publiques = développement uniquement
 
-La carte utilise les tuiles publiques d'OpenStreetMap, ce qui est toléré
-pour un usage de dev léger mais **interdit en production à volume réel**
+La carte mobile (`flutter_map`) utilise les tuiles publiques
+d'OpenStreetMap, ce qui est toléré pour un usage de dev léger mais
+**interdit en production à volume réel**
 (respecter la [tile usage policy OSM](https://operations.osmfoundation.org/policies/tiles/)).
 Prévoir un provider dédié en prod (MapTiler, Mapbox, serveur de tuiles
 auto-hébergé…) via `MAP_TILE_URL` / `MAP_API_KEY` — aucun changement de code.
@@ -154,9 +193,10 @@ la vérification est manuelle (Swagger, app mobile, backoffice).
 
 - News et Dealplace sont des **onglets placeholders** au Lot 1 (développés
   aux lots suivants — voir [TODO_LOT_2.md](TODO_LOT_2.md)).
-- L'onglet Carte du mobile est un **placeholder à l'étape 4** (écran carte à
-  l'étape 5) ; les modes carte « Offres & restos » et « Événements » y seront
-  visibles mais placeholders — seul « Météo & trafic » est réel au Lot 1.
+- L'onglet Carte du mobile est **réel depuis l'étape 5** (mode « Météo &
+  trafic » : posts géolocalisés + caméras actives, clustering, cartes de
+  preview). Les modes carte « Offres & restos » et « Événements » relèvent
+  des lots suivants — seul « Météo & trafic » est réel au Lot 1.
 - Email : driver `mock` tant que Brevo n'est pas fourni — et surtout, les
   flux de vérification d'email / reset de mot de passe ne sont **pas
   implémentés** au Lot 1 (voir §2 bis).

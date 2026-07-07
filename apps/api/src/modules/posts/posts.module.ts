@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { FeedPostAssembler } from './feed-post.assembler';
 import { FeedService } from './feed.service';
 import { PostsController } from './posts.controller';
@@ -16,8 +17,12 @@ import { UserPostsController } from './user-posts.controller';
  * FeedPostAssembler (forme FEED_POST du contrat) est EXPORTÉ : les modules
  * des phases suivantes (interactions, saved-posts, admin) importeront
  * PostsModule pour assembler la même forme — source unique.
+ *
+ * Importe RealtimeModule (étape 5) pour émettre l'événement léger
+ * 'map.updated' à la création d'un post visible carte.
  */
 @Module({
+  imports: [RealtimeModule],
   controllers: [PostsController, UserPostsController],
   providers: [PostsService, FeedService, FeedPostAssembler],
   exports: [FeedPostAssembler, PostsService],

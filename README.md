@@ -38,7 +38,7 @@ Installation complète (dont PostgreSQL/PostGIS via Docker et l'alternative sans
 - [x] Étape 2 — Schéma de base de données + seed La Réunion
 - [x] Étape 3 — Auth, utilisateurs, profils, follows
 - [x] Étape 4 — Posts, feed, interactions sociales, médias
-- [ ] Étape 5 — Carte, caméras, notifications, temps réel
+- [x] Étape 5 — Carte, caméras, notifications, temps réel
 - [ ] Étape 6 — Backoffice minimal
 - [ ] Étape 7 — Application mobile Flutter
 - [ ] Étape 8 — Documentation, tests, données de démo

@@ -26,6 +26,7 @@ import {
   onSessionExpired,
 } from './api'
 import type { FullProfile } from './api'
+import CamerasView from './CamerasView'
 import HealthCard from './HealthCard'
 import LoginView from './LoginView'
 import PostsView from './PostsView'
@@ -40,15 +41,16 @@ type Session =
   | { kind: 'authenticated'; admin: FullProfile }
 
 /** Onglets du backoffice connecté. */
-type Tab = 'users' | 'posts' | 'reports'
+type Tab = 'users' | 'posts' | 'reports' | 'cameras'
 
 const TAB_LABELS: Record<Tab, string> = {
   users: 'Utilisateurs',
   posts: 'Publications',
   reports: 'Signalements',
+  cameras: 'Caméras',
 }
 
-const TABS: Tab[] = ['users', 'posts', 'reports']
+const TABS: Tab[] = ['users', 'posts', 'reports', 'cameras']
 
 export default function App() {
   const [session, setSession] = useState<Session>({ kind: 'restoring' })
@@ -135,7 +137,8 @@ export default function App() {
           <div>
             <h1 className="app-title">ENDIREK</h1>
             <p className="app-subtitle">
-              Backoffice — Lot 1 · utilisateurs, publications & signalements
+              Backoffice — Lot 1 · utilisateurs, publications, signalements &
+              caméras
             </p>
           </div>
 
@@ -193,11 +196,12 @@ export default function App() {
         {session.kind === 'authenticated' && tab === 'reports' && (
           <ReportsView onOpenCountChanged={refreshOpenReportsCount} />
         )}
+        {session.kind === 'authenticated' && tab === 'cameras' && <CamerasView />}
       </main>
 
       <footer className="app-footer">
         <HealthCard />
-        <p>Endirek — La Réunion · Lot 1 · étape 4</p>
+        <p>Endirek — La Réunion · Lot 1 · étape 5</p>
       </footer>
     </div>
   )

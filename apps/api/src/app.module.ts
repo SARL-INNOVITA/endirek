@@ -4,13 +4,16 @@ import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CamerasModule } from './modules/cameras/cameras.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { HealthModule } from './modules/health/health.module';
 import { MapModule } from './modules/map/map.module';
 import { MediaModule } from './modules/media/media.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { ReactionsModule } from './modules/reactions/reactions.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SavedPostsModule } from './modules/saved-posts/saved-posts.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -37,9 +40,13 @@ import { UsersModule } from './modules/users/users.module';
  * ModerationModule (signalements côté utilisateur) et l'extension du
  * AdminModule (modération des publications + file des signalements).
  *
- * Chaque module métier restant sera importé ici au fil des étapes du Lot 1
- * (étape 5 : cameras, notifications, realtime et le reste du module map —
- * étape 6 : le reste du backoffice admin — caméras et types de posts).
+ * Étape 5 : RealtimeModule (gateway socket.io — notifications en direct et
+ * rafraîchissement carte), NotificationsModule (création centralisée +
+ * lecture des notifications in-app), CamerasModule (caméras météo/trafic +
+ * détail public) et l'extension du MapModule (overview/cameras) et du
+ * AdminModule (backoffice caméras).
+ *
+ * Étape 6 : le reste du backoffice admin (types de posts).
  */
 @Module({
   imports: [
@@ -57,6 +64,9 @@ import { UsersModule } from './modules/users/users.module';
     ReactionsModule,
     SavedPostsModule,
     ModerationModule,
+    RealtimeModule,
+    NotificationsModule,
+    CamerasModule,
     MapModule,
     HealthModule,
   ],

@@ -41,6 +41,7 @@ import {
   User,
 } from '../domain/entities';
 import {
+  AdminListCamerasParams,
   AdminListPostsParams,
   CamerasRepository,
   CommentsRepository,
@@ -1114,6 +1115,46 @@ export class MockCamerasRepository implements CamerasRepository {
     this.db.touch(camera);
     return Promise.resolve(clone(camera));
   }
+
+  setStatus(id: string, status: CameraStatus): Promise<Camera> {
+    const camera = this.db.cameras.get(id);
+    if (!camera) {
+      throw new Error(`Caméra introuvable : ${id}.`);
+    }
+    camera.status = status;
+    this.db.touch(camera);
+    return Promise.resolve(clone(camera));
+  }
+
+  listAdmin(params: AdminListCamerasParams): Promise<PagedResult<Camera>> {
+    // Liste BACKOFFICE : tous statuts par défaut, filtres catégorie/statut et
+    // recherche insensible à la casse sur name/cityName/description. Le driver
+    // postgres fera un ILIKE + LIMIT/OFFSET.
+    let items = [...this.db.cameras.values()];
+    if (params.category !== undefined) {
+      items = items.filter((c) => c.category === params.category);
+    }
+    if (params.status !== undefined) {
+      items = items.filter((c) => c.status === params.status);
+    }
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim().toLowerCase();
+      items = items.filter(
+        (c) =>
+          c.name.toLowerCase().includes(needle) ||
+          c.cityName.toLowerCase().includes(needle) ||
+          c.description.toLowerCase().includes(needle),
+      );
+    }
+    // Tri stable par numéro : l'ordre d'affichage « #1, #2, ... » de l'app.
+    items.sort((a, b) => a.cameraNumber - b.cameraNumber);
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((c) => clone(c)),
+      total: items.length,
+    });
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1286,6 +1327,10 @@ export class MockNotificationsRepository implements NotificationsRepository {
     };
     this.db.notifications.set(notification.id, notification);
     return Promise.resolve(clone(notification));
+  }
+
+  findById(id: string): Promise<Notification | null> {
+    return Promise.resolve(clone(this.db.notifications.get(id) ?? null));
   }
 
   listByUser(

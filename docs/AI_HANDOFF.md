@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : fin du checkpoint 4 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 5 (2026-07-07)._
 
 ---
 
@@ -41,31 +41,35 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 1 | Socle du monorepo (API, admin, mobile, infra, docs) | ✅ validé |
 | 2 | Schéma DB PostGIS + adapter mock + seed La Réunion | ✅ validé |
 | 3 | Auth, utilisateurs, profils, follows, RGPD | ✅ validé |
-| 4 | **Posts, feed, interactions sociales, médias** | ✅ **implémenté et commité** (validation finale en cours) |
-| 5 | Carte, caméras, notifications, temps réel (WebSocket) | ⏭️ **PROCHAIN** |
-| 6 | Backoffice minimal (complément : caméras, paramètres) | à faire |
+| 4 | Posts, feed, interactions sociales, médias | ✅ validé |
+| 5 | **Carte, caméras, notifications, temps réel (WebSocket)** | ✅ **implémenté et commité** (validation finale en cours) |
+| 6 | Backoffice minimal (complément : paramètres des types de posts, affinages) | ⏭️ **PROCHAIN** |
 | 7 | Application mobile Flutter (finition UI/mockups) | à faire |
 | 8 | Documentation, tests, données de démo | à faire |
 
-**Dernier commit connu : `b308791`** — `feat: posts, feed, interactions sociales, médias — étape 4 du Lot 1`.
-Branche : `main`. Historique : `227063e` (socle) → `10a99b9` (untrack docs) → `a18a049` (option A) → `c365ce0` (DB) → `39c9c94` (auth) → `b308791` (social).
+**Dernier commit connu : `<à compléter par le commit du checkpoint 5>`** — `feat: carte, caméras, notifications, temps réel — étape 5 du Lot 1` (TODO : renseigner le hash après le commit).
+Branche : `main`. Historique : `227063e` (socle) → `10a99b9` (untrack docs) → `a18a049` (option A) → `c365ce0` (DB) → `39c9c94` (auth) → `b308791` (social) → `<checkpoint 5>` (carte/caméras/notifications/temps réel).
 
 ---
 
 ## 4. État actuel par composant
 
 ### API — `apps/api` (NestJS 11, TypeScript, port **3001**)
-Fonctionnelle. Modules livrés : `health`, `database` (mock), `auth`, `users`, `admin` (utilisateurs + posts + signalements), `media`, `posts`, `feed`, `comments`, `reactions`, `saved-posts`, `moderation`, `map` (endpoints préparatoires uniquement). Modules squelettes : `notifications`, `realtime` (README seulement — checkpoint 5).
+Fonctionnelle. Modules livrés : `health`, `database` (mock), `auth`, `users`, `admin` (utilisateurs + posts + signalements + **caméras**), `media`, `posts`, `feed`, `comments`, `reactions`, `saved-posts`, `moderation`, `map`, **`cameras`**, **`notifications`**, **`realtime`**.
 - Routes métier préfixées `/api/v1`, `GET /health` hors préfixe, Swagger sur `/docs`.
 - Guard JWT **global** (@Public pour exceptions), access + refresh tokens, bcrypt.
 - Upload médias local (`/uploads/` statique), validation par décodage réel (sharp), thumbnails.
 - Feed scoré (récence/proximité/type/popularité/abonnements), pagination offset.
+- **Carte** : `GET /map/overview` (posts + caméras en un appel), `/map/cameras`, `/map/posts`, `/map/communes` ; seuls les types `showsOnMap` non expirés sortent sur la carte, caméras `active` uniquement.
+- **Caméras** : `GET /cameras/:id` public (caméra `active` seulement) ; 6 routes backoffice `/admin/cameras` (numéro auto, ville déduite par géocodage mock, statuts ; `DELETE` = masquage doux `hidden`).
+- **Notifications** : `GET /notifications` (+ `total`/`unreadCount`), `/unread-count`, `PATCH /read-all`, `/:id/read` (uniquement les siennes) ; types `comment`/`reply`/`reaction`/`report_handled` créés via un point d'entrée unique (persistance + émission socket).
+- **Temps réel** : gateway **socket.io** (namespace par défaut, auth handshake JWT), events `notification.created` (room `user:<id>`) et `map.updated` (room `map`), CORS aligné sur l'API via `RealtimeIoAdapter`.
 
 ### Mobile — `apps/mobile` (Flutter 3.44, Riverpod, go_router, dio)
-Fonctionnel jusqu'au cœur social. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **Carte / News / Dealplace = placeholders propres**. Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition). Header : icônes messagerie/cloche **inactives** (checkpoint 5 pour la cloche).
+Fonctionnel jusqu'au temps réel. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News / Dealplace = placeholders propres**, mais la **Carte est réelle** (plus de placeholder). Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**. Temps réel via **socket.io** (`socket_io_client`) : notifications poussées en direct + `map.updated`, avec **fallback polling ~45 s**. Header : icône messagerie **inactive** (Lot 2), cloche **active**.
 
 ### Admin — `apps/admin` (React 19 + Vite 7, CSS pur, port 5173)
-Backoffice minimal fonctionnel : connexion réservée aux rôles admin, onglets **Utilisateurs**, **Publications** (modération, masquer/réactiver), **Signalements** (file de traitement). Caméras + paramètres des types de posts = checkpoint 6.
+Backoffice minimal fonctionnel : connexion réservée aux rôles admin, onglets **Utilisateurs**, **Publications** (modération, masquer/réactiver), **Signalements** (file de traitement) et **Caméras** (`CamerasView` + `CameraForm` : liste tous statuts, création/édition, changement de statut, masquage doux). Paramètres des types de posts = checkpoint 6.
 
 ### DB mock — `apps/api/src/database`
 `DB_DRIVER=mock` (in-memory) par défaut, **derrière les mêmes interfaces de repositories que le futur driver PostgreSQL**. Le schéma SQL source de vérité vit dans `apps/api/db/migrations/` (jamais exécuté — Docker absent). Seed La Réunion rechargé à chaque boot avec timestamps relatifs.
@@ -96,8 +100,12 @@ Détail complet : [MOCKED_SERVICES.md](MOCKED_SERVICES.md). Accès à fournir pl
 - Pas de vérification d'email ni de reset de mot de passe ; pas de rate-limiting.
 - **Partage** de post = bouton « prochainement », `share_count` jamais incrémenté.
 - Pas de vidéos (images seulement) ; uploads orphelins non purgés.
-- Notifications `comment`/`reply` **créées** mais **pas encore lisibles** (endpoints au checkpoint 5).
-- Carte mobile = placeholder ; GPS réel non branché (position par choix de commune).
+- Notifications in-app OK (`comment`/`reply`/`reaction`/`report_handled`) ; **push mobile toujours mock** (WebSocket + base, pas de FCM/APNs).
+- **Tuiles OSM = dev uniquement** (provider dédié en prod via `MAP_TILE_URL`/`MAP_API_KEY`).
+- **Caméras** : seul `streamType='image'` est affiché dans l'app (video/iframe → vignette + repli).
+- **Pas de présence temps réel** (« N personnes ici » du mockup non implémenté) ; temps réel = notifications + `map.updated` seulement (pas de messagerie), **fallback polling ~45 s**.
+- **Clustering client-side** (grille maison) ; clustering serveur à prévoir à grande échelle.
+- Carte mobile **réelle** mais centrée sur l'île ; **GPS réel non branché** (pas de « autour de moi », position par choix de commune).
 - Visual Studio C++ absent → pas de build Flutter Windows desktop (non nécessaire, cible Android/iOS).
 
 Liste complète et à jour : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
@@ -106,13 +114,19 @@ Liste complète et à jour : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
 
 ## 7. Prochaine étape recommandée
 
-**Checkpoint 5 — Carte interactive, caméras, notifications, temps réel.**
-- Carte mobile Météo & trafic réelle (tuiles OSM/MapLibre, clustering, preview cards) consommant les endpoints `/map/posts` et `/map/communes` déjà posés au checkpoint 4.
-- Caméras : gestion backoffice (numéro auto `#23`, géocodage mock de la ville, statuts), affichage carte.
-- Notifications in-app : endpoints de lecture + cloche mobile (les notifications `comment`/`reply` sont déjà créées en base).
-- Gateway WebSocket (module `realtime`) posée comme socle temps réel (réutilisée par les conversations du Lot 2).
+**Checkpoint 5 livré.** Carte OK, caméras OK, notifications OK, WebSocket
+socket.io + fallback polling OK (voir §4).
 
-Attendre la validation du product owner avant de passer au checkpoint 6.
+**Checkpoint 6 — Backoffice minimal (compléments).**
+- Paramètres des **types de posts** au backoffice (activation, durée carte
+  `default_map_duration_minutes`, `showsOnMap`) — aujourd'hui pilotés par le
+  seed `post_types`, à rendre éditables.
+- Éventuels **affinages** du backoffice existant (utilisateurs, publications,
+  signalements, caméras) selon les retours du product owner.
+- Rester dans le périmètre Lot 1 : pas de messagerie, pas de Dealplace, temps
+  réel minimal inchangé.
+
+Attendre la validation du product owner avant de passer au checkpoint 7.
 
 ---
 

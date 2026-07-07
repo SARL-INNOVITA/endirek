@@ -1,42 +1,31 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsArray, IsIn, IsOptional } from 'class-validator';
+import { MapBboxQueryDto } from './map-bbox-query.dto';
+import { MAP_POST_TYPES, toStringList } from './map-query.util';
 
 /**
- * Boîte englobante optionnelle de GET /map/posts : les quatre bornes vont
- * ENSEMBLE (toutes ou aucune — vérifié par le service). Sans bbox : toute
- * l'île.
+ * Boîte englobante optionnelle de GET /map/posts + filtre optionnel `types=`
+ * (weather,traffic,danger). Les quatre bornes vont ENSEMBLE (toutes ou
+ * aucune — vérifié par le service). Sans bbox : toute l'île.
+ *
+ * Note : quel que soit le filtre `types`, les posts free/question ne sortent
+ * JAMAIS de cet endpoint — l'exclusion carte est portée par le service
+ * (showsOnMap de post_types), pas par ce filtre.
  */
-export class MapPostsQueryDto {
-  @ApiPropertyOptional({ description: 'Latitude minimale de la bbox' })
-  @Type(() => Number)
+export class MapPostsQueryDto extends MapBboxQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Filtre par types de post carte, séparés par des virgules ' +
+      '(weather, traffic, danger). Absent : les trois types.',
+    example: 'weather,traffic',
+  })
   @IsOptional()
-  @IsNumber({}, { message: 'minLat doit être un nombre' })
-  @Min(-90, { message: 'minLat doit être comprise entre -90 et 90' })
-  @Max(90, { message: 'minLat doit être comprise entre -90 et 90' })
-  minLat?: number;
-
-  @ApiPropertyOptional({ description: 'Longitude minimale de la bbox' })
-  @Type(() => Number)
-  @IsOptional()
-  @IsNumber({}, { message: 'minLng doit être un nombre' })
-  @Min(-180, { message: 'minLng doit être comprise entre -180 et 180' })
-  @Max(180, { message: 'minLng doit être comprise entre -180 et 180' })
-  minLng?: number;
-
-  @ApiPropertyOptional({ description: 'Latitude maximale de la bbox' })
-  @Type(() => Number)
-  @IsOptional()
-  @IsNumber({}, { message: 'maxLat doit être un nombre' })
-  @Min(-90, { message: 'maxLat doit être comprise entre -90 et 90' })
-  @Max(90, { message: 'maxLat doit être comprise entre -90 et 90' })
-  maxLat?: number;
-
-  @ApiPropertyOptional({ description: 'Longitude maximale de la bbox' })
-  @Type(() => Number)
-  @IsOptional()
-  @IsNumber({}, { message: 'maxLng doit être un nombre' })
-  @Min(-180, { message: 'maxLng doit être comprise entre -180 et 180' })
-  @Max(180, { message: 'maxLng doit être comprise entre -180 et 180' })
-  maxLng?: number;
+  @Transform(toStringList)
+  @IsArray({ message: 'types doit être une liste' })
+  @IsIn(MAP_POST_TYPES, {
+    each: true,
+    message: 'types accepte seulement weather, traffic ou danger',
+  })
+  types?: string[];
 }
