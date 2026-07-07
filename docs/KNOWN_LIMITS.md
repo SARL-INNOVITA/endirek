@@ -1,8 +1,9 @@
 # ENDIREK — Limites connues
 
-État honnête des limites du projet **au checkpoint 6 du Lot 1** (socle, couche
+État honnête des limites du projet **au checkpoint 7 du Lot 1** (socle, couche
 base de données, auth/profils/follows/RGPD, posts/feed/interactions/médias,
-puis carte/caméras/notifications/temps réel et consolidation backoffice).
+puis carte/caméras/notifications/temps réel, consolidation backoffice et
+stabilisation démo).
 Ce fichier est mis à jour au
 fil des étapes.
 
@@ -29,10 +30,10 @@ peut pas tourner localement. Conséquence :
 - les requêtes géospatiales du mock (proximité, bbox) sont des approximations
   suffisantes pour le dev, pas des requêtes PostGIS réelles.
 
-## 2. Périmètre de l'API au checkpoint 6
+## 2. Périmètre de l'API au checkpoint 7
 
 L'API expose désormais, en plus de `GET /health` et de Swagger (`/docs`),
-les routes métier `api/v1` des étapes 3 à 5 :
+les routes métier `api/v1` des étapes 3 à 6 :
 
 - **auth** (étape 3) : `POST /auth/register|login|refresh|logout`,
   `GET /auth/me`, placeholders OAuth `POST /auth/oauth/google|apple` (501) ;
@@ -196,11 +197,15 @@ installé : `flutter doctor` le signale et le build Windows desktop est
 indisponible. **Non bloquant et non nécessaire** : les cibles du projet sont
 Android/iOS (+ `flutter run -d chrome` pour un aperçu rapide en dev).
 
-## 7. Pas de tests automatisés avant l'étape 8
+## 7. Couverture de tests encore partielle
 
-Les tests (unitaires et e2e API notamment) sont planifiés à **l'étape 8**
-du Lot 1, avec la documentation finale et les données de démo. D'ici là,
-la vérification est manuelle (Swagger, app mobile, backoffice).
+Les tests mobiles Flutter couvrent déjà le clustering, la présentation des
+notifications, les cartes de post et un smoke test de connexion. En revanche,
+il n'existe pas encore de suite automatisée API e2e ni de tests backoffice
+React complets. La vérification API/admin reste donc principalement assurée par
+les builds, Swagger/curl et la démo manuelle. **TODO avant exposition publique** :
+ajouter des tests e2e API sur auth/ownership/modération/carte/notifications et
+des tests backoffice sur les actions critiques.
 
 ## 8. Rappels de périmètre
 

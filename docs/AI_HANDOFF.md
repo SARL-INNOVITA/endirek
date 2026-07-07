@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : fin du checkpoint 6 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
 
 ---
 
@@ -22,7 +22,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 
 | Lot | Contenu | Statut |
 |---|---|---|
-| **Lot 1 — Socle + Live Local** | Auth, profils, follows, feed social (5 types de posts), interactions, carte météo/trafic, caméras, notifications, backoffice minimal | **EN COURS** |
+| **Lot 1 — Socle + Live Local** | Auth, profils, follows, feed social (5 types de posts), interactions, carte météo/trafic, caméras, notifications, backoffice minimal, préparation démo | **STABILISÉ — validation product owner attendue** |
 | **Lot 2 — Dealplace** | Marketplace biens/services, annonces, conversations 1-to-1 temps réel, deals contractuels (états, éléments validables, litiges) | Non commencé — anticipé |
 | **Lot 3 — Pages restaurants / entreprises** | Pages pro, menus programmés, cartes, offres, événements | Non commencé — anticipé |
 | **Lot 4 — News automatisées IA** | Harnais IA supervisé, sources, génération d'articles, page News | Non commencé — anticipé |
@@ -34,7 +34,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 
 ## 3. Lot actuel et checkpoints
 
-**Lot actuel : Lot 1.** Il est exécuté en **8 checkpoints** (= « étapes »), validés un par un par le product owner.
+**Lot actuel : Lot 1.** Il est exécuté en **7 checkpoints** (= « étapes »), validés un par un par le product owner.
 
 | # | Checkpoint | Statut |
 |---|---|---|
@@ -43,12 +43,11 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 3 | Auth, utilisateurs, profils, follows, RGPD | ✅ validé |
 | 4 | Posts, feed, interactions sociales, médias | ✅ validé |
 | 5 | **Carte, caméras, notifications, temps réel (WebSocket)** | ✅ validé |
-| 6 | **Backoffice minimal (types de posts, modération, UX, robustesse)** | ✅ **implémenté** (validation product owner à venir) |
-| 7 | Application mobile Flutter (finition UI/mockups) | prochain après validation |
-| 8 | Documentation, tests, données de démo | à faire |
+| 6 | **Backoffice minimal (types de posts, modération, UX, robustesse)** | ✅ validé techniquement |
+| 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **implémenté** (validation product owner à venir) |
 
-**Dernier commit connu avant checkpoint 6 : `955a041`** — `docs: renseigne le hash du checkpoint 5 dans AI_HANDOFF`.
-Branche : `main`. Historique récent : `39c9c94` (auth) → `b308791` (social) → `1458221` (carte/caméras/notifications/temps réel) → `955a041` (passation checkpoint 5). Le commit final du checkpoint 6 doit être renseigné dans le rapport de fin de tâche.
+**Dernier commit connu avant checkpoint 7 : `0412ccd`** — `feat: consolide le checkpoint 6 du lot 1`.
+Branche : `main`. Historique récent : `b308791` (social) → `1458221` (carte/caméras/notifications/temps réel) → `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6). Le commit final du checkpoint 7 doit être renseigné dans le rapport de fin de tâche.
 
 ---
 
@@ -67,7 +66,7 @@ Fonctionnelle. Modules livrés : `health`, `database` (mock), `auth`, `users`, `
 - **Temps réel** : gateway **socket.io** (namespace par défaut, auth handshake JWT), events `notification.created` (room `user:<id>`) et `map.updated` (room `map`), CORS aligné sur l'API via `RealtimeIoAdapter`.
 
 ### Mobile — `apps/mobile` (Flutter 3.44, Riverpod, go_router, dio)
-Fonctionnel jusqu'au temps réel. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News / Dealplace = placeholders propres**, mais la **Carte est réelle** (plus de placeholder). Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types actifs depuis `GET /posts/types`, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**. Les notifications `system` affichent `payload.title` ou `payload.message`. Temps réel via **socket.io** (`socket_io_client`) : notifications poussées en direct + `map.updated`, avec **fallback polling ~45 s**. Header : icône messagerie **inactive** (Lot 2), cloche **active**.
+Fonctionnel et stabilisé pour la démo Lot 1. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News / Dealplace = placeholders propres**, mais la **Carte est réelle**. Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types actifs depuis `GET /posts/types`, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**. Les notifications `system` affichent `payload.title` ou `payload.message`. Temps réel via **socket.io** (`socket_io_client`) : notifications poussées en direct + `map.updated`, avec **fallback polling ~45 s**. Header : icône messagerie **inactive** (Lot 2), cloche **active**. Les libellés Material sont localisés en français via `flutter_localizations`.
 
 ### Admin — `apps/admin` (React 19 + Vite 7, CSS pur, port 5173)
 Backoffice Lot 1 consolidé : connexion réservée aux rôles admin, onglets **Utilisateurs** (recherche + statut + rôle, suspendre/réactiver), **Publications** (type/statut/recherche + filtre carte `mapVisible`, détail, masquer/réactiver), **Signalements** (statut + cible, traitement, action directe sur commentaire signalé), **Caméras** (`CamerasView` + `CameraForm` : liste tous statuts, création/édition, changement de statut, masquage doux) et **Paramètres** (types de posts pilotables + notification système dev/mock).
@@ -118,14 +117,15 @@ Liste complète et à jour : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
 
 ## 7. Prochaine étape recommandée
 
-**Checkpoint 6 implémenté.** Backoffice Lot 1 consolidé, types de posts
-pilotables, commentaires signalés modérables, notification système dev/mock,
-UX mobile notifications ajustée, docs mises à jour.
+**Checkpoint 7 implémenté.** Lot 1 stabilisé pour démo : parcours mobile et
+backoffice audités, localisation Flutter branchée, documentation de démo créée
+([DEMO_LOT_1.md](DEMO_LOT_1.md)), README obsolètes remis à jour, tests/builds
+passés.
 
 **Prochaine étape recommandée : attendre la validation product owner du
-checkpoint 6.** Après validation seulement : lancer le **checkpoint 7 —
-finition mobile Flutter / cohérence mockups**, sans démarrer les lots futurs
-(pas de Dealplace, messagerie, pages, News IA, premium).
+checkpoint 7.** Après validation seulement : préparer le **Lot 2 — Dealplace**.
+Ne pas démarrer Dealplace, messagerie, deals, pages, News IA, premium ou
+paiements avant ce feu vert explicite.
 
 ---
 

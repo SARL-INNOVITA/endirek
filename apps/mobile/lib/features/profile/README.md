@@ -10,17 +10,16 @@ Implémenté à l'étape 3 (profil du user COURANT uniquement) :
 - `data/profile_repository.dart` — accès aux endpoints `users` via le client
   Dio de `core/api`.
 
-## TODO étape 7 — follow / unfollow
+## Limites restantes
 
 L'API expose déjà `POST/DELETE /users/:id/follow` et les listes
 `GET /users/:id/followers|following`, mais **aucune UI n'est branchée à cette
-étape** : il n'existe encore aucune surface de découverte d'utilisateurs
-(feed, recherche, profil public d'autrui) avant l'étape 7. À prévoir alors :
+étape** : le Lot 1 ne comporte pas encore de surface de découverte
+d'utilisateurs ni de profil public d'autrui. À prévoir dans un lot ultérieur :
 
 - profil PUBLIC d'un autre utilisateur (`GET /users/:id`) avec bouton
   Suivre / Ne plus suivre ;
 - listes d'abonnés / abonnements paginées (`?limit=&offset=`).
 
-Restent aussi pour l'étape 7 (mockup `04 Profil - Mes infos`) : activité
-récente, publications récentes, avatar/couverture éditables (upload médias),
-onglet « Profil Dealplace » placeholder (Lot 2).
+Restent aussi hors Lot 1 : activité récente détaillée, avatar/couverture
+éditables via upload médias et profil Dealplace.

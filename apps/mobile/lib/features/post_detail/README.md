@@ -1,6 +1,19 @@
-# feature: post_detail — TODO étape 7
+# feature: post_detail
 
-Page détail d'un post (référence mockup `09 Post Météo`) : média, bloc type+lieu+distance+temps relatif,
-texte, barre réactions/compteurs, commentaires : **commentaire principal (niveau 0) + réponses (niveau 1)
-uniquement** — pas de réponse à une réponse au Lot 1 (l'UI ne propose « Répondre » que sur les
-commentaires principaux), champ de saisie.
+**Statut : livré au Lot 1.**
+
+Écran `/post/:id` :
+
+- détail complet du post : média, type, ville, temps relatif, auteur, titre et
+  corps ;
+- réactions et compteurs synchronisés avec les cartes du feed ;
+- commentaires niveau 0 + réponses niveau 1 uniquement (option A) ;
+- champ de commentaire fixe en bas ;
+- menu auteur : modifier / supprimer ;
+- menu non-auteur : signaler.
+
+Règles importantes :
+
+- pas de réponse à une réponse au Lot 1 ;
+- suppression de post/commentaire = soft-delete côté API ;
+- un post masqué/supprimé par modération n'est plus ouvert publiquement.

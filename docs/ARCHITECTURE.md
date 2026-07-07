@@ -1,6 +1,6 @@
 # ENDIREK — Architecture technique
 
-Vue d'ensemble du socle posé au Lot 1 (« socle + expérience Live Local »)
+Vue d'ensemble du socle posé et stabilisé au Lot 1 (« socle + expérience Live Local »)
 et des points d'ancrage prévus pour les lots suivants.
 
 > **Règle permanente (agents IA)** : tout agent IA travaillant sur ce repo
@@ -69,7 +69,7 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `admin` | Endpoints d'administration consommés par le backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires signalés, notifications système dev/mock | 3-6 ✅ |
 | `modules/_future/*` | Placeholders des lots suivants (voir §6) — **TODO Lot 2+** | — |
 
-> **État réel au checkpoint 6** : le socle est en place — `health`, la couche
+> **État réel au checkpoint 7** : le socle est en place — `health`, la couche
 > `database` (driver mock + seed La Réunion), `auth` et `users` (étape 3) —
 > ainsi que le cœur social de l'étape 4 : `posts` (CRUD, détail par id et
 > par `url_slug`, listes de profil), le feed scoré (`GET /posts/feed`),
@@ -87,7 +87,9 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 > `notification.created` et `map.updated`, auth handshake JWT + fallback
 > polling côté client). Le checkpoint 6 consolide le backoffice :
 > filtres `role`/`mapVisible`/`targetType`, gestion des `post_types`, actions
-> sur commentaires signalés et notifications système dev/mock. Le tableau est mis à jour au
+> sur commentaires signalés et notifications système dev/mock. Le checkpoint 7
+> stabilise la démo Lot 1 : localisation Flutter en français, README remis à
+> jour et guide [DEMO_LOT_1.md](DEMO_LOT_1.md). Le tableau est mis à jour au
 > fil des étapes.
 
 Conventions transverses :

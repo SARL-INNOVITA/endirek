@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/realtime/realtime_bridge.dart';
@@ -25,10 +26,9 @@ class EndirekApp extends ConsumerWidget {
       title: 'Endirek',
       debugShowCheckedModeBanner: false,
       theme: buildEndirekTheme(),
-      // Tous les textes de l'app sont rédigés en français.
-      // TODO(étape 7) : brancher `flutter_localizations` (SDK) pour traduire
-      // aussi les libellés internes de Material (dialogues, tooltips…).
+      // Tous les textes de l'app, y compris les libelles Material, sont en francais.
       locale: const Locale('fr'),
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('fr')],
       routerConfig: ref.watch(routerProvider),
     );

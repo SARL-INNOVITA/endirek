@@ -13,15 +13,14 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
 
 Émulateur disponible sur la machine de dev : `Pixel_3a_API_34`.
 
-## Écrans disponibles (étape 4)
+## Écrans disponibles (Lot 1 checkpoint 7)
 
 - **Connexion** (`/login`) — email + mot de passe, boutons Google/Apple
   présents mais désactivés (« bientôt disponible », le backend répond 501) ;
 - **Inscription** (`/register`) — nom affiché, email, mot de passe ≥ 8
   caractères + confirmation ;
-- **Shell à 4 onglets** (Accueil, Carte, News, Dealplace) — Accueil est le
-  fil réel ; Carte (étape 5), News et Dealplace (lots suivants) sont des
-  placeholders propres ;
+- **Shell à 4 onglets** (Accueil, Carte, News, Dealplace) — Accueil et Carte
+  sont réels ; News et Dealplace restent des placeholders propres ;
 - **Fil d'actualité** (`/home`) — feed scoré de l'API, infinite scroll
   (offset/limit) + tirer-pour-rafraîchir, cartes de post (type, médias,
   compteurs) avec actions J'aime / Commenter / Partager / Enregistrer et
@@ -36,8 +35,13 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
 - **Profil** (`/profile`) — couverture, avatar, bio, stats, section « Mes
   publications », déconnexion, tirer-pour-rafraîchir ;
 - **Édition du profil** (`/profile/edit`) — nom affiché, bio, ville.
+- **Carte** (`/map`) — carte météo/trafic réelle, tuiles OSM dev, clustering,
+  filtres, preview cards, caméras actives et détail caméra ;
+- **Notifications** (`/notifications`) — liste in-app, badge de cloche,
+  lecture unitaire/tout lire, libellés `comment`/`reply`/`reaction`/
+  `report_handled`/`system`.
 
-## Limites connues (étape 4)
+## Limites connues (Lot 1)
 
 - **Partage non fonctionnel** : le bouton « Partager » affiche « Partage
   disponible prochainement » — aucun endpoint de partage côté API, le
@@ -45,19 +49,17 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
   (`share_plus`) + comptage.
 - **Pas de GPS réel** : la position d'un post carte est le **centre-ville
   de la commune choisie** (sélecteur alimenté par `GET /map/communes`).
-  **TODO** (étapes 5/7) : position GPS de l'appareil (`geolocator`) et
-  choix sur carte interactive.
-- L'onglet **Carte** est un placeholder jusqu'à l'étape 5.
+  **TODO Lot 2+** : position GPS de l'appareil (`geolocator`) et choix sur
+  carte interactive.
 - La palette de réactions du mobile est locale (miroir du seed
-  `reaction_types`) — un GET dédié côté API est prévu (étape 5/6).
+  `reaction_types`) — un GET dédié côté API reste à prévoir.
+- Les onglets **News** et **Dealplace** restent des placeholders Lot 1.
 
-Principales dépendances : Riverpod, go_router, Dio, `flutter_secure_storage`
-et **`image_picker`** (choix des photos du composer — ajouté à l'étape 4).
+Principales dépendances : Riverpod, go_router, Dio, `flutter_secure_storage`,
+`image_picker`, `flutter_map`, `socket_io_client` et `flutter_localizations`.
 
-> Tous les textes rédigés par l'app sont en français, mais les libellés
-> **système de Material** (boutons par défaut des dialogues, tooltips internes,
-> sélecteurs de date…) restent en **anglais** tant que `flutter_localizations`
-> n'est pas branché — prévu à l'étape 7 (TODO déjà posé dans `lib/main.dart`).
+> Les textes rédigés par l'app et les libellés système Material sont localisés
+> en français via `flutter_localizations`.
 
 ## Comptes de test
 

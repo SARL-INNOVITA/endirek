@@ -3,7 +3,7 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : fin du checkpoint 6 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
 
 Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. Docker **optionnel** (non requis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
@@ -77,6 +77,8 @@ flutter test                         # doit afficher "All tests passed!"
 | `http://localhost:3001/api/v1/...` | Routes métier (préfixe global, JWT requis sauf `@Public`) |
 | `http://localhost:3001/uploads/...` | Médias uploadés (statique, public) |
 | `ws://localhost:3001` (socket.io) | Temps réel (namespace par défaut, hors préfixe) — auth au handshake, events `notification.created` / `map.updated` |
+
+Guide de démonstration Lot 1 : [DEMO_LOT_1.md](DEMO_LOT_1.md).
 
 ---
 

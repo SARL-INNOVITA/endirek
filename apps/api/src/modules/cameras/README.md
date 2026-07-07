@@ -1,15 +1,26 @@
-# Module `cameras` — Caméras météo/trafic
+# Module `cameras` - Caméras météo/trafic
 
-**Statut : TODO — implémentation prévue à l'étape 5 du Lot 1.**
+**Statut : livré au Lot 1.**
 
-Rôle : gestion des caméras météo et trafic affichées sur la carte,
-administrables depuis le backoffice (voir module `admin`).
+Rôle : servir les caméras météo/trafic actives à la carte publique et fournir
+la logique métier réutilisée par le backoffice.
 
-Modèle d'une caméra (règles du Lot 1) :
-- **numéro attribué automatiquement** (ex. `#23`) ;
-- nom, type + URL du flux, catégorie **météo ou trafic**, description ;
-- emplacement précis (point maps ou coordonnées latitude/longitude) ;
-- **ville déduite automatiquement via géocodage** (`GEOCODING_PROVIDER=mock`
-  en dev, champ manuel toujours disponible), **ajustable manuellement** ;
-- nom de quartier facultatif ;
-- statut **actif/inactif** (seules les caméras actives apparaissent sur la carte).
+Routes publiques :
+
+- `GET /cameras/:id` : détail d'une caméra active uniquement.
+
+Routes backoffice : voir le module `admin` (`/admin/cameras`).
+
+Règles du Lot 1 :
+
+- `cameraNumber` est attribué automatiquement et préservé ;
+- catégories : `weather` ou `traffic` ;
+- statuts : `active`, `inactive`, `error`, `hidden` ;
+- seules les caméras `active` sont exposées publiquement ;
+- les statuts non publics répondent comme une caméra introuvable côté public ;
+- la position doit rester dans l'emprise de La Réunion ;
+- `cityName` peut être déduit par le géocodage mock si absent ;
+- `DELETE /admin/cameras/:id` = masquage doux (`hidden`), jamais suppression dure.
+
+Limites : seul `streamType='image'` est rendu dans le mobile ; `video` et
+`iframe` restent documentés mais affichés avec un repli.

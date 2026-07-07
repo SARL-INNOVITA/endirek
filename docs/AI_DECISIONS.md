@@ -3,7 +3,7 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : fin du checkpoint 6 (2026-07-07)._
+_Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
 
 ---
 
@@ -74,3 +74,7 @@ _Dernière mise à jour : fin du checkpoint 6 (2026-07-07)._
 - **D42.** **Changements de durée carte non rétroactifs** : modifier `default_map_duration_minutes` s'applique aux nouvelles publications uniquement ; les `map_expires_at` déjà posés sur les posts existants ne sont pas recalculés.
 - **D43.** **Commentaires admin : `deleted` est définitif**. Le backoffice peut masquer (`hidden`) et réactiver un commentaire masqué, mais ne restaure pas un commentaire déjà `deleted`. Une racine hidden/deleted avec des réponses actives reste affichée comme emplacement vide.
 - **D44.** **Notifications système checkpoint 6 = in-app dev/mock seulement** : créées depuis le backoffice via `NotificationsService.create`, elles sont persistées et émises en WebSocket, mais ne déclenchent aucun push FCM/APNs.
+
+## Stabilisation Lot 1 (checkpoint 7 — 2026-07-07)
+
+- **D45.** **Localisation mobile Material = `flutter_localizations` SDK** : l'app force la locale française et utilise les delegates Flutter officiels pour les libellés système Material. Aucun package de traduction externe ni catalogue i18n complet n'est introduit au Lot 1.

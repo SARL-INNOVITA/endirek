@@ -1,14 +1,25 @@
-# Module `users` — Utilisateurs et profils
+# Module `users` - Utilisateurs et profils
 
-**Statut : TODO — implémentation prévue à l'étape 3 du Lot 1.**
+**Statut : livré au Lot 1.**
 
-Rôle : profils utilisateurs simples et relations de suivi.
+Rôle : profils utilisateurs, relation de suivi, export/suppression RGPD et
+lecture publique minimale.
 
-Périmètre Lot 1 :
-- profil : photo, nom, bio, ville, followers, activité récente ;
-- paramètres minimum du compte ;
-- follow / unfollow (les abonnements alimentent l'algorithme du feed).
+Routes principales :
 
-Anticipation architecturale : l'utilisateur pourra plus tard posséder des
-**pages restaurant ou entreprise** (voir `_future/pages`) — la relation
-propriétaire est prévue dès le modèle de données (TODO Lot 2+).
+- `GET /users/me/profile` et `PATCH /users/me/profile` ;
+- `GET /users/me/export` et `DELETE /users/me` ;
+- `GET /users/:id` ;
+- `POST /users/:id/follow` et `DELETE /users/:id/follow` ;
+- `GET /users/:id/followers` et `GET /users/:id/following`.
+
+Règles importantes :
+
+- un compte `suspended` ou `deleted` ne peut plus utiliser ses jetons ;
+- les emails ne sont jamais exposés dans les profils publics ;
+- `DELETE /users/me` anonymise le compte et soft-delete ses contenus ;
+- les abonnements alimentent le scoring du feed.
+
+Limite Lot 1 : le mobile n'a pas encore de profil public d'autrui ni de surface
+de découverte utilisateur ; les endpoints follow sont prêts pour un lot
+ultérieur.

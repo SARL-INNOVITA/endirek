@@ -33,10 +33,10 @@ void main() {
   });
 
   test('reaction → « X a réagi à votre publication » + emoji', () {
-    final n = _notif('reaction', payload: {
-      'fromDisplayName': 'Léa',
-      'emoji': '👍',
-    });
+    final n = _notif(
+      'reaction',
+      payload: {'fromDisplayName': 'Léa', 'emoji': '👍'},
+    );
     expect(libelleNotification(n), 'Léa a réagi à votre publication 👍');
   });
 
@@ -46,16 +46,33 @@ void main() {
   });
 
   test('report_handled → libellé fixe (indépendant du payload)', () {
-    final n = _notif('report_handled', payload: {
-      'reportId': 'r1',
-      'status': 'resolved',
-      'targetType': 'post',
-    });
+    final n = _notif(
+      'report_handled',
+      payload: {'reportId': 'r1', 'status': 'resolved', 'targetType': 'post'},
+    );
     expect(libelleNotification(n), 'Votre signalement a été traité');
   });
 
   test('system → « Notification système »', () {
     expect(libelleNotification(_notif('system')), 'Notification système');
+  });
+
+  test('system affiche le titre puis le message du payload', () {
+    expect(
+      libelleNotification(
+        _notif(
+          'system',
+          payload: {'title': 'Info Endirek', 'message': 'Message de secours'},
+        ),
+      ),
+      'Info Endirek',
+    );
+    expect(
+      libelleNotification(
+        _notif('system', payload: {'message': 'Maintenance ce soir'}),
+      ),
+      'Maintenance ce soir',
+    );
   });
 
   test('type inconnu retombe sur le libellé système (jamais d\'erreur)', () {
@@ -72,7 +89,9 @@ void main() {
     );
     // Un fromDisplayName vide/blanc est aussi remplacé par le repli.
     expect(
-      libelleNotification(_notif('comment', payload: {'fromDisplayName': '  '})),
+      libelleNotification(
+        _notif('comment', payload: {'fromDisplayName': '  '}),
+      ),
       'Quelqu\'un a commenté votre publication',
     );
   });

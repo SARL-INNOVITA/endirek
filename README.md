@@ -14,7 +14,7 @@ Réseau social mobile local **temps réel** centré sur La Réunion : fil d'actu
 | `apps/admin` | Backoffice web (React + Vite) — port 5173 |
 | `apps/mobile` | Application mobile Flutter (Android / iOS / web de dev) |
 | `infra/` | Docker Compose PostgreSQL/PostGIS — voie recommandée quand Docker est installé |
-| `docs/` | Documentation : installation, architecture, services mockés, limites, TODO |
+| `docs/` | Documentation : installation, architecture, démo Lot 1, services mockés, limites, TODO |
 | `01_PRD` … `04_ACCESS` | Documents produit — **contexte local uniquement, non versionnés** (PRD global, mockups, prompts, matrice d'accès) |
 
 ## Démarrage rapide
@@ -31,6 +31,7 @@ flutter run          # émulateur Android, appareil physique ou -d chrome
 ```
 
 Installation complète (dont PostgreSQL/PostGIS via Docker et l'alternative sans Docker) : [docs/INSTALL.md](docs/INSTALL.md).
+Guide de démo Lot 1 : [docs/DEMO_LOT_1.md](docs/DEMO_LOT_1.md).
 
 ## État du projet — Lot 1 (socle + expérience Live Local)
 
@@ -39,8 +40,9 @@ Installation complète (dont PostgreSQL/PostGIS via Docker et l'alternative sans
 - [x] Étape 3 — Auth, utilisateurs, profils, follows
 - [x] Étape 4 — Posts, feed, interactions sociales, médias
 - [x] Étape 5 — Carte, caméras, notifications, temps réel
-- [ ] Étape 6 — Backoffice minimal
-- [ ] Étape 7 — Application mobile Flutter
-- [ ] Étape 8 — Documentation, tests, données de démo
+- [x] Étape 6 — Backoffice minimal consolidé
+- [x] Étape 7 — Audit final, stabilisation, polish, préparation démo
+
+Le Lot 1 est stabilisé pour validation produit avant passage au Lot 2.
 
 Les modules des lots suivants (Dealplace, deals, pages restaurants/entreprises, News IA, premium) sont **anticipés architecturalement** mais non développés dans le Lot 1 — voir `apps/api/src/modules/_future/` et [docs/TODO_LOT_2.md](docs/TODO_LOT_2.md).
