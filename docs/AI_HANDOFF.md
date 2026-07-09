@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
+_Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
 
 ---
 
@@ -46,8 +46,8 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 6 | **Backoffice minimal (types de posts, modération, UX, robustesse)** | ✅ validé techniquement |
 | 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **implémenté** (validation product owner à venir) |
 
-**Dernier commit connu avant checkpoint 7 : `0412ccd`** — `feat: consolide le checkpoint 6 du lot 1`.
-Branche : `main`. Historique récent : `b308791` (social) → `1458221` (carte/caméras/notifications/temps réel) → `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6). Le commit final du checkpoint 7 doit être renseigné dans le rapport de fin de tâche.
+**Dernier commit connu avant la validation Docker/PostGIS : `5bb43d6`** — `fix: autorise les origines locales Flutter Web`.
+Branche : `main`. Historique récent : `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6) → `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web). Le commit final de la validation Docker/PostGIS doit être renseigné dans le rapport de fin de tâche.
 
 ---
 
@@ -71,8 +71,8 @@ Fonctionnel et stabilisé pour la démo Lot 1. Shell 4 onglets (Accueil, Carte, 
 ### Admin — `apps/admin` (React 19 + Vite 7, CSS pur, port 5173)
 Backoffice Lot 1 consolidé : connexion réservée aux rôles admin, onglets **Utilisateurs** (recherche + statut + rôle, suspendre/réactiver), **Publications** (type/statut/recherche + filtre carte `mapVisible`, détail, masquer/réactiver), **Signalements** (statut + cible, traitement, action directe sur commentaire signalé), **Caméras** (`CamerasView` + `CameraForm` : liste tous statuts, création/édition, changement de statut, masquage doux) et **Paramètres** (types de posts pilotables + notification système dev/mock).
 
-### DB mock — `apps/api/src/database`
-`DB_DRIVER=mock` (in-memory) par défaut, **derrière les mêmes interfaces de repositories que le futur driver PostgreSQL**. Le schéma SQL source de vérité vit dans `apps/api/db/migrations/` (jamais exécuté — Docker absent). Seed La Réunion rechargé à chaque boot avec timestamps relatifs.
+### DB mock + PostGIS local — `apps/api/src/database` / `infra`
+`DB_DRIVER=mock` (in-memory) reste le défaut et le fallback de développement, **derrière les mêmes interfaces de repositories que le futur driver PostgreSQL**. Docker est disponible depuis le 2026-07-09 : `infra/docker-compose.yml` démarre PostgreSQL/PostGIS (`postgis/postgis:16-3.4`) et les migrations SQL `0001_lot1_init.sql` + `0002_reference_data.sql` ont été appliquées avec succès. Le schéma PostGIS est donc validé, mais `DB_DRIVER=postgres` côté API échoue encore volontairement car les repositories SQL ne sont pas implémentés. Seed La Réunion rechargé à chaque boot avec timestamps relatifs.
 **Log de boot attendu** : `Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications`.
 
 ---
@@ -81,7 +81,7 @@ Backoffice Lot 1 consolidé : connexion réservée aux rôles admin, onglets **U
 
 | Service | Driver / état | Détail |
 |---|---|---|
-| Base de données | `DB_DRIVER=mock` | PostgreSQL/PostGIS = cible réelle, non requise maintenant |
+| Base de données | `DB_DRIVER=mock` | PostgreSQL/PostGIS local validé/migré ; driver API postgres non implémenté |
 | Stockage médias | `MEDIA_STORAGE_DRIVER=local` | disque `apps/api/uploads/` ; S3/Hetzner = `throw` explicite |
 | Géocodage | `GEOCODING_PROVIDER=mock` | table des 12 communes du seed + plus proche voisin |
 | Push (FCM/APNs) | `PUSH_DRIVER=mock` | notifications persistées en base, pas d'envoi réel |
@@ -94,7 +94,7 @@ Détail complet : [MOCKED_SERVICES.md](MOCKED_SERVICES.md). Accès à fournir pl
 
 ## 6. Limites connues (état honnête)
 
-- **Docker absent** → pas de vrai PostgreSQL/PostGIS ; le SQL des migrations n'a jamais été exécuté.
+- **Driver API PostgreSQL non implémenté** : PostGIS local est validé et migré, mais l'API métier tourne encore en `DB_DRIVER=mock`.
 - Données mock **non persistées** entre redémarrages (seed rechargé, timestamps relatifs).
 - Refresh token **non révocable** (invalidation via re-vérification du statut à chaque requête).
 - Pas de vérification d'email ni de reset de mot de passe ; pas de rate-limiting.
@@ -123,9 +123,11 @@ backoffice audités, localisation Flutter branchée, documentation de démo cré
 passés.
 
 **Prochaine étape recommandée : attendre la validation product owner du
-checkpoint 7.** Après validation seulement : préparer le **Lot 2 — Dealplace**.
-Ne pas démarrer Dealplace, messagerie, deals, pages, News IA, premium ou
-paiements avant ce feu vert explicite.
+checkpoint 7 et de la validation Docker/PostGIS.** Côté infra, la prochaine
+vraie étape base sera l'implémentation des repositories SQL avant toute bascule
+API en `DB_DRIVER=postgres`. Côté produit, ne préparer le **Lot 2 — Dealplace**
+qu'après feu vert explicite. Ne pas démarrer Dealplace, messagerie, deals,
+pages, News IA, premium ou paiements avant ce feu vert.
 
 ---
 
@@ -133,7 +135,7 @@ paiements avant ce feu vert explicite.
 
 1. **Lire d'abord** : ce fichier, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md). Puis `git status`.
 2. **Rester dans le périmètre du Lot 1.** Ne développe PAS Dealplace, conversations, deals, pages restos/entreprises, premium, paiement, offres exceptionnelles, News IA, Google Ads réel.
-3. **`DB_DRIVER=mock` par défaut.** N'exige pas Docker. Ne bloque jamais sur un service externe absent : mocke proprement.
+3. **`DB_DRIVER=mock` par défaut.** Docker/PostGIS local est disponible pour valider le schéma, mais ne bascule pas l'API en `DB_DRIVER=postgres` tant que les repositories SQL ne sont pas implémentés.
 4. **Aucun secret dans le repo.** Jamais de clé API, token, mot de passe réel. Tout via variables d'environnement ; mettre à jour `.env.example` si une variable apparaît.
 5. **Ne pas versionner** `01_PRD/`, `02_MOCKUPS/`, `03_PROMPTS/`, `04_ACCESS/` (contexte produit local, dans `.gitignore`).
 6. **Ne pas créer les tables complexes des futurs lots** ; se contenter de les documenter.

@@ -6,11 +6,11 @@
  *
  * - 'mock' (défaut) : repositories en mémoire au-dessus de MockDatabaseService,
  *   seed La Réunion chargé au boot si DB_MOCK_SEED=true. Aucune infrastructure
- *   requise — c'est le mode de développement tant que Docker est absent.
- * - 'postgres' : PAS ENCORE IMPLÉMENTÉ (étape 2 : le schéma SQL existe dans
- *   db/migrations/, mais aucun PostGIS ne tourne sans Docker). Tout démarrage
- *   avec DB_DRIVER=postgres échoue volontairement avec une erreur explicite,
- *   plutôt que de faire semblant de fonctionner.
+ *   requise — c'est le fallback de développement.
+ * - 'postgres' : PAS ENCORE IMPLÉMENTÉ côté repositories. Docker/PostGIS et les
+ *   migrations SQL sont validés, mais tout démarrage API avec
+ *   DB_DRIVER=postgres échoue volontairement avec une erreur explicite plutôt
+ *   que de faire semblant de fonctionner.
  *
  * @Global() : les modules métier (étapes 3-6) injectent les repositories via
  * leurs tokens sans importer DatabaseModule explicitement.
@@ -57,9 +57,10 @@ function assertSupportedDriver(configService: ConfigService): void {
   }
   if (driver === 'postgres') {
     throw new Error(
-      "Driver postgres non implémenté à l'étape 2 — installez Docker " +
-        "(infra/docker-compose.yml) puis attendez l'implémentation du driver, " +
-        'ou utilisez DB_DRIVER=mock.',
+      'Driver postgres non implémenté côté API — Docker/PostGIS et les ' +
+        'migrations SQL peuvent être utilisés pour valider le schéma, mais ' +
+        'les repositories SQL ne sont pas encore livrés. Utilisez ' +
+        "DB_DRIVER=mock pour lancer l'API métier.",
     );
   }
   throw new Error(

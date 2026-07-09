@@ -3,14 +3,14 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
+_Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
 
 ---
 
 ## Produit & périmètre
 
 - **D1.** Le projet est découpé en **4 lots produit** : Lot 1 (Socle + Live Local), Lot 2 (Dealplace), Lot 3 (Pages restos/entreprises), Lot 4 (News IA). La monétisation est transverse/future.
-- **D2.** Le **Lot 1 est exécuté par checkpoints validés** un par un (8 checkpoints). On s'arrête à la fin de chaque checkpoint et on attend la validation du product owner.
+- **D2.** Le **Lot 1 est exécuté par checkpoints validés** un par un (7 checkpoints). On s'arrête à la fin de chaque checkpoint et on attend la validation du product owner.
 - **D3.** **News et Dealplace sont des placeholders** dans le Lot 1 (onglets mobiles « bientôt disponible », modules API `_future/`).
 - **D4.** On **ne crée pas les tables complexes des futurs lots** maintenant ; on les documente seulement (voir `docs/DATABASE.md` §tables futures).
 - **D5.** Périmètre Lot 1 strict : **pas de** Dealplace, conversations, deals, pages restos/entreprises, premium, paiement, offres exceptionnelles, News IA, Google Ads réel, ni carte interactive complète avant le checkpoint 5.
@@ -32,8 +32,8 @@ _Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
 ## Architecture & technique
 
 - **D17.** **`DB_DRIVER=mock` par défaut.** Adapter in-memory derrière les mêmes interfaces de repositories que le futur driver PostgreSQL.
-- **D18.** **Docker absent pour l'instant** — ne pas l'exiger, ne pas bloquer dessus.
-- **D19.** **PostgreSQL / PostGIS** est la **cible réelle** ; le schéma SQL source de vérité est dans `apps/api/db/migrations/` (non exécuté tant que Docker manque). Procédure de bascule documentée dans `docs/DATABASE.md`.
+- **D18.** **Docker/PostGIS local disponible depuis le 2026-07-09** — utile pour valider le schéma SQL, mais ne doit pas rendre le mode mock obligatoire à remplacer.
+- **D19.** **PostgreSQL / PostGIS** est la **cible réelle** ; le schéma SQL source de vérité est dans `apps/api/db/migrations/` et a été validé contre `postgis/postgis:16-3.4`. Procédure documentée dans `docs/DATABASE.md`.
 - **D20.** **Port de l'API : 3001** (le 3000 est fréquemment occupé par d'autres projets de dev sur la machine).
 - **D21.** Stack : **Flutter** (mobile) + **NestJS/TypeScript** (API) + **React/Vite** (backoffice) + **PostgreSQL/PostGIS** (cible). Carte mobile : **`flutter_map` + tuiles OSM** sans clé en dev (détail D34-D35). Temps réel : **socket.io** (D36).
 - **D22.** Pattern **« adapters remplaçables »** pour toute intégration externe (base, médias, géocodage, push, email) : interface stable + implémentation sélectionnée par variable d'environnement.
@@ -78,3 +78,7 @@ _Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
 ## Stabilisation Lot 1 (checkpoint 7 — 2026-07-07)
 
 - **D45.** **Localisation mobile Material = `flutter_localizations` SDK** : l'app force la locale française et utilise les delegates Flutter officiels pour les libellés système Material. Aucun package de traduction externe ni catalogue i18n complet n'est introduit au Lot 1.
+
+## Infrastructure base de données (2026-07-09)
+
+- **D46.** **PostGIS validé ≠ driver API postgres livré** : Docker Compose démarre PostgreSQL/PostGIS et les migrations Lot 1 passent, mais l'API métier reste en `DB_DRIVER=mock` tant que les repositories SQL ne sont pas implémentés. `DB_DRIVER=postgres` échoue volontairement pour éviter une fausse bascule.

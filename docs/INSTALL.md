@@ -4,14 +4,10 @@ Ce guide décrit l'installation complète de l'environnement de développement
 sur une machine locale (référence : Windows 11, mais les commandes sont
 identiques sur macOS/Linux sauf mention contraire).
 
-> **État actuel du projet (fin d'étape 4 du Lot 1)** : le socle du monorepo
-> est posé, la couche base de données est implémentée en mode mock
-> (`DB_DRIVER=mock`, seed La Réunion — voir [DATABASE.md](DATABASE.md)) et
-> les routes métier des étapes 3 et 4 sont fonctionnelles : auth, profils,
-> follows, RGPD (étape 3) puis posts, feed scoré, commentaires, réactions,
-> enregistrements, upload d'images, signalements et modération backoffice
-> (étape 4) — voir « Tester l'API » ci-dessous. Ce guide restera valable
-> pour toute la suite du Lot 1.
+> **État actuel du projet (Lot 1 stabilisé)** : l'API métier tourne toujours
+> en `DB_DRIVER=mock` par défaut, Docker/PostGIS local est disponible et les
+> migrations SQL Lot 1 ont été validées. Le driver repositories PostgreSQL de
+> l'API n'est pas encore implémenté.
 
 ---
 
@@ -26,9 +22,9 @@ identiques sur macOS/Linux sauf mention contraire).
 | Android SDK + émulateur | via Android Studio | Recommandé (cible Android) | `flutter doctor` |
 | Docker | récent | **Optionnel mais recommandé** | `docker --version` |
 
-> Docker n'est nécessaire que pour la vraie base PostgreSQL/PostGIS
-> (voir section « Base de données »). Sans Docker, le projet fonctionne
-> en mode `DB_DRIVER=mock` — c'est l'état actuel de la machine de dev.
+> Docker n'est nécessaire que pour valider ou utiliser la base
+> PostgreSQL/PostGIS locale (voir section « Base de données »). L'API métier
+> peut continuer à fonctionner en `DB_DRIVER=mock`.
 
 ---
 
@@ -247,31 +243,43 @@ Le schéma **PostgreSQL/PostGIS est la source de vérité** (posé à l'étape 2
 dans `apps/api/db/migrations/`, documenté table par table dans
 [DATABASE.md](DATABASE.md)). Deux voies possibles :
 
-### Voie A — Docker (recommandée quand Docker est installé)
+### Voie A — Docker/PostGIS local
 
 ```bash
-cd infra
-docker compose up -d       # PostgreSQL 16 + PostGIS 3.4 sur localhost:5432
+docker compose -f infra/docker-compose.yml up -d postgres
+docker compose -f infra/docker-compose.yml ps
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -U endirek -d endirek -c "SELECT postgis_version();"
 ```
 
-Puis dans `apps/api/.env` :
+Les migrations Lot 1 ont été validées avec :
+
+```bash
+docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
+docker cp apps/api/db/migrations/0002_reference_data.sql endirek-postgres:/tmp/0002_reference_data.sql
+
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0002_reference_data.sql
+```
+
+Connexion PostgreSQL locale :
 
 ```env
-DB_DRIVER=postgres
 DATABASE_URL=postgresql://endirek:endirek@localhost:5432/endirek
 ```
 
 Détails (vérification, arrêt, reset du volume) : [../infra/README.md](../infra/README.md).
 
-> ⚠️ Le **driver postgres n'est pas encore implémenté** (étape 2 : seul le
-> schéma SQL existe) : `DB_DRIVER=postgres` fait volontairement échouer le
-> démarrage de l'API avec une erreur explicite. La procédure de bascule
-> complète (migrations `psql`, implémentation du driver, seed SQL) est
-> décrite dans [DATABASE.md](DATABASE.md) §7.
+> ⚠️ Le **driver repositories postgres de l'API n'est pas encore implémenté** :
+> `DB_DRIVER=postgres` fait volontairement échouer le démarrage de l'API avec
+> une erreur explicite. Garder `DB_DRIVER=mock` pour lancer l'API métier tant
+> que le driver SQL n'est pas livré. Procédure détaillée : [DATABASE.md](DATABASE.md) §7.
 
-### Voie B — Sans Docker : `DB_DRIVER=mock` (état actuel)
+### Voie B — Fallback API : `DB_DRIVER=mock`
 
-Docker n'étant pas installé sur la machine de dev actuelle, l'API tourne avec :
+Pour lancer l'API métier sans dépendre de PostgreSQL, garder :
 
 ```env
 DB_DRIVER=mock

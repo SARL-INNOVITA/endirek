@@ -3,10 +3,9 @@
 # =============================================================================
 # Prérequis : Docker Desktop (ou Docker Engine + plugin compose).
 #
-# ⚠️ Docker n'est PAS installé sur la machine de dev actuelle (Windows 11).
-#    Tant que Docker manque, l'API tourne avec DB_DRIVER=mock (voir
-#    docs/INSTALL.md et docs/MOCKED_SERVICES.md). Ce fichier est prêt à
-#    l'emploi dès que Docker sera disponible.
+# Docker/PostGIS est disponible sur la machine de dev depuis le 2026-07-09 et
+# les migrations Lot 1 ont été validées. L'API métier reste en DB_DRIVER=mock
+# tant que le driver repositories postgres n'est pas implémenté.
 #
 # Usage (depuis le dossier infra/) :
 #   docker compose up -d        # démarrer PostgreSQL/PostGIS

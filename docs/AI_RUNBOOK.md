@@ -3,9 +3,9 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : fin du checkpoint 7 (2026-07-07)._
+_Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
 
-Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. Docker **optionnel** (non requis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
+Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. Docker est disponible pour PostgreSQL/PostGIS local, mais `DB_DRIVER=mock` reste le fallback API. Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
 > Sur la machine de dev actuelle, Flutter/adb/Java ne sont pas dans le PATH système. Chemins : Flutter `C:\Users\User\flutter\bin\flutter.bat`, JDK `C:\Program Files\Android\Android Studio\jbr`, Android SDK `C:\Users\User\AppData\Local\Android\Sdk`. Un autre environnement aura ces outils dans le PATH — adapter en conséquence.
 > Sous PowerShell Windows, utiliser `npm.cmd` si l'exécution de `npm.ps1` est bloquée par la politique d'exécution locale.
@@ -186,7 +186,7 @@ Modèle complet et commenté : `apps/api/.env.example` (API) et `apps/admin/.env
 | Variable | Défaut (dev) | Rôle |
 |---|---|---|
 | `PORT` | `3001` | port de l'API |
-| `DB_DRIVER` | `mock` | `mock` (in-memory) ou `postgres` (cible, non implémenté) |
+| `DB_DRIVER` | `mock` | `mock` (in-memory, fallback API) ou `postgres` (schéma PostGIS validé, repositories API non implémentés) |
 | `DB_MOCK_SEED` | `true` | charge le seed La Réunion au boot |
 | `MEDIA_STORAGE_DRIVER` | `local` | `local` (disque) ou `s3` (non implémenté) |
 | `MEDIA_MAX_FILE_SIZE_MB` | `8` | taille max d'upload image |
@@ -203,11 +203,33 @@ Modèle complet et commenté : `apps/api/.env.example` (API) et `apps/admin/.env
 
 ---
 
-## 8. Procédure si Docker manque (état actuel)
+## 8. PostgreSQL/PostGIS via Docker
 
-Rien à faire de spécial : **c'est le mode par défaut**. `DB_DRIVER=mock` sert des données en mémoire (seed rechargé à chaque boot). Le schéma PostgreSQL/PostGIS reste la source de vérité dans `apps/api/db/migrations/` mais n'a pas besoin de tourner.
+PostGIS local est disponible via `infra/docker-compose.yml` :
 
-Quand Docker sera installé (bascule vers la vraie base) : voir la procédure pas-à-pas dans `docs/DATABASE.md` §bascule (démarrer `infra/docker-compose.yml`, appliquer les migrations, implémenter le driver `postgres`, passer `DB_DRIVER=postgres`).
+```bash
+docker compose -f infra/docker-compose.yml up -d postgres
+docker compose -f infra/docker-compose.yml ps
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -U endirek -d endirek -c "SELECT postgis_version();"
+```
+
+Migrations Lot 1 (première base ou après `docker compose -f infra/docker-compose.yml down -v`) :
+
+```bash
+docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
+docker cp apps/api/db/migrations/0002_reference_data.sql endirek-postgres:/tmp/0002_reference_data.sql
+
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0002_reference_data.sql
+```
+
+État validé le 2026-07-09 : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables métier Lot 1 + `spatial_ref_sys`, 5 `post_types`, 6 `reaction_types`.
+
+Important : l'API métier reste en `DB_DRIVER=mock`. `DB_DRIVER=postgres`
+échoue volontairement tant que les repositories SQL ne sont pas implémentés.
 
 ---
 

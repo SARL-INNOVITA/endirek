@@ -44,8 +44,8 @@ constructor(
 
 ## Le driver mock (`DB_DRIVER=mock`)
 
-Docker étant absent du poste de dev, l'API démarre sans PostGIS grâce à un
-driver **en mémoire, TypeScript pur, zéro dépendance** :
+L'API démarre sans dépendre de PostGIS grâce à un driver **en mémoire,
+TypeScript pur, zéro dépendance** :
 
 - `MockDatabaseService` héberge une `Map` (ou un tableau) par table du schéma ;
 - les **données de référence** (`post_types`, `reaction_types`) sont embarquées,
@@ -79,17 +79,18 @@ Au démarrage, le service loggue :
 ## Bascule vers PostgreSQL (`DB_DRIVER=postgres`)
 
 Aujourd'hui, `DB_DRIVER=postgres` **échoue volontairement au démarrage** avec
-une erreur explicite : le schéma SQL existe mais aucun PostGIS ne tourne
-(Docker absent) — on refuse de faire semblant.
+une erreur explicite : Docker/PostGIS et les migrations SQL sont validés, mais
+les repositories SQL ne sont pas encore implémentés — on refuse de faire
+semblant.
 
-Quand Docker sera disponible, le driver postgres s'ajoutera **sans toucher au
-code métier** :
+Quand le driver postgres sera livré, il s'ajoutera **sans toucher au code
+métier** :
 
 1. implémenter chaque interface de `repositories/interfaces.ts` en SQL
    (dans un futur dossier `postgres/`) ;
 2. étendre les factories de `database.module.ts` pour choisir l'implémentation
    selon `database.driver` ;
-3. exécuter les migrations `db/migrations/` (`0001` puis `0002`) ;
+3. garder les migrations `db/migrations/` validées (`0001` puis `0002`) ;
 4. `DB_DRIVER=postgres` dans `.env` — mêmes tokens, mêmes interfaces, mêmes
    entités : rien d'autre ne change.
 
@@ -97,6 +98,6 @@ code métier** :
 
 | Variable | Défaut | Rôle |
 | --- | --- | --- |
-| `DB_DRIVER` | `mock` | `mock` (en mémoire) ou `postgres` (non implémenté à l'étape 2) |
+| `DB_DRIVER` | `mock` | `mock` (en mémoire) ou `postgres` (schéma validé, repositories API non implémentés) |
 | `DB_MOCK_SEED` | `true` | Charger le seed de démonstration La Réunion (driver mock) |
 | `DATABASE_URL`, `POSTGRES_*` | — | Réservées au futur driver postgres |

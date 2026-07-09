@@ -142,7 +142,7 @@ curl http://localhost:3001/api/v1/admin/post-types -H "Authorization: Bearer <TO
 
 ## 8. Limites a annoncer en demo
 
-- Pas de vraie base PostgreSQL/PostGIS tant que Docker n'est pas disponible.
+- PostgreSQL/PostGIS local est disponible et migré, mais l'API de démo reste en `DB_DRIVER=mock` tant que le driver repositories postgres n'est pas livré.
 - Donnees mock non persistantes entre redemarrages.
 - Pas de GPS precis : les posts carte utilisent le centre de la commune choisie.
 - Tuiles OSM publiques reservees au dev ; provider dedie a prevoir en production.

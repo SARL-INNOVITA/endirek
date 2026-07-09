@@ -100,10 +100,10 @@ circulation cessent de fonctionner **immédiatement** après la suppression :
 - **Pas de délai de rétractation** : la suppression est immédiate et
   irréversible dès l'appel — pas de fenêtre de grâce « votre compte sera
   supprimé dans 30 jours » permettant d'annuler.
-- **Données mock en mémoire** (`DB_DRIVER=mock`, Docker absent) : rien n'est
-  persisté entre deux redémarrages de l'API. Export et suppression
-  fonctionnent réellement, mais sur des données volatiles — la question de la
-  rétention réelle ne se posera qu'à la bascule PostgreSQL.
+- **Données mock en mémoire** (`DB_DRIVER=mock`) : rien n'est persisté entre
+  deux redémarrages de l'API. Export et suppression fonctionnent réellement,
+  mais sur des données volatiles — la question de la rétention réelle ne se
+  posera qu'à la bascule du driver API vers PostgreSQL.
 - **Pas de vérification d'email** : un compte peut être créé avec un email
   qui n'appartient pas à son créateur (aucun envoi d'email au Lot 1 —
   `EMAIL_DRIVER=mock`, flux non implémentés). L'export « de ses données »

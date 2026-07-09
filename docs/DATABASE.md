@@ -8,11 +8,14 @@ Documentation du schéma de données posé à **l'étape 2 du Lot 1**.
   données de référence, rejouable via `ON CONFLICT DO NOTHING`).
 - **Mode par défaut actuel** : `DB_DRIVER=mock` — un adapter **in-memory
   TypeScript** (`apps/api/src/database/mock/`) qui reflète fidèlement ce schéma,
-  parce que **Docker est absent de la machine de dev** et qu'aucun PostGIS ne
-  tourne. Détails du driver : [`apps/api/src/database/README.md`](../apps/api/src/database/README.md).
-- **État honnête** : les fichiers SQL n'ont **PAS encore été exécutés contre un
-  vrai PostgreSQL/PostGIS**. Ils seront appliqués et validés dès l'installation
-  de Docker (voir la [procédure de bascule](#7-procédure-de-bascule-mock--postgresqlpostgis)).
+  et reste le fallback de développement tant que le driver repositories
+  PostgreSQL n'est pas implémenté. Détails du driver :
+  [`apps/api/src/database/README.md`](../apps/api/src/database/README.md).
+- **État honnête** : Docker/PostGIS est disponible depuis le 2026-07-09 et les
+  migrations SQL Lot 1 ont été appliquées avec succès sur l'image
+  `postgis/postgis:16-3.4`. Le schéma est donc validé côté base, mais
+  `DB_DRIVER=postgres` côté API échoue encore volontairement : les repositories
+  SQL ne sont pas livrés.
 
 Le miroir TypeScript du schéma (entités, contraintes reproduites en code) vit
 dans `apps/api/src/database/domain/entities.ts` ; le code métier ne dépend que
@@ -360,17 +363,18 @@ Au démarrage, l'API loggue :
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `DB_DRIVER` | `mock` | `mock` (en mémoire) ou `postgres` (pas encore implémenté : démarre en erreur explicite) |
+| `DB_DRIVER` | `mock` | `mock` (en mémoire) ou `postgres` (schéma PostGIS validé, driver repositories API pas encore implémenté : démarre en erreur explicite) |
 | `DB_MOCK_SEED` | `true` | Charger le seed de démonstration La Réunion (driver mock uniquement ; `false` = base mock vide, hors données de référence) |
 | `DATABASE_URL`, `POSTGRES_*` | voir `.env.example` | Réservées au futur driver postgres |
 
 ---
 
-## 7. Procédure de bascule mock → PostgreSQL/PostGIS
+## 7. Procédure PostgreSQL/PostGIS locale
 
-> **État honnête** : à ce jour, le SQL n'a **jamais été exécuté** contre un
-> vrai PostGIS (Docker absent). La première exécution des migrations fait
-> partie de cette procédure — prévoir d'éventuels correctifs mineurs.
+> **État actuel (2026-07-09)** : Docker/PostGIS démarre correctement, PostGIS
+> répond (`postgis_version()`), et les migrations `0001` puis `0002` ont été
+> appliquées avec succès. Cette procédure garde `DB_DRIVER=mock` comme fallback
+> pour l'API métier.
 
 1. **Installer Docker** (Docker Desktop sous Windows/macOS, Docker Engine +
    plugin `compose` sous Linux).
@@ -384,32 +388,54 @@ Au démarrage, l'API loggue :
 
    Détails (identifiants, vérification PostGIS, reset) : [`infra/README.md`](../infra/README.md).
 3. **Appliquer les migrations** (`psql`), dans l'ordre, en UTF-8 (émojis dans
-   `0002`) :
+   `0002`). Sous Windows/PowerShell, préférer `docker cp` + `psql -f` pour
+   éviter les problèmes d'encodage de pipe :
 
    ```bash
    # Depuis la racine du monorepo, via le conteneur (aucun client local requis)
+   docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
+   docker cp apps/api/db/migrations/0002_reference_data.sql endirek-postgres:/tmp/0002_reference_data.sql
+
    docker compose -f infra/docker-compose.yml exec -T postgres \
-     psql -U endirek -d endirek < apps/api/db/migrations/0001_lot1_init.sql
+     psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
    docker compose -f infra/docker-compose.yml exec -T postgres \
-     psql -U endirek -d endirek < apps/api/db/migrations/0002_reference_data.sql
+     psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0002_reference_data.sql
    ```
 
    (ou, avec un client `psql` local :
    `psql "$DATABASE_URL" -f apps/api/db/migrations/0001_lot1_init.sql` puis `0002`.)
-4. **Implémenter/activer le driver postgres** : implémenter chaque interface de
+
+   `0001_lot1_init.sql` crée les tables et ne doit pas être rejoué sur une base
+   déjà migrée sans reset préalable (`docker compose down -v`). `0002` est
+   rejouable pour les données de référence (`ON CONFLICT DO NOTHING`).
+4. **Vérifier le schéma** :
+
+   ```bash
+   docker compose -f infra/docker-compose.yml exec -T postgres \
+     psql -U endirek -d endirek -c "SELECT postgis_version();"
+   docker compose -f infra/docker-compose.yml exec -T postgres \
+     psql -U endirek -d endirek -c "SELECT count(*) FROM post_types;"
+   docker compose -f infra/docker-compose.yml exec -T postgres \
+     psql -U endirek -d endirek -c "SELECT count(*) FROM reaction_types;"
+   ```
+
+   Résultat attendu : 13 tables métier Lot 1 + `spatial_ref_sys` (PostGIS),
+   5 `post_types`, 6 `reaction_types`, index GIST carte/caméras présents.
+5. **Implémenter/activer le driver postgres** : implémenter chaque interface de
    `apps/api/src/database/repositories/interfaces.ts` en SQL (futur dossier
    `src/database/postgres/`) et étendre les factories de
    `database.module.ts` pour choisir l'implémentation selon `DB_DRIVER`.
    **Mêmes tokens, mêmes interfaces, mêmes entités : aucun changement de code
-   métier.** (Aujourd'hui, `DB_DRIVER=postgres` échoue volontairement au
-   démarrage avec une erreur explicite — on refuse de faire semblant.)
-5. **Basculer la configuration** dans `apps/api/.env` :
+   métier.** Aujourd'hui, `DB_DRIVER=postgres` échoue volontairement au
+   démarrage avec une erreur explicite — on refuse de faire semblant.
+6. **Basculer la configuration** dans `apps/api/.env` uniquement quand le driver
+   repositories SQL sera livré :
 
    ```env
    DB_DRIVER=postgres
    DATABASE_URL=postgresql://endirek:endirek@localhost:5432/endirek
    ```
-6. **Seed SQL** : générer un seed SQL depuis le seed TypeScript
+7. **Seed SQL** : générer un seed SQL depuis le seed TypeScript
    (`apps/api/src/database/seed/`) — **prévu à ce moment-là**, pas avant. Les
    UUID déterministes (`seedUuid`) rendent la génération directe ; seuls les
    horodatages relatifs (`minutesAgo`) devront être figés ou calculés à

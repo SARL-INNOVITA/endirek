@@ -167,11 +167,12 @@ blocage si un service externe manque :
 ## Stratégie base de données
 
 - **Cible et source de vérité du schéma : PostgreSQL/PostGIS** (via Docker,
-  `infra/docker-compose.yml`).
-- **Sans Docker (état actuel)** : `DB_DRIVER=mock` — un adapter local implémente
-  la même interface que Postgres, permettant de développer et démontrer sans
-  infrastructure.
-- La bascule vers le vrai Postgres se fait par simple changement de
-  `DB_DRIVER=postgres` dès que Docker est disponible.
+  `infra/docker-compose.yml`) ; les migrations SQL Lot 1 sont validées depuis
+  le 2026-07-09.
+- **Fallback API actuel** : `DB_DRIVER=mock` — un adapter local implémente la
+  même interface que le futur driver Postgres, permettant de développer et
+  démontrer sans dépendre de la base SQL.
+- La bascule vers le vrai Postgres demandera d'abord l'implémentation des
+  repositories SQL ; `DB_DRIVER=postgres` échoue volontairement jusque-là.
 - Mise en place à l'**étape 2** (schéma + seed de données réalistes La Réunion).
   Voir `src/database/README.md`.

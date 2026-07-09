@@ -9,14 +9,14 @@ fil des étapes.
 
 ---
 
-## 1. Pas de base de données réelle tant que Docker est absent
+## 1. Driver API PostgreSQL encore absent
 
-Docker n'est pas installé sur la machine de dev (Windows 11). La cible
-PostgreSQL/PostGIS est prête côté infra (`infra/docker-compose.yml`) et côté
-schéma (`apps/api/db/migrations/`, voir [DATABASE.md](DATABASE.md)) mais ne
-peut pas tourner localement. Conséquence :
+Docker/PostGIS est disponible sur la machine de dev depuis le 2026-07-09. La
+cible PostgreSQL/PostGIS démarre via `infra/docker-compose.yml`, PostGIS 3.4
+répond, et les migrations SQL Lot 1 ont été appliquées avec succès. La limite
+restante n'est donc plus l'infrastructure Docker, mais le driver API :
 
-- l'API fonctionne en `DB_DRIVER=mock` (adapter local **implémenté à
+- l'API fonctionne encore en `DB_DRIVER=mock` (adapter local **implémenté à
   l'étape 2**, mêmes interfaces de repositories que le futur driver
   PostgreSQL) ;
 - données en mémoire : **non persistées entre deux redémarrages** de l'API.
@@ -24,9 +24,8 @@ peut pas tourner localement. Conséquence :
   `DB_MOCK_SEED=true`, défaut) avec des **timestamps relatifs au démarrage**
   — la démo est donc toujours fraîche, mais toute donnée créée au runtime
   est perdue au redémarrage ;
-- le SQL PostGIS n'a **pas encore été validé par exécution** contre une
-  vraie base (Docker absent) : la première application des migrations fait
-  partie de la procédure de bascule ([DATABASE.md](DATABASE.md) §7) ;
+- le SQL PostGIS est validé, mais `DB_DRIVER=postgres` côté API échoue
+  volontairement tant que les repositories SQL ne sont pas implémentés ;
 - les requêtes géospatiales du mock (proximité, bbox) sont des approximations
   suffisantes pour le dev, pas des requêtes PostGIS réelles.
 
