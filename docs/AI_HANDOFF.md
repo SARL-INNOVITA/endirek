@@ -53,8 +53,8 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 > un comportement observable identique. Voir §4 (composant DB) et
 > [AI_DECISIONS.md](AI_DECISIONS.md) D47-D50.
 
-**Dernier commit connu : `TODO` (commit Lot 1.5 à créer).**
-Branche : `main`. Historique récent : `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6) → `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS) → `TODO` (Lot 1.5 — driver PostgreSQL).
+**Dernier commit connu : `85d4b95`** — `feat: driver PostgreSQL fonctionnel pour le Lot 1 (Lot 1.5)`.
+Branche : `main`. Historique récent : `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS) → `a7a99b2` (doc hash PostGIS) → `85d4b95` (Lot 1.5 — driver PostgreSQL).
 
 ---
 
