@@ -46,8 +46,8 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 6 | **Backoffice minimal (types de posts, modération, UX, robustesse)** | ✅ validé techniquement |
 | 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **implémenté** (validation product owner à venir) |
 
-**Dernier commit connu avant la validation Docker/PostGIS : `5bb43d6`** — `fix: autorise les origines locales Flutter Web`.
-Branche : `main`. Historique récent : `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6) → `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web). Le commit final de la validation Docker/PostGIS doit être renseigné dans le rapport de fin de tâche.
+**Dernier commit connu : `591d54f`** — `chore: valide PostGIS via Docker`.
+Branche : `main`. Historique récent : `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6) → `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS).
 
 ---
 
