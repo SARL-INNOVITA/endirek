@@ -26,7 +26,8 @@ ENDIREK/
 │   │   └── src/
 │   │       ├── config/       # Chargement de la configuration typée
 │   │       ├── common/       # DTO, guards, helpers partagés (étapes 3+)
-│   │       ├── database/     # Couche persistance (étape 2, voir §3)
+│   │       ├── database/     # Couche persistance : interfaces + drivers
+│   │       │                 # mock/ ET postgres/ (étape 2 + Lot 1.5, voir §3)
 │   │       ├── adapters/     # Intégrations remplaçables (étapes 2-5, voir §3)
 │   │       └── modules/      # Modules métier (voir §2), dont _future/
 │   ├── admin/                # Backoffice React + Vite (port 5173)
@@ -52,7 +53,7 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | Module | Rôle | Étape Lot 1 |
 |---|---|---|
 | `health` | `GET /health` (hors préfixe `api/v1`) — sonde de vie | 1 ✅ |
-| `database` | Accès données derrière une interface (`DB_DRIVER=postgres\|mock`), schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ |
+| `database` | Accès données derrière une interface unique (9 repositories), **deux drivers `DB_DRIVER=mock\|postgres`** au comportement identique, schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ / Lot 1.5 ✅ |
 | `auth` | Email/mot de passe, JWT access+refresh, guard global ; endpoints OAuth Google/Apple en 501 | 3 ✅ |
 | `users` | Comptes, profils (photo, bio, ville), follows, export + suppression RGPD (voir [RGPD.md](RGPD.md)) | 3 ✅ |
 | `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h, listes de profil | 4 ✅ |
@@ -110,7 +111,7 @@ demande **aucun changement de code métier**, seulement du `.env`.
 
 | Adapter | Variable de sélection | Implémentation dev (actuelle) | Implémentation prod (cible) |
 |---|---|---|---|
-| Base de données | `DB_DRIVER` | `mock` (en mémoire, seed La Réunion — **disponible depuis l'étape 2**, `DB_MOCK_SEED=true` par défaut) | `postgres` (PostgreSQL + PostGIS — driver à implémenter, voir [DATABASE.md](DATABASE.md) §7) |
+| Base de données | `DB_DRIVER` | `mock` (en mémoire, seed La Réunion — **disponible depuis l'étape 2**, `DB_MOCK_SEED=true` par défaut) **et** `postgres` (**fonctionnel depuis le Lot 1.5** : repositories SQL + PostGIS, comportement identique — voir [DATABASE.md](DATABASE.md) §7) | `postgres` (PostgreSQL 16 + PostGIS 3.4) |
 | Stockage médias | `MEDIA_STORAGE_DRIVER` | `local` (**implémenté à l'étape 4** : upload d'images + miniatures sharp, fichiers écrits sous `UPLOAD_DIR` — `apps/api/uploads/` — et servis statiquement sur `/uploads/`) | `s3` (S3/Hetzner — non implémenté : le démarrage échoue avec une erreur explicite) |
 | Géocodage inverse | `GEOCODING_PROVIDER` | `mock` (**implémenté à l'étape 5**, `GEOCODING_PROVIDER=mock` : table des 12 communes de La Réunion + plus proche voisin — déduit `cityName` d'une caméra créée sans ville ; tout autre provider → `throw` explicite au démarrage) | API de géocodage réelle (`GEOCODING_API_KEY`) |
 | Push | `PUSH_DRIVER` | `mock` (notifications persistées en base uniquement) | `fcm` (Firebase/APNs) |
@@ -118,6 +119,29 @@ demande **aucun changement de code métier**, seulement du `.env`.
 
 Détail complet (comportements, variables, procédure de bascule) :
 [MOCKED_SERVICES.md](MOCKED_SERVICES.md).
+
+### Persistance : mock ET postgres disponibles (Lot 1.5)
+
+La couche `apps/api/src/database/` expose un **contrat unique** (9 repositories,
+`repositories/interfaces.ts` ; entités `domain/entities.ts` ; tokens
+`database.tokens.ts`) et deux implémentations sélectionnées **au chargement du
+module** (`process.env.DB_DRIVER`, dans `database.module.ts`) :
+
+- **`mock/`** (défaut, fallback) : repositories in-memory + `MockDatabaseService`
+  — spécification de comportement de référence, seed La Réunion en mémoire.
+- **`postgres/`** (fonctionnel depuis le Lot 1.5) : un **pool `pg` partagé**
+  (`postgres-pool.ts`, token `POSTGRES_POOL`), les 9 repositories SQL
+  (`repositories/postgres-*.repository.ts`, **SQL brut paramétré**, pas d'ORM),
+  des **mappers ligne→entité** (`pg-helpers.ts`, conversions snake_case→camelCase,
+  jsonb, GeoPoint), un **seeder idempotent** (`postgres-seeder.ts`, réutilise
+  `buildSeed()`) et `postgres-database.service.ts` (ping + seed + fermeture du
+  pool). En mode postgres, la couche mock n'est **pas instanciée**.
+
+**PostGIS** : les colonnes `location` sont `geometry(Point,4326)` — écriture
+`ST_SetSRID(ST_MakePoint(lng,lat),4326)`, lecture `ST_Y(location) AS lat,
+ST_X(location) AS lng`, bbox via `ST_MakeEnvelope(…) && location`. Les
+**compteurs dénormalisés sont calculés à la lecture** (sous-requêtes/JOIN),
+garantissant la parité de comportement avec le mock.
 
 ---
 
@@ -187,9 +211,10 @@ Détail complet (comportements, variables, procédure de bascule) :
 - **Scoring du feed à poids centralisés** : les poids de l'algorithme
   (récence, proximité, type, popularité, abonnements) vivent dans une seule
   constante extensible (`FEED_WEIGHTS`, `posts/feed.service.ts`) — aucune
-  valeur magique dispersée ; re-régler le feed = ajuster une constante, et
-  le futur driver postgres portera le même scoring en SQL avec ces mêmes
-  poids.
+  valeur magique dispersée ; re-régler le feed = ajuster une constante. Le
+  scoring vit dans le **service** (`feed.service.ts`) au-dessus d'une fenêtre de
+  posts candidats fournie par le repository — donc **identique en mock et en
+  postgres** (le driver SQL ne fait que renvoyer la fenêtre `active` récente).
 - **Fichiers médias servis statiquement = URLs publiques** : `/uploads/`
   est monté hors préfixe `api/v1` ET hors guard JWT (les fichiers statiques
   Express ne passent pas par les guards Nest — c'est voulu). Quiconque

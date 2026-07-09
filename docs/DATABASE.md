@@ -6,16 +6,19 @@ Documentation du schéma de données posé à **l'étape 2 du Lot 1**.
   [`apps/api/db/migrations/`](../apps/api/db/migrations/)
   (`0001_lot1_init.sql` : tables, index, triggers ; `0002_reference_data.sql` :
   données de référence, rejouable via `ON CONFLICT DO NOTHING`).
-- **Mode par défaut actuel** : `DB_DRIVER=mock` — un adapter **in-memory
-  TypeScript** (`apps/api/src/database/mock/`) qui reflète fidèlement ce schéma,
-  et reste le fallback de développement tant que le driver repositories
-  PostgreSQL n'est pas implémenté. Détails du driver :
+- **Deux drivers fonctionnels** (comportement observable identique, choisi au
+  chargement du module via `DB_DRIVER`) :
+  - `DB_DRIVER=mock` (défaut, fallback) — adapter **in-memory TypeScript**
+    (`apps/api/src/database/mock/`) qui reflète fidèlement ce schéma ;
+  - `DB_DRIVER=postgres` (**fonctionnel depuis le Lot 1.5**) — repositories
+    **SQL brut paramétré** (`pg`, pas d'ORM) dans
+    [`apps/api/src/database/postgres/`](../apps/api/src/database/postgres/)
+    (pool partagé, mappers ligne→entité, seeder idempotent, PostGIS).
+  Détails du driver mock :
   [`apps/api/src/database/README.md`](../apps/api/src/database/README.md).
-- **État honnête** : Docker/PostGIS est disponible depuis le 2026-07-09 et les
-  migrations SQL Lot 1 ont été appliquées avec succès sur l'image
-  `postgis/postgis:16-3.4`. Le schéma est donc validé côté base, mais
-  `DB_DRIVER=postgres` côté API échoue encore volontairement : les repositories
-  SQL ne sont pas livrés.
+- **État** : Docker/PostGIS (`postgis/postgis:16-3.4`) démarre via
+  `infra/docker-compose.yml`, les migrations SQL Lot 1 sont appliquées, et
+  `DB_DRIVER=postgres` fait tourner l'API à l'identique du mock (voir §7).
 
 Le miroir TypeScript du schéma (entités, contraintes reproduites en code) vit
 dans `apps/api/src/database/domain/entities.ts` ; le code métier ne dépend que
@@ -334,9 +337,11 @@ suffisantes à l'échelle de La Réunion, pas des requêtes PostGIS réelles.
 
 ---
 
-## 5. Le driver mock (`DB_DRIVER=mock`) — mode par défaut actuel
+## 5. Le driver mock (`DB_DRIVER=mock`) — défaut / spécification de référence
 
-Implémenté à l'étape 2 (détail : [`apps/api/src/database/README.md`](../apps/api/src/database/README.md)) :
+Implémenté à l'étape 2 (détail : [`apps/api/src/database/README.md`](../apps/api/src/database/README.md)).
+C'est aussi la **spécification de comportement** que le driver postgres (§7)
+reproduit à l'identique :
 
 - stores en mémoire (une `Map`/tableau par table du schéma) ;
 - données de référence embarquées, miroir exact de `0002_reference_data.sql` ;
@@ -363,18 +368,27 @@ Au démarrage, l'API loggue :
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `DB_DRIVER` | `mock` | `mock` (en mémoire) ou `postgres` (schéma PostGIS validé, driver repositories API pas encore implémenté : démarre en erreur explicite) |
-| `DB_MOCK_SEED` | `true` | Charger le seed de démonstration La Réunion (driver mock uniquement ; `false` = base mock vide, hors données de référence) |
-| `DATABASE_URL`, `POSTGRES_*` | voir `.env.example` | Réservées au futur driver postgres |
+| `DB_DRIVER` | `mock` | `mock` (en mémoire) ou `postgres` (repositories SQL fonctionnels — Docker requis, voir §7) |
+| `DB_MOCK_SEED` | `true` | Charger le seed de démonstration La Réunion. Mock : rechargé à chaque boot. Postgres : inséré **une seule fois si la table `users` est vide** (idempotent). `false` = base vide (hors données de référence) |
+| `DATABASE_URL`, `POSTGRES_*` | voir `.env.example` | Connexion du driver postgres (`DATABASE_URL` prioritaire sur les champs `POSTGRES_*`) |
 
 ---
 
-## 7. Procédure PostgreSQL/PostGIS locale
+## 7. Procédure PostgreSQL/PostGIS locale — bascule RÉALISÉE (Lot 1.5)
 
-> **État actuel (2026-07-09)** : Docker/PostGIS démarre correctement, PostGIS
-> répond (`postgis_version()`), et les migrations `0001` puis `0002` ont été
-> appliquées avec succès. Cette procédure garde `DB_DRIVER=mock` comme fallback
-> pour l'API métier.
+> **État (2026-07-10)** : la bascule mock → postgres est **réalisée**. Le driver
+> `DB_DRIVER=postgres` est implémenté (repositories SQL brut `pg`,
+> `apps/api/src/database/postgres/`) et fait tourner le Lot 1 à l'identique du
+> mock. `DB_DRIVER=mock` reste le défaut et le fallback. Cette section décrit la
+> mise en route ; le runbook détaille les commandes ([AI_RUNBOOK.md](AI_RUNBOOK.md) §8 bis).
+>
+> **Stratégie compteurs = calcul À LA LECTURE.** Les compteurs dénormalisés
+> (`reactionCount`, `commentCount`, `saveCount`, `followersCount`…) ne sont
+> **pas maintenus à l'écriture** en mode postgres : chaque SELECT les recalcule
+> par sous-requête/JOIN avec la **sémantique exacte du mock** (ex. `commentCount`
+> = commentaires `active`). Parité de comportement et robustesse ; l'optimisation
+> par triggers/colonnes maintenues à grande échelle est un **TODO** non requis au
+> Lot 1.
 
 1. **Installer Docker** (Docker Desktop sous Windows/macOS, Docker Engine +
    plugin `compose` sous Linux).
@@ -421,32 +435,44 @@ Au démarrage, l'API loggue :
 
    Résultat attendu : 13 tables métier Lot 1 + `spatial_ref_sys` (PostGIS),
    5 `post_types`, 6 `reaction_types`, index GIST carte/caméras présents.
-5. **Implémenter/activer le driver postgres** : implémenter chaque interface de
-   `apps/api/src/database/repositories/interfaces.ts` en SQL (futur dossier
-   `src/database/postgres/`) et étendre les factories de
-   `database.module.ts` pour choisir l'implémentation selon `DB_DRIVER`.
-   **Mêmes tokens, mêmes interfaces, mêmes entités : aucun changement de code
-   métier.** Aujourd'hui, `DB_DRIVER=postgres` échoue volontairement au
-   démarrage avec une erreur explicite — on refuse de faire semblant.
-6. **Basculer la configuration** dans `apps/api/.env` uniquement quand le driver
-   repositories SQL sera livré :
+   > Raccourci équivalent : `npm run db:migrate --workspace apps/api` (copie
+   > chaque `.sql` dans le conteneur et l'exécute via `psql -f`).
+
+5. **Le driver postgres est implémenté** dans
+   [`apps/api/src/database/postgres/`](../apps/api/src/database/postgres/) :
+   chaque interface de `repositories/interfaces.ts` a son implémentation SQL
+   (`repositories/postgres-*.repository.ts`), au-dessus d'un **pool partagé**
+   (`postgres-pool.ts`, token `POSTGRES_POOL`), de mappers ligne→entité
+   (`pg-helpers.ts`) et de `PostgresDatabaseService` (ping + seed + fermeture du
+   pool). `database.module.ts` sélectionne mock ou postgres **au chargement** via
+   `process.env.DB_DRIVER`. **Mêmes tokens, mêmes interfaces, mêmes entités :
+   aucun changement de code métier.**
+6. **Basculer la configuration** dans `apps/api/.env` (`DATABASE_URL` prioritaire
+   sur les champs `POSTGRES_*`) :
 
    ```env
    DB_DRIVER=postgres
    DATABASE_URL=postgresql://endirek:endirek@localhost:5432/endirek
+   DB_MOCK_SEED=true
    ```
-7. **Seed SQL** : générer un seed SQL depuis le seed TypeScript
-   (`apps/api/src/database/seed/`) — **prévu à ce moment-là**, pas avant. Les
-   UUID déterministes (`seedUuid`) rendent la génération directe ; seuls les
-   horodatages relatifs (`minutesAgo`) devront être figés ou calculés à
-   l'insertion. **Cas particulier `cameras.camera_number`** : la colonne est
-   `GENERATED ALWAYS AS IDENTITY` alors que le seed fixe les numéros 1..12 —
-   l'INSERT devra utiliser `OVERRIDING SYSTEM VALUE`, puis resynchroniser la
-   séquence après insertion (équivalent SQL du `syncCameraSequence` du mock) :
+
+   Au boot, si `DB_MOCK_SEED=true` et que la table `users` est vide, l'API
+   affiche `PostgreSQL prêt : connecté (15 utilisateurs, …)`.
+7. **Seed SQL** : le **seeder** (`postgres-seeder.ts`) réutilise la source unique
+   `buildSeed()` (`apps/api/src/database/seed/`) et insère les 11 collections en
+   **une transaction idempotente** (`ON CONFLICT DO NOTHING`), déclenchée au boot
+   **si la table `users` est vide**. Les UUID déterministes (`seedUuid`) et les
+   horodatages relatifs (`minutesAgo`) du seed sont insérés **explicitement**
+   (jamais les DEFAULT). **Cas `cameras.camera_number`** (`GENERATED ALWAYS AS
+   IDENTITY`, numéros 1..12 imposés) : insertion en `OVERRIDING SYSTEM VALUE`
+   puis repositionnement de la séquence (miroir du `syncCameraSequence` du mock) :
 
    ```sql
    SELECT setval(pg_get_serial_sequence('cameras', 'camera_number'), 12);
    ```
+
+   Pour repartir d'une base fraîche : `npm run db:reset --workspace apps/api`
+   (vide les tables de données, conserve la référence, force un re-seed au boot).
 
 ---
 

@@ -31,8 +31,12 @@ services:
     container_name: endirek-postgres
     restart: unless-stopped
     ports:
-      # Port PostgreSQL standard, exposé en local pour l'API et psql.
-      - "5432:5432"
+      # Port hôte configurable via POSTGRES_HOST_PORT (défaut 5432).
+      # ⚠️ Si un PostgreSQL NATIF tourne déjà sur la machine, il occupe 5432 et
+      # masque ce conteneur pour les connexions « localhost » de l'API-hôte.
+      # Remède sans toucher au service natif : POSTGRES_HOST_PORT=55432 (puis
+      # `docker compose up -d` et aligner DATABASE_URL/POSTGRES_PORT sur 55432).
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-endirek}
       POSTGRES_USER: ${POSTGRES_USER:-endirek}

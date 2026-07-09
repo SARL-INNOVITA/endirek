@@ -51,7 +51,7 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 |---|---|---|
 | `health` | Healthcheck | **1 ✅** |
 | `config` (src/config) | Configuration typée depuis l'environnement | **1 ✅** |
-| `database` (src/database) | Persistance PostgreSQL/PostGIS + adapter mock (seed La Réunion) | **2 ✅** |
+| `database` (src/database) | Persistance : contrat unique + **deux drivers `mock` et `postgres`** (SQL/PostGIS, fonctionnel depuis le Lot 1.5), seed La Réunion | **2 ✅ / Lot 1.5 ✅** |
 | `auth` | Email/mot de passe (bcrypt), JWT access+refresh, guard global + `@Public()`, OAuth Google/Apple en 501 | **3 ✅** |
 | `users` | Profils (complet/public), follows, export RGPD, suppression RGPD (voir [docs/RGPD.md](../../docs/RGPD.md)) | **3 ✅** |
 | `media` | `POST /media/upload` — images JPEG/PNG/WebP validées par décodage réel, miniatures webp (sharp), fichiers servis sur `/uploads/` | **4 ✅** |
@@ -164,15 +164,29 @@ blocage si un service externe manque :
 | Notifications push | `PUSH_DRIVER` | `mock` (dev) → Firebase/APNs plus tard |
 | Email transactionnel | `EMAIL_DRIVER` | `mock` (dev) → Brevo plus tard |
 
-## Stratégie base de données
+## Stratégie base de données — deux drivers (`DB_DRIVER`)
 
-- **Cible et source de vérité du schéma : PostgreSQL/PostGIS** (via Docker,
-  `infra/docker-compose.yml`) ; les migrations SQL Lot 1 sont validées depuis
-  le 2026-07-09.
-- **Fallback API actuel** : `DB_DRIVER=mock` — un adapter local implémente la
-  même interface que le futur driver Postgres, permettant de développer et
-  démontrer sans dépendre de la base SQL.
-- La bascule vers le vrai Postgres demandera d'abord l'implémentation des
-  repositories SQL ; `DB_DRIVER=postgres` échoue volontairement jusque-là.
-- Mise en place à l'**étape 2** (schéma + seed de données réalistes La Réunion).
-  Voir `src/database/README.md`.
+Le choix du driver est lu **au chargement du module** (`process.env.DB_DRIVER`) ;
+les deux ont un **comportement observable identique** :
+
+- **`DB_DRIVER=mock` (défaut, fallback)** : adapter in-memory (seed La Réunion),
+  aucune infra requise — idéal pour développer l'API.
+- **`DB_DRIVER=postgres` (fonctionnel depuis le Lot 1.5)** : repositories **SQL
+  brut paramétré** (`pg`, pas d'ORM) au-dessus du conteneur Docker PostgreSQL +
+  PostGIS (`src/database/postgres/` : pool partagé, mappers, seeder idempotent).
+  Les compteurs dénormalisés sont **calculés à la lecture** (parité mock).
+
+**Cible et source de vérité du schéma : PostgreSQL 16 + PostGIS 3.4** (migrations
+`db/migrations/`, appliquées via Docker `infra/docker-compose.yml`).
+
+Mise en route du mode postgres (voir [docs/AI_RUNBOOK.md](../../docs/AI_RUNBOOK.md) §8 bis) :
+
+```bash
+docker compose -f infra/docker-compose.yml up -d postgres   # conteneur endirek-postgres
+npm run db:migrate --workspace apps/api                      # applique 0001 + 0002 (13 tables + référence)
+# puis dans apps/api/.env : DB_DRIVER=postgres (DATABASE_URL déjà pointée sur localhost:5432)
+npm run db:reset --workspace apps/api                        # (optionnel) vide les données → re-seed au prochain boot
+```
+
+Schéma + seed posés à l'**étape 2**, driver postgres livré au **Lot 1.5**.
+Détails : `src/database/README.md` et [docs/DATABASE.md](../../docs/DATABASE.md).

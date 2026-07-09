@@ -9,25 +9,31 @@ fil des étapes.
 
 ---
 
-## 1. Driver API PostgreSQL encore absent
+## 1. Base de données : deux drivers, nuances du mode postgres (Lot 1.5)
 
-Docker/PostGIS est disponible sur la machine de dev depuis le 2026-07-09. La
-cible PostgreSQL/PostGIS démarre via `infra/docker-compose.yml`, PostGIS 3.4
-répond, et les migrations SQL Lot 1 ont été appliquées avec succès. La limite
-restante n'est donc plus l'infrastructure Docker, mais le driver API :
+Depuis le Lot 1.5, l'API tourne au choix en `DB_DRIVER=mock` (défaut) **ou**
+`DB_DRIVER=postgres` (repositories SQL fonctionnels, `pg` + SQL brut), avec un
+comportement observable identique. Le driver postgres n'est donc plus une limite,
+mais garde quelques nuances assumées :
 
-- l'API fonctionne encore en `DB_DRIVER=mock` (adapter local **implémenté à
-  l'étape 2**, mêmes interfaces de repositories que le futur driver
-  PostgreSQL) ;
-- données en mémoire : **non persistées entre deux redémarrages** de l'API.
-  Le seed de démonstration La Réunion est rechargé à chaque boot (si
-  `DB_MOCK_SEED=true`, défaut) avec des **timestamps relatifs au démarrage**
-  — la démo est donc toujours fraîche, mais toute donnée créée au runtime
-  est perdue au redémarrage ;
-- le SQL PostGIS est validé, mais `DB_DRIVER=postgres` côté API échoue
-  volontairement tant que les repositories SQL ne sont pas implémentés ;
-- les requêtes géospatiales du mock (proximité, bbox) sont des approximations
-  suffisantes pour le dev, pas des requêtes PostGIS réelles.
+- **Mode mock (défaut)** : données en mémoire, **non persistées entre deux
+  redémarrages**. Le seed La Réunion est rechargé à chaque boot (si
+  `DB_MOCK_SEED=true`) avec des **timestamps relatifs** — démo toujours fraîche,
+  mais toute donnée créée au runtime est perdue au redémarrage. Les requêtes
+  géospatiales du mock (proximité, bbox) sont des **approximations** suffisantes
+  pour le dev, pas des requêtes PostGIS réelles.
+- **Mode postgres** : les données **persistent** en base. Le seed n'est inséré
+  **qu'une seule fois si la table `users` est vide** (idempotent, transaction) —
+  pour repartir d'une base fraîche, `npm run db:reset` puis relancer l'API.
+- **Compteurs dénormalisés calculés À LA LECTURE** en mode postgres
+  (`reactionCount`, `commentCount`, `saveCount`, `followersCount`…) : ils sont
+  recalculés par sous-requête/JOIN à chaque lecture (parité de comportement avec
+  le mock), les colonnes compteur de la base n'étant pas maintenues à l'écriture.
+  **TODO perf** : à très grande échelle, prévoir des triggers/colonnes maintenues
+  plutôt que le recalcul systématique — non requis au Lot 1.
+- **Prérequis postgres** : conteneur Docker `endirek-postgres` démarré +
+  migrations appliquées (`npm run db:migrate`), sinon le boot échoue tôt avec un
+  message explicite.
 
 ## 2. Périmètre de l'API au checkpoint 7
 
@@ -124,9 +130,10 @@ conversations, pages ou News.
   file admin supportent `targetType=comment`, et le backoffice peut
   masquer/soft-delete un commentaire signalé, mais l'UI mobile n'expose pas
   encore d'action « signaler ce commentaire » au Lot 1.
-- **Pagination du feed en offset/limit** : suffisant sur le mock, mais un
-  vrai cursor (keyset) est prévu avec le driver postgres — l'offset se
-  décale quand de nouveaux posts arrivent entre deux pages.
+- **Pagination du feed en offset/limit** : identique en mock et en postgres
+  (le driver SQL reproduit le comportement du mock) ; un vrai cursor (keyset)
+  reste **TODO** — l'offset se décale quand de nouveaux posts arrivent entre
+  deux pages.
 - **Fenêtre de scoring de 200 posts** : le feed ne score que les 200 posts
   `active` les plus récents (`FEED_WEIGHTS.windowSize`) ; `total` renvoyé =
   taille de cette fenêtre, pas le nombre total de posts en base. Un post

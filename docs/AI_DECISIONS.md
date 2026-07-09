@@ -3,7 +3,7 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
+_Dernière mise à jour : Lot 1.5 — driver PostgreSQL implémenté (2026-07-10)._
 
 ---
 
@@ -31,7 +31,7 @@ _Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
 
 ## Architecture & technique
 
-- **D17.** **`DB_DRIVER=mock` par défaut.** Adapter in-memory derrière les mêmes interfaces de repositories que le futur driver PostgreSQL.
+- **D17.** **`DB_DRIVER=mock` par défaut** (fallback in-memory) ; **`DB_DRIVER=postgres` fonctionnel depuis le Lot 1.5** (voir D47-D50). Les deux drivers partagent les mêmes interfaces de repositories et un comportement observable identique.
 - **D18.** **Docker/PostGIS local disponible depuis le 2026-07-09** — utile pour valider le schéma SQL, mais ne doit pas rendre le mode mock obligatoire à remplacer.
 - **D19.** **PostgreSQL / PostGIS** est la **cible réelle** ; le schéma SQL source de vérité est dans `apps/api/db/migrations/` et a été validé contre `postgis/postgis:16-3.4`. Procédure documentée dans `docs/DATABASE.md`.
 - **D20.** **Port de l'API : 3001** (le 3000 est fréquemment occupé par d'autres projets de dev sur la machine).
@@ -81,4 +81,16 @@ _Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
 
 ## Infrastructure base de données (2026-07-09)
 
-- **D46.** **PostGIS validé ≠ driver API postgres livré** : Docker Compose démarre PostgreSQL/PostGIS et les migrations Lot 1 passent, mais l'API métier reste en `DB_DRIVER=mock` tant que les repositories SQL ne sont pas implémentés. `DB_DRIVER=postgres` échoue volontairement pour éviter une fausse bascule.
+- **D46.** ~~**PostGIS validé ≠ driver API postgres livré**~~ **(SUPERSÉDÉE par D47-D50 au Lot 1.5)** : à l'origine, l'API métier restait en `DB_DRIVER=mock` et `DB_DRIVER=postgres` échouait volontairement faute de repositories SQL. Depuis le Lot 1.5, le driver postgres est implémenté et fonctionnel.
+
+## Lot 1.5 — Driver PostgreSQL fonctionnel (2026-07-10)
+
+> Chantier **technique** : rendre `DB_DRIVER=postgres` fonctionnel pour les
+> modules existants du Lot 1, à comportement observable **identique** au mock.
+> Aucune nouvelle fonctionnalité produit, aucune modification des interfaces ni
+> des modules métier.
+
+- **D47.** **Driver PostgreSQL implémenté en `pg` (node-postgres) + SQL BRUT paramétré** (`$1, $2…`), **sans ORM**. Les 9 repositories SQL vivent dans `apps/api/src/database/postgres/repositories/`, au-dessus d'un **pool partagé** (`POSTGRES_POOL`) et de `PostgresDatabaseService` (ping + seed au boot, fermeture du pool à l'arrêt). Le **mock reste la spécification de référence et le fallback** ; les deux drivers exposent les **mêmes tokens, interfaces et entités**.
+- **D48.** **Sélection du driver au CHARGEMENT du module** via `process.env.DB_DRIVER` (lu directement dans `database.module.ts`, pas via `ConfigService`) : c'est une décision de **bootstrap d'infra** — la composition du graphe d'injection est figée avant toute instanciation. Conséquence voulue : en mode `postgres`, `MockDatabaseService` **n'est pas déclaré comme provider** (jamais instancié) ; réciproquement le pool postgres n'existe pas en mode `mock`. Driver inconnu → erreur explicite au chargement.
+- **D49.** **Compteurs dénormalisés CALCULÉS À LA LECTURE en mode postgres** (sous-requêtes/JOIN : `reactionCount`, `commentCount`, `saveCount`, `followersCount`, `followingCount`, `postsCount`…), avec la **sémantique exacte du mock** (ex. `followersCount` = follows de statut `active`, `commentCount` = commentaires `active`). Les colonnes compteur de la base **ne sont pas maintenues à l'écriture** : parité de comportement et robustesse accrue. **Perf via triggers/colonnes maintenues à grande échelle = TODO** (non requis au Lot 1).
+- **D50.** **Seeder postgres idempotent et atomique** (`PostgresSeeder`) réutilisant la **source unique** `buildSeed()` (`src/database/seed/`) : le seed est inséré **si et seulement si la table `users` est vide** (déclencheur au boot), dans **une transaction** avec `ON CONFLICT DO NOTHING` sur chaque clé. Les `id`/`created_at`/`updated_at` du seed sont insérés explicitement (UUID `seedUuid` stables, identiques au mock) ; `camera_number` (GENERATED ALWAYS AS IDENTITY) est forcé via `OVERRIDING SYSTEM VALUE` puis la séquence est repositionnée (`setval`) — miroir de `syncCameraSequence()` du mock. `npm run db:reset` vide les tables de données (référence conservée) pour forcer un re-seed au prochain boot.

@@ -11,6 +11,11 @@
  * (mock aujourd'hui, postgres demain) : le code métier ne change jamais.
  */
 
+/** Pool de connexions PostgreSQL (pg.Pool) — driver postgres uniquement.
+ * Injecté par les 9 repositories Postgres* et par PostgresDatabaseService.
+ * En driver mock, ce token n'est jamais fourni ni injecté. */
+export const POSTGRES_POOL = Symbol('POSTGRES_POOL');
+
 export const USERS_REPOSITORY = Symbol('USERS_REPOSITORY');
 export const POST_TYPES_REPOSITORY = Symbol('POST_TYPES_REPOSITORY');
 export const POSTS_REPOSITORY = Symbol('POSTS_REPOSITORY');

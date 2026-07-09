@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
+_Dernière mise à jour : Lot 1.5 — driver PostgreSQL implémenté et fonctionnel (2026-07-10)._
 
 ---
 
@@ -46,8 +46,15 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 6 | **Backoffice minimal (types de posts, modération, UX, robustesse)** | ✅ validé techniquement |
 | 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **implémenté** (validation product owner à venir) |
 
-**Dernier commit connu : `591d54f`** — `chore: valide PostGIS via Docker`.
-Branche : `main`. Historique récent : `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6) → `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS).
+> **Lot 1.5 (2026-07-10) — driver PostgreSQL fonctionnel.** Chantier technique
+> transverse (aucune nouvelle fonctionnalité produit) : les repositories SQL
+> (`pg` + SQL brut paramétré) sont désormais implémentés. Le Lot 1 tourne au
+> choix en `DB_DRIVER=mock` (défaut/fallback) **ou** `DB_DRIVER=postgres`, avec
+> un comportement observable identique. Voir §4 (composant DB) et
+> [AI_DECISIONS.md](AI_DECISIONS.md) D47-D50.
+
+**Dernier commit connu : `TODO` (commit Lot 1.5 à créer).**
+Branche : `main`. Historique récent : `955a041` (passation checkpoint 5) → `0412ccd` (checkpoint 6) → `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS) → `TODO` (Lot 1.5 — driver PostgreSQL).
 
 ---
 
@@ -71,9 +78,38 @@ Fonctionnel et stabilisé pour la démo Lot 1. Shell 4 onglets (Accueil, Carte, 
 ### Admin — `apps/admin` (React 19 + Vite 7, CSS pur, port 5173)
 Backoffice Lot 1 consolidé : connexion réservée aux rôles admin, onglets **Utilisateurs** (recherche + statut + rôle, suspendre/réactiver), **Publications** (type/statut/recherche + filtre carte `mapVisible`, détail, masquer/réactiver), **Signalements** (statut + cible, traitement, action directe sur commentaire signalé), **Caméras** (`CamerasView` + `CameraForm` : liste tous statuts, création/édition, changement de statut, masquage doux) et **Paramètres** (types de posts pilotables + notification système dev/mock).
 
-### DB mock + PostGIS local — `apps/api/src/database` / `infra`
-`DB_DRIVER=mock` (in-memory) reste le défaut et le fallback de développement, **derrière les mêmes interfaces de repositories que le futur driver PostgreSQL**. Docker est disponible depuis le 2026-07-09 : `infra/docker-compose.yml` démarre PostgreSQL/PostGIS (`postgis/postgis:16-3.4`) et les migrations SQL `0001_lot1_init.sql` + `0002_reference_data.sql` ont été appliquées avec succès. Le schéma PostGIS est donc validé, mais `DB_DRIVER=postgres` côté API échoue encore volontairement car les repositories SQL ne sont pas implémentés. Seed La Réunion rechargé à chaque boot avec timestamps relatifs.
-**Log de boot attendu** : `Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications`.
+### DB mock + PostgreSQL/PostGIS — `apps/api/src/database` / `infra`
+La couche persistance expose **9 repositories** derrière un contrat unique
+(`repositories/interfaces.ts`) et deux drivers au **comportement observable
+identique**, choisis au chargement du module via `process.env.DB_DRIVER` :
+
+- **`DB_DRIVER=mock` (défaut, fallback)** : repositories in-memory au-dessus de
+  `MockDatabaseService`. Aucune infra requise. Seed La Réunion rechargé à chaque
+  boot avec timestamps relatifs.
+- **`DB_DRIVER=postgres` (fonctionnel — Lot 1.5)** : repositories SQL (`pg` +
+  SQL brut paramétré `$1, $2…`, pas d'ORM) dans `src/database/postgres/`
+  (pool partagé `POSTGRES_POOL`, mappers ligne→entité, seeder, PostGIS). En
+  mode postgres, `MockDatabaseService` **n'est même pas instancié**. Nécessite
+  le conteneur Docker `endirek-postgres` et les migrations appliquées
+  (`npm run db:migrate`).
+
+Points saillants du driver postgres :
+- **Compteurs dénormalisés calculés À LA LECTURE** (sous-requêtes/JOIN :
+  `reactionCount`, `commentCount`, `saveCount`, `followersCount`…) — parité de
+  comportement avec le mock, colonnes compteur de la base non maintenues à
+  l'écriture.
+- **Seeder idempotent et atomique** (`PostgresSeeder`) réutilisant la source
+  unique `buildSeed()` : seed inséré **une seule fois si la table `users` est
+  vide** (`ON CONFLICT DO NOTHING`, transaction). `npm run db:reset` vide les
+  données pour forcer un re-seed.
+- Géométrie PostGIS : écriture `ST_SetSRID(ST_MakePoint(lng,lat),4326)`, lecture
+  `ST_Y(location) AS lat, ST_X(location) AS lng`, bbox via `ST_MakeEnvelope`.
+
+Docker : `infra/docker-compose.yml` démarre PostgreSQL/PostGIS
+(`postgis/postgis:16-3.4`) ; migrations `0001_lot1_init.sql` +
+`0002_reference_data.sql` appliquées avec succès.
+**Log de boot attendu (mock)** : `Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications`.
+**Log de boot attendu (postgres, première base seedée)** : `PostgreSQL prêt : connecté (15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications)`.
 
 ---
 
@@ -81,7 +117,7 @@ Backoffice Lot 1 consolidé : connexion réservée aux rôles admin, onglets **U
 
 | Service | Driver / état | Détail |
 |---|---|---|
-| Base de données | `DB_DRIVER=mock` | PostgreSQL/PostGIS local validé/migré ; driver API postgres non implémenté |
+| Base de données | `DB_DRIVER=mock` (défaut) **ou** `DB_DRIVER=postgres` (fonctionnel) | mock in-memory (fallback) ; postgres = repositories SQL sur le conteneur Docker migré — comportement identique |
 | Stockage médias | `MEDIA_STORAGE_DRIVER=local` | disque `apps/api/uploads/` ; S3/Hetzner = `throw` explicite |
 | Géocodage | `GEOCODING_PROVIDER=mock` | table des 12 communes du seed + plus proche voisin |
 | Push (FCM/APNs) | `PUSH_DRIVER=mock` | notifications persistées en base, pas d'envoi réel |
@@ -94,8 +130,8 @@ Détail complet : [MOCKED_SERVICES.md](MOCKED_SERVICES.md). Accès à fournir pl
 
 ## 6. Limites connues (état honnête)
 
-- **Driver API PostgreSQL non implémenté** : PostGIS local est validé et migré, mais l'API métier tourne encore en `DB_DRIVER=mock`.
-- Données mock **non persistées** entre redémarrages (seed rechargé, timestamps relatifs).
+- **Driver PostgreSQL fonctionnel (Lot 1.5)** : l'API tourne au choix en `DB_DRIVER=mock` (défaut) ou `DB_DRIVER=postgres`. Nuances : le seed n'est inséré **qu'une seule fois si la base est vide** (idempotent — `npm run db:reset` pour re-seeder) ; les **compteurs dénormalisés sont calculés à la lecture** (parité de comportement, mais perf via triggers `updated_at`/compteurs à grande échelle = TODO).
+- Données mock **non persistées** entre redémarrages (seed rechargé, timestamps relatifs) ; en postgres, les données **persistent** en base.
 - Refresh token **non révocable** (invalidation via re-vérification du statut à chaque requête).
 - Pas de vérification d'email ni de reset de mot de passe ; pas de rate-limiting.
 - **Partage** de post = bouton « prochainement », `share_count` jamais incrémenté.
@@ -117,17 +153,19 @@ Liste complète et à jour : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
 
 ## 7. Prochaine étape recommandée
 
-**Checkpoint 7 implémenté.** Lot 1 stabilisé pour démo : parcours mobile et
-backoffice audités, localisation Flutter branchée, documentation de démo créée
-([DEMO_LOT_1.md](DEMO_LOT_1.md)), README obsolètes remis à jour, tests/builds
-passés.
+**Checkpoint 7 implémenté puis Lot 1.5 livré.** Lot 1 stabilisé pour démo :
+parcours mobile et backoffice audités, localisation Flutter branchée,
+documentation de démo créée ([DEMO_LOT_1.md](DEMO_LOT_1.md)), README obsolètes
+remis à jour, tests/builds passés. **Lot 1.5** : driver PostgreSQL implémenté et
+fonctionnel (repositories SQL, seeder idempotent, compteurs à la lecture) — le
+Lot 1 tourne à l'identique en mock ou postgres.
 
-**Prochaine étape recommandée : attendre la validation product owner du
-checkpoint 7 et de la validation Docker/PostGIS.** Côté infra, la prochaine
-vraie étape base sera l'implémentation des repositories SQL avant toute bascule
-API en `DB_DRIVER=postgres`. Côté produit, ne préparer le **Lot 2 — Dealplace**
-qu'après feu vert explicite. Ne pas démarrer Dealplace, messagerie, deals,
-pages, News IA, premium ou paiements avant ce feu vert.
+**Prochaine étape recommandée : attendre le feu vert du product owner pour
+démarrer le CP2.1** (premier checkpoint du **Lot 2 — Dealplace**). Ne pas
+démarrer Dealplace, messagerie, deals, pages, News IA, premium ou paiements
+avant ce feu vert. Côté base, un chantier de **performance** reste ouvert
+(compteurs calculés à la lecture → triggers/colonnes maintenues à grande
+échelle) mais n'est pas requis au Lot 1.
 
 ---
 
@@ -135,7 +173,7 @@ pages, News IA, premium ou paiements avant ce feu vert.
 
 1. **Lire d'abord** : ce fichier, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md). Puis `git status`.
 2. **Rester dans le périmètre du Lot 1.** Ne développe PAS Dealplace, conversations, deals, pages restos/entreprises, premium, paiement, offres exceptionnelles, News IA, Google Ads réel.
-3. **`DB_DRIVER=mock` par défaut.** Docker/PostGIS local est disponible pour valider le schéma, mais ne bascule pas l'API en `DB_DRIVER=postgres` tant que les repositories SQL ne sont pas implémentés.
+3. **`DB_DRIVER=mock` par défaut**, mais **`DB_DRIVER=postgres` est désormais fonctionnel** (Lot 1.5). Les deux drivers doivent rester au comportement observable identique : toute modification d'un repository doit être répercutée dans les DEUX implémentations (mock ET postgres), le mock restant la spécification de référence.
 4. **Aucun secret dans le repo.** Jamais de clé API, token, mot de passe réel. Tout via variables d'environnement ; mettre à jour `.env.example` si une variable apparaît.
 5. **Ne pas versionner** `01_PRD/`, `02_MOCKUPS/`, `03_PROMPTS/`, `04_ACCESS/` (contexte produit local, dans `.gitignore`).
 6. **Ne pas créer les tables complexes des futurs lots** ; se contenter de les documenter.
@@ -153,7 +191,7 @@ pages, News IA, premium ou paiements avant ce feu vert.
 2. **`docs/AI_DECISIONS.md`** — décisions figées, à ne pas rediscuter.
 3. **`docs/AI_RUNBOOK.md`** — comment lancer, tester, vérifier.
 4. `docs/ARCHITECTURE.md` — arborescence, modules, stack, décisions techniques.
-5. `docs/DATABASE.md` — schéma des tables du Lot 1 + procédure de bascule mock→PostgreSQL.
+5. `docs/DATABASE.md` — schéma des tables du Lot 1 + drivers mock/postgres (bascule réalisée au Lot 1.5).
 6. `docs/KNOWN_LIMITS.md` — limites détaillées et à jour.
 7. `apps/api/README.md`, `apps/mobile/README.md`, `apps/admin/README.md` — spécifiques à chaque app.
 8. Les `README.md` dans `apps/api/src/modules/*/` — rôle et règles métier de chaque module.

@@ -3,9 +3,9 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : validation Docker/PostGIS locale (2026-07-09)._
+_Dernière mise à jour : Lot 1.5 — driver PostgreSQL fonctionnel (2026-07-10)._
 
-Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. Docker est disponible pour PostgreSQL/PostGIS local, mais `DB_DRIVER=mock` reste le fallback API. Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
+Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. `DB_DRIVER=mock` reste le défaut et le fallback API ; **`DB_DRIVER=postgres` est fonctionnel** (Docker requis — voir §8 bis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
 > Sur la machine de dev actuelle, Flutter/adb/Java ne sont pas dans le PATH système. Chemins : Flutter `C:\Users\User\flutter\bin\flutter.bat`, JDK `C:\Program Files\Android\Android Studio\jbr`, Android SDK `C:\Users\User\AppData\Local\Android\Sdk`. Un autre environnement aura ces outils dans le PATH — adapter en conséquence.
 > Sous PowerShell Windows, utiliser `npm.cmd` si l'exécution de `npm.ps1` est bloquée par la politique d'exécution locale.
@@ -186,8 +186,9 @@ Modèle complet et commenté : `apps/api/.env.example` (API) et `apps/admin/.env
 | Variable | Défaut (dev) | Rôle |
 |---|---|---|
 | `PORT` | `3001` | port de l'API |
-| `DB_DRIVER` | `mock` | `mock` (in-memory, fallback API) ou `postgres` (schéma PostGIS validé, repositories API non implémentés) |
-| `DB_MOCK_SEED` | `true` | charge le seed La Réunion au boot |
+| `DB_DRIVER` | `mock` | `mock` (in-memory, fallback API) ou `postgres` (repositories SQL fonctionnels — Docker requis, voir §8 bis) |
+| `DB_MOCK_SEED` | `true` | charge le seed La Réunion au boot (mock : à chaque boot ; postgres : une fois si la base est vide) |
+| `DATABASE_URL` | `postgresql://endirek:endirek@localhost:5432/endirek` | chaîne de connexion PostgreSQL (prioritaire sur `POSTGRES_*`) — utilisée par `DB_DRIVER=postgres` |
 | `MEDIA_STORAGE_DRIVER` | `local` | `local` (disque) ou `s3` (non implémenté) |
 | `MEDIA_MAX_FILE_SIZE_MB` | `8` | taille max d'upload image |
 | `GEOCODING_PROVIDER` | `mock` | géocodage inverse mock (12 communes, plus proche voisin) ; autre valeur → throw au boot |
@@ -226,10 +227,87 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0002_reference_data.sql
 ```
 
-État validé le 2026-07-09 : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables métier Lot 1 + `spatial_ref_sys`, 5 `post_types`, 6 `reaction_types`.
+État validé : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables métier Lot 1 + `spatial_ref_sys`, 5 `post_types`, 6 `reaction_types`.
 
-Important : l'API métier reste en `DB_DRIVER=mock`. `DB_DRIVER=postgres`
-échoue volontairement tant que les repositories SQL ne sont pas implémentés.
+> Les migrations sont aussi applicables via le raccourci `npm run db:migrate`
+> (copie + `psql -f` de chaque `.sql` dans le conteneur, voir §8 bis).
+
+---
+
+## 8 bis. Lancer en mode PostgreSQL (`DB_DRIVER=postgres`)
+
+Depuis le Lot 1.5, l'API tourne réellement sur PostgreSQL/PostGIS avec un
+comportement observable identique au mock.
+
+**Prérequis** : Docker + le conteneur `endirek-postgres` démarré (§8).
+
+1. **Démarrer la base** (si ce n'est pas déjà fait) :
+
+   ```bash
+   docker compose -f infra/docker-compose.yml up -d postgres
+   ```
+
+2. **Appliquer les migrations** (crée les 13 tables + insère
+   `post_types`/`reaction_types`) — raccourci npm, ou `psql` manuel (§8) :
+
+   ```bash
+   npm run db:migrate --workspace apps/api
+   ```
+
+3. **Configurer l'environnement** (`apps/api/.env`) — `DATABASE_URL` est
+   prioritaire sur les champs `POSTGRES_*` :
+
+   ```env
+   DB_DRIVER=postgres
+   DATABASE_URL=postgresql://endirek:endirek@localhost:5432/endirek
+   DB_MOCK_SEED=true
+   ```
+
+   Sous PowerShell, pour un lancement ponctuel sans éditer `.env` :
+
+   ```powershell
+   $env:DB_DRIVER="postgres"; $env:DATABASE_URL="postgresql://endirek:endirek@localhost:5432/endirek"; npm run api:dev
+   ```
+
+4. **Démarrer l'API** (`npm run api:dev`). Au premier boot sur une base vide, le
+   seeder insère le seed La Réunion (idempotent, transaction). **Log de
+   disponibilité attendu** :
+
+   ```
+   PostgreSQL prêt : connecté (15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications)
+   ```
+
+> **⚠️ Collision de port avec un PostgreSQL natif (Windows).** Sur une machine
+> où un service **PostgreSQL natif** tourne déjà, il occupe `localhost:5432` et
+> **masque le conteneur Docker** : l'API-hôte se connecte alors au postgres
+> natif (mauvaise base, mot de passe refusé) au lieu du conteneur. Deux remèdes,
+> au choix :
+> - **arrêter/désactiver le service PostgreSQL natif** (libère 5432 pour le conteneur) ; ou
+> - **remapper le conteneur sur un port libre** sans toucher au natif :
+>   `POSTGRES_HOST_PORT=55432 docker compose -f infra/docker-compose.yml up -d`,
+>   puis pointer `DATABASE_URL` (et `POSTGRES_PORT`) sur `55432`.
+>
+> `docker exec endirek-postgres psql -U endirek -d endirek` fonctionne toujours
+> (auth interne au conteneur), indépendamment de cette collision.
+
+Pour repartir d'une base fraîche (vide puis re-seed au prochain boot) :
+`npm run db:reset --workspace apps/api`.
+
+Retour au mode par défaut : retirer `DB_DRIVER` (ou le mettre à `mock`).
+
+   > Si le conteneur n'est pas là ou que les migrations manquent, le boot
+   > **échoue tôt et clairement** (« Connexion PostgreSQL impossible… »).
+
+5. **Re-seeder** (repartir d'une base fraîche) — vide les tables de données
+   (référence conservée) ; le prochain boot re-seede si `DB_MOCK_SEED=true` :
+
+   ```bash
+   npm run db:reset --workspace apps/api
+   ```
+
+**Revenir au mock (défaut)** : remettre `DB_DRIVER=mock` dans `.env` (ou retirer
+la variable d'environnement) et relancer `npm run api:dev`. Aucune infra requise,
+seed rechargé en mémoire à chaque boot.
 
 ---
 
