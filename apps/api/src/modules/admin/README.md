@@ -102,4 +102,48 @@ module `posts` — source unique avec le feed public), enrichi de
   comptes actifs ; type `system`, payload `{ title, message, source }`, via
   le même service de notifications in-app + WebSocket.
 
+## Fait au Lot 2 — CP2.1 — backoffice Dealplace (annonces + taxonomie)
+
+Mêmes protections (guard JWT global + `RolesGuard` +
+`@Roles('moderator', 'super_admin')` → 401/403). La forme annonce servie est le
+**LISTING_CARD**/**LISTING** du contrat, assemblée par `ListingAssembler` du
+module `dealplace` (source unique avec l'annuaire public — `DealplaceModule`
+est importé pour cet assembler).
+
+### Annonces — `admin-listings`
+
+- `GET /api/v1/admin/dealplace/listings?status=&family=&category=&search=&limit=&offset=` —
+  liste paginée `{ items, total }`, **tous statuts** (`active`, `hidden`,
+  `deleted` — audit), antéchronologique (tie-break id) ; chaque élément est un
+  `LISTING_CARD` enrichi de `status`. `search` cherche dans le titre, la
+  description et le nom du propriétaire (insensible à la casse).
+- `GET /api/v1/admin/dealplace/listings/:id` — `LISTING` complet quel que soit
+  le statut ; 404 uniquement si l'identifiant n'existe pas.
+- `PATCH /api/v1/admin/dealplace/listings/:id/status` `{status}` — masquer
+  (`hidden`) ou republier (`active`). Règles miroir des posts : `deleted`
+  refusé → 400 (la suppression appartient au propriétaire ou au flux RGPD) ;
+  annonce déjà `deleted` non restaurable → 409 ; une annonce masquée disparaît
+  de l'annuaire et du détail public (404 sauf propriétaire/modérateurs) mais
+  reste en base.
+
+### Taxonomie — `admin-dealplace-taxonomy`
+
+Vocabulaire pilotable (comme `post_types`). Le **slug est immuable** (aucun
+PATCH ne le change) ; la `family` d'une catégorie et la `categorySlug` d'une
+sous-catégorie sont figées ; `moderationLevel` d'une catégorie est éditable.
+Les GET renvoient **actifs ET inactifs**. Aucune suppression (désactivation via
+`isActive=false`).
+
+- Catégories : `GET /api/v1/admin/dealplace/categories`,
+  `POST` (slug, family, labelFr, position, moderationLevel?, isActive?),
+  `PATCH /api/v1/admin/dealplace/categories/:slug` (labelFr, position,
+  moderationLevel, isActive).
+- Sous-catégories : `GET /api/v1/admin/dealplace/subcategories?category=<slug>`,
+  `POST` (slug, categorySlug, labelFr, position, isActive?),
+  `PATCH /api/v1/admin/dealplace/subcategories/:slug` (labelFr, position,
+  isActive).
+- Tags : `GET /api/v1/admin/dealplace/tags`, `POST` (slug, labelFr, isActive?),
+  `PATCH /api/v1/admin/dealplace/tags/:slug` (labelFr, isActive).
+- Création avec un slug déjà pris → 409 ; PATCH d'un slug inconnu → 404.
+
 Anticipation : backoffice avancé et analytics (TODO Lot 2+).

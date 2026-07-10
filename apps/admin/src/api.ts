@@ -763,3 +763,362 @@ export function adminCreateSystemNotification(
     body: payload,
   })
 }
+
+// ─── Types du contrat d'API (CP2.1 — Dealplace : taxonomie & annonces) ───────
+
+/** Famille d'une annonce : bien (« good ») ou service (« service »). */
+export type ListingFamily = 'good' | 'service'
+
+/**
+ * Niveau de modération d'une catégorie Dealplace :
+ * - 'standard'  : catégorie normale ;
+ * - 'sensitive' : autorisée mais marquée pour la modération ;
+ * - 'forbidden' : création d'annonce refusée par l'API (400).
+ */
+export type ModerationLevel = 'standard' | 'sensitive' | 'forbidden'
+
+/** Nature de la valeur d'une annonce : prix unique ('fixed') ou fourchette. */
+export type ListingValueKind = 'fixed' | 'range'
+
+/** Cycle de vie d'une annonce Dealplace (miroir des posts). */
+export type ListingStatus = 'active' | 'hidden' | 'deleted'
+
+/** Statuts posables par le backoffice ('deleted' réservé au propriétaire/RGPD). */
+export type AdminSettableListingStatus = 'active' | 'hidden'
+
+/** Préférence d'échange d'une annonce (ce que le propriétaire accepte). */
+export type ExchangePref = 'goods' | 'services' | 'money' | 'open'
+
+/** Média d'une annonce (miroir de la forme MEDIA des posts + position). */
+export interface ListingMedia {
+  url: string
+  thumbnailUrl: string | null
+  width: number | null
+  height: number | null
+  mediaType: 'image' | 'video'
+  position: number
+}
+
+/** Lien externe attaché à une annonce ({ label, url }). */
+export interface ListingExternalLink {
+  label: string
+  url: string
+}
+
+/** Tag imbriqué dans une annonce ({ slug, labelFr }). */
+export interface ListingTagRef {
+  slug: string
+  labelFr: string
+}
+
+/** Catégorie imbriquée dans le détail LISTING (avec moderationLevel). */
+export interface ListingCategoryRef {
+  slug: string
+  labelFr: string
+  family: ListingFamily
+  moderationLevel: ModerationLevel
+}
+
+/** Catégorie allégée des cartes LISTING_CARD (sans moderationLevel). */
+export interface ListingCardCategoryRef {
+  slug: string
+  labelFr: string
+  family: ListingFamily
+}
+
+/** Sous-catégorie imbriquée dans une annonce ({ slug, labelFr }). */
+export interface ListingSubcategoryRef {
+  slug: string
+  labelFr: string
+}
+
+/**
+ * Forme LISTING_CARD du contrat, enrichie du `status` par le backoffice
+ * (GET /admin/dealplace/listings). `coverMedia` = premier média ou null.
+ */
+export interface AdminListingCard {
+  id: string
+  ownerId: string
+  owner: PostAuthor
+  listingType: ListingFamily
+  title: string
+  category: ListingCardCategoryRef
+  subcategory: ListingSubcategoryRef
+  valueKind: ListingValueKind
+  valueMin: number
+  valueMax: number | null
+  currency: string
+  city: string
+  coverMedia: ListingMedia | null
+  tags: ListingTagRef[]
+  urlSlug: string
+  createdAt: string
+  status: ListingStatus
+}
+
+/** Forme LISTING complète (GET /admin/dealplace/listings/:id — détail). */
+export interface AdminListingDetail {
+  id: string
+  ownerId: string
+  owner: PostAuthor
+  listingType: ListingFamily
+  title: string
+  description: string
+  category: ListingCategoryRef
+  subcategory: ListingSubcategoryRef
+  valueKind: ListingValueKind
+  valueMin: number
+  valueMax: number | null
+  currency: string
+  city: string
+  location: { lat: number; lng: number } | null
+  exchangePrefs: ExchangePref[]
+  externalLinks: ListingExternalLink[]
+  media: ListingMedia[]
+  tags: ListingTagRef[]
+  urlSlug: string
+  status: ListingStatus
+  createdAt: string
+  updatedAt: string
+}
+
+/** Page de la liste backoffice des annonces (GET /admin/dealplace/listings). */
+export interface PagedAdminListings {
+  items: AdminListingCard[]
+  total: number
+}
+
+/** Paramètres de GET /admin/dealplace/listings — mêmes noms que la query string. */
+export interface AdminListListingsParams {
+  status?: ListingStatus
+  family?: ListingFamily
+  category?: string
+  search?: string
+  limit: number
+  offset: number
+}
+
+/**
+ * Entité `listing_categories` telle que servie au backoffice
+ * (GET /admin/dealplace/categories — actives ET inactives). Dates ISO.
+ */
+export interface AdminListingCategory {
+  slug: string
+  family: ListingFamily
+  labelFr: string
+  position: number
+  moderationLevel: ModerationLevel
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Entité `listing_subcategories` servie au backoffice. */
+export interface AdminListingSubcategory {
+  slug: string
+  categorySlug: string
+  labelFr: string
+  position: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Entité `listing_tags` servie au backoffice (actifs ET inactifs). */
+export interface AdminListingTag {
+  slug: string
+  labelFr: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Corps de POST /admin/dealplace/categories (slug/family immuables ensuite). */
+export interface CreateListingCategoryPayload {
+  slug: string
+  family: ListingFamily
+  labelFr: string
+  position: number
+  moderationLevel?: ModerationLevel
+  isActive?: boolean
+}
+
+/** Corps de PATCH /admin/dealplace/categories/:slug (slug/family figés). */
+export interface UpdateListingCategoryPayload {
+  labelFr?: string
+  position?: number
+  moderationLevel?: ModerationLevel
+  isActive?: boolean
+}
+
+/** Corps de POST /admin/dealplace/subcategories. */
+export interface CreateListingSubcategoryPayload {
+  slug: string
+  categorySlug: string
+  labelFr: string
+  position: number
+  isActive?: boolean
+}
+
+/** Corps de PATCH /admin/dealplace/subcategories/:slug (slug/catégorie figés). */
+export interface UpdateListingSubcategoryPayload {
+  labelFr?: string
+  position?: number
+  isActive?: boolean
+}
+
+/** Corps de POST /admin/dealplace/tags. */
+export interface CreateListingTagPayload {
+  slug: string
+  labelFr: string
+  isActive?: boolean
+}
+
+/** Corps de PATCH /admin/dealplace/tags/:slug (slug figé). */
+export interface UpdateListingTagPayload {
+  labelFr?: string
+  isActive?: boolean
+}
+
+// ─── Administration des annonces Dealplace (CP2.1) ───────────────────────────
+
+/**
+ * GET /admin/dealplace/listings?status=&family=&category=&search=&limit=&offset=
+ * — LISTING_CARD + status, TOUS statuts confondus (active, hidden, deleted).
+ */
+export function adminListListings(
+  params: AdminListListingsParams,
+  signal?: AbortSignal,
+): Promise<PagedAdminListings> {
+  const query = new URLSearchParams()
+  if (params.status) query.set('status', params.status)
+  if (params.family) query.set('family', params.family)
+  if (params.category) query.set('category', params.category)
+  if (params.search) query.set('search', params.search)
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedAdminListings>(
+    `/admin/dealplace/listings?${query.toString()}`,
+    { signal },
+  )
+}
+
+/** GET /admin/dealplace/listings/:id — LISTING complet quel que soit le statut. */
+export function adminGetListing(
+  id: string,
+  signal?: AbortSignal,
+): Promise<AdminListingDetail> {
+  return request<AdminListingDetail>(
+    `/admin/dealplace/listings/${encodeURIComponent(id)}`,
+    { signal },
+  )
+}
+
+/** PATCH /admin/dealplace/listings/:id/status — masquer ('hidden') ou
+ * republier ('active'). 'deleted' refusé (400) ; annonce supprimée → 409. */
+export function adminSetListingStatus(
+  id: string,
+  status: AdminSettableListingStatus,
+): Promise<AdminListingCard> {
+  return request<AdminListingCard>(
+    `/admin/dealplace/listings/${encodeURIComponent(id)}/status`,
+    { method: 'PATCH', body: { status } },
+  )
+}
+
+// ─── Administration de la taxonomie Dealplace (CP2.1) ────────────────────────
+
+/** GET /admin/dealplace/categories — toutes les catégories (actives ET
+ * inactives), triées par position. */
+export function adminListListingCategories(
+  signal?: AbortSignal,
+): Promise<AdminListingCategory[]> {
+  return request<AdminListingCategory[]>('/admin/dealplace/categories', {
+    signal,
+  })
+}
+
+/** POST /admin/dealplace/categories — crée une catégorie (201 ; 409 si slug pris). */
+export function adminCreateListingCategory(
+  payload: CreateListingCategoryPayload,
+): Promise<AdminListingCategory> {
+  return request<AdminListingCategory>('/admin/dealplace/categories', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/** PATCH /admin/dealplace/categories/:slug — label, position, moderationLevel,
+ * isActive (slug et family immuables). */
+export function adminUpdateListingCategory(
+  slug: string,
+  payload: UpdateListingCategoryPayload,
+): Promise<AdminListingCategory> {
+  return request<AdminListingCategory>(
+    `/admin/dealplace/categories/${encodeURIComponent(slug)}`,
+    { method: 'PATCH', body: payload },
+  )
+}
+
+/** GET /admin/dealplace/subcategories?category=<slug> — sous-catégories d'une
+ * catégorie (actives ET inactives). */
+export function adminListListingSubcategories(
+  categorySlug: string,
+  signal?: AbortSignal,
+): Promise<AdminListingSubcategory[]> {
+  const query = new URLSearchParams({ category: categorySlug })
+  return request<AdminListingSubcategory[]>(
+    `/admin/dealplace/subcategories?${query.toString()}`,
+    { signal },
+  )
+}
+
+/** POST /admin/dealplace/subcategories — crée une sous-catégorie (201). */
+export function adminCreateListingSubcategory(
+  payload: CreateListingSubcategoryPayload,
+): Promise<AdminListingSubcategory> {
+  return request<AdminListingSubcategory>('/admin/dealplace/subcategories', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/** PATCH /admin/dealplace/subcategories/:slug — label, position, isActive
+ * (slug et catégorie parente immuables). */
+export function adminUpdateListingSubcategory(
+  slug: string,
+  payload: UpdateListingSubcategoryPayload,
+): Promise<AdminListingSubcategory> {
+  return request<AdminListingSubcategory>(
+    `/admin/dealplace/subcategories/${encodeURIComponent(slug)}`,
+    { method: 'PATCH', body: payload },
+  )
+}
+
+/** GET /admin/dealplace/tags — tous les tags (actifs ET inactifs). */
+export function adminListListingTags(
+  signal?: AbortSignal,
+): Promise<AdminListingTag[]> {
+  return request<AdminListingTag[]>('/admin/dealplace/tags', { signal })
+}
+
+/** POST /admin/dealplace/tags — crée un tag (201 ; 409 si slug pris). */
+export function adminCreateListingTag(
+  payload: CreateListingTagPayload,
+): Promise<AdminListingTag> {
+  return request<AdminListingTag>('/admin/dealplace/tags', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/** PATCH /admin/dealplace/tags/:slug — label, isActive (slug immuable). */
+export function adminUpdateListingTag(
+  slug: string,
+  payload: UpdateListingTagPayload,
+): Promise<AdminListingTag> {
+  return request<AdminListingTag>(
+    `/admin/dealplace/tags/${encodeURIComponent(slug)}`,
+    { method: 'PATCH', body: payload },
+  )
+}

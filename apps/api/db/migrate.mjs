@@ -1,11 +1,19 @@
 /**
- * Applique les migrations SQL du Lot 1 dans le conteneur Docker PostgreSQL.
+ * Applique TOUTES les migrations SQL du dossier `migrations/` dans le conteneur
+ * Docker PostgreSQL, dans l'ordre lexicographique (0001, 0002, 0003, 0004, ...).
  *
  * Stratégie : on copie chaque fichier .sql dans le conteneur puis on l'exécute
- * avec psql (-f), dans l'ordre lexicographique (0001, 0002, ...). Les deux
- * migrations sont REJOUABLES (0001 : CREATE TABLE — échoue si déjà présent, on
- * signale mais on n'interrompt pas ; 0002 : ON CONFLICT DO NOTHING). Ce script
- * n'installe RIEN : il n'utilise que `docker` (déjà requis pour le conteneur).
+ * avec psql (-f). Toute nouvelle migration déposée dans le dossier est reprise
+ * automatiquement (rien à câbler ici). Rejouabilité par fichier :
+ *   - 0001 (Lot 1) : CREATE TABLE simple — conçu pour une base NEUVE (ou après
+ *     `npm run db:reset`) ; le relancer sur une base déjà migrée échoue (tables
+ *     présentes), c'est attendu ;
+ *   - 0002 (Lot 1 référence) : ON CONFLICT DO NOTHING — rejouable ;
+ *   - 0003 (Lot 2 Dealplace) : CREATE TABLE/INDEX IF NOT EXISTS + triggers
+ *     recréés (DROP IF EXISTS) — rejouable ;
+ *   - 0004 (Lot 2 référence Dealplace) : ON CONFLICT DO NOTHING — rejouable.
+ * Ce script n'installe RIEN : il n'utilise que `docker` (déjà requis pour le
+ * conteneur).
  *
  * Usage : npm run db:migrate            (depuis apps/api ou la racine)
  * Variables : PG_CONTAINER (défaut endirek-postgres), POSTGRES_USER/DB

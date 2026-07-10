@@ -17,7 +17,19 @@ import {
   CameraStreamType,
   Comment,
   CommentStatus,
+  ExchangePref,
   GeoPoint,
+  Listing,
+  ListingCategory,
+  ListingExternalLink,
+  ListingFamily,
+  ListingMedia,
+  ListingMediaType,
+  ListingStatus,
+  ListingSubcategory,
+  ListingTag,
+  ListingValueKind,
+  ModerationLevel,
   Notification,
   NotificationType,
   Post,
@@ -530,4 +542,228 @@ export interface NotificationsRepository {
   markRead(id: string): Promise<void>;
   markAllRead(userId: string): Promise<void>;
   unreadCount(userId: string): Promise<number>;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Dealplace — Taxonomie (catégories / sous-catégories / tags)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Données de création d'une catégorie Dealplace (backoffice). */
+export interface CreateListingCategoryInput {
+  slug: string;
+  family: ListingFamily;
+  labelFr: string;
+  position: number;
+  moderationLevel?: ModerationLevel;
+  isActive?: boolean;
+}
+
+/** Champs modifiables d'une catégorie (backoffice) — slug/family non modifiés. */
+export type UpdateListingCategoryPatch = Partial<
+  Pick<
+    ListingCategory,
+    'labelFr' | 'position' | 'moderationLevel' | 'isActive'
+  >
+>;
+
+/** Données de création d'une sous-catégorie Dealplace (backoffice). */
+export interface CreateListingSubcategoryInput {
+  slug: string;
+  categorySlug: string;
+  labelFr: string;
+  position: number;
+  isActive?: boolean;
+}
+
+/** Champs modifiables d'une sous-catégorie (backoffice) — slug/categorySlug
+ * non modifiés (une sous-catégorie ne change pas de catégorie). */
+export type UpdateListingSubcategoryPatch = Partial<
+  Pick<ListingSubcategory, 'labelFr' | 'position' | 'isActive'>
+>;
+
+/** Données de création d'un tag transversal (backoffice). */
+export interface CreateListingTagInput {
+  slug: string;
+  labelFr: string;
+  isActive?: boolean;
+}
+
+/** Champs modifiables d'un tag (backoffice) — slug non modifié. */
+export type UpdateListingTagPatch = Partial<
+  Pick<ListingTag, 'labelFr' | 'isActive'>
+>;
+
+/** Repository de la taxonomie Dealplace : catégories, sous-catégories et tags.
+ * Vocabulaire pilotable par le backoffice (rien de hardcodé côté service). */
+export interface ListingTaxonomyRepository {
+  /** Catégories triées par position ASC (tie-break slug). `activeOnly` = true :
+   * seules les catégories actives (composer d'annonce, filtres publics). */
+  listCategories(activeOnly: boolean): Promise<ListingCategory[]>;
+  /** Sous-catégories d'une catégorie, triées par position ASC (tie-break slug).
+   * `activeOnly` = true : seules les sous-catégories actives. */
+  listSubcategories(
+    categorySlug: string,
+    activeOnly: boolean,
+  ): Promise<ListingSubcategory[]>;
+  /** Tags triés par slug ASC. `activeOnly` = true : seuls les tags actifs. */
+  listTags(activeOnly: boolean): Promise<ListingTag[]>;
+  findCategory(slug: string): Promise<ListingCategory | null>;
+  findSubcategory(slug: string): Promise<ListingSubcategory | null>;
+  findTag(slug: string): Promise<ListingTag | null>;
+  // ── Backoffice : gestion du vocabulaire ─────────────────────────────────
+  createCategory(input: CreateListingCategoryInput): Promise<ListingCategory>;
+  updateCategory(
+    slug: string,
+    patch: UpdateListingCategoryPatch,
+  ): Promise<ListingCategory>;
+  createSubcategory(
+    input: CreateListingSubcategoryInput,
+  ): Promise<ListingSubcategory>;
+  updateSubcategory(
+    slug: string,
+    patch: UpdateListingSubcategoryPatch,
+  ): Promise<ListingSubcategory>;
+  createTag(input: CreateListingTagInput): Promise<ListingTag>;
+  updateTag(slug: string, patch: UpdateListingTagPatch): Promise<ListingTag>;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Dealplace — Annonces (listings)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Média attaché à la création d'une annonce (le listingId n'existe pas
+ * encore : il est posé par le repository). Position par défaut : l'index du
+ * tableau. Miroir de CreatePostMediaSpec côté posts. */
+export interface CreateListingMediaSpec {
+  mediaType: ListingMediaType;
+  url: string;
+  thumbnailUrl?: string | null;
+  width?: number | null;
+  height?: number | null;
+  position?: number;
+}
+
+/** Données de création d'une annonce. Les règles métier (valeur cohérente,
+ * photo obligatoire pour un bien, catégorie non 'forbidden', commune du
+ * référentiel, sous-catégorie cohérente...) sont vérifiées AU SERVICE : le
+ * repository reproduit les seules contraintes structurelles (FK category /
+ * subcategory, unicité url_slug, cohérence value_kind/value_max, exchangePrefs
+ * non vide). Médias et tags sont écrits ATOMIQUEMENT avec l'annonce
+ * (équivalent transaction SQL). */
+export interface CreateListingInput {
+  ownerId: string;
+  listingType: ListingFamily;
+  title: string;
+  description: string;
+  categorySlug: string;
+  subcategorySlug: string;
+  valueKind: ListingValueKind;
+  valueMin: number;
+  valueMax?: number | null;
+  currency?: string;
+  city: string;
+  location?: GeoPoint | null;
+  exchangePrefs: ExchangePref[];
+  externalLinks?: ListingExternalLink[];
+  urlSlug: string;
+  media?: CreateListingMediaSpec[];
+  tagSlugs?: string[];
+}
+
+/** Champs modifiables d'une annonce par son propriétaire (le service décide de
+ * ce qu'il expose ; médias/tags gérés à part). Le statut passe par setStatus. */
+export interface UpdateListingPatch {
+  title?: string;
+  description?: string;
+  categorySlug?: string;
+  subcategorySlug?: string;
+  valueKind?: ListingValueKind;
+  valueMin?: number;
+  /** null = repasse en 'fixed' (pas de max) ; nombre = borne haute. */
+  valueMax?: number | null;
+  currency?: string;
+  city?: string;
+  location?: GeoPoint | null;
+  exchangePrefs?: ExchangePref[];
+  externalLinks?: ListingExternalLink[];
+}
+
+/** Filtres de la liste PUBLIQUE des annonces (annuaire Dealplace). Tous
+ * facultatifs sauf la pagination. Ne renvoie que les annonces 'active'. */
+export interface ListPublicListingsParams {
+  family?: ListingFamily;
+  categorySlug?: string;
+  subcategorySlug?: string;
+  city?: string;
+  /** Borne basse sur la valeur (euros) — compare à valueMin. */
+  valueMin?: number;
+  /** Borne haute sur la valeur (euros) — compare à valueMin (fixed) ou valueMax. */
+  valueMax?: number;
+  /** Sous-ensemble de tags : l'annonce doit porter TOUS ces tags. */
+  tagSlugs?: string[];
+  /** Recherche insensible à la casse sur le titre et la description. */
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
+/** Page des annonces d'un propriétaire, filtrée par statuts (profil public :
+ * ['active'] ; « mes annonces » : ['active','hidden'] — jamais 'deleted' seul,
+ * mais l'appelant reste libre). */
+export interface ListOwnerListingsParams {
+  statuses?: ListingStatus[];
+  limit: number;
+  offset: number;
+}
+
+/** Filtres de la liste BACKOFFICE des annonces : TOUS statuts par défaut (y
+ * compris 'deleted' — audit), filtres facultatifs. `search` porte sur le
+ * titre, la description ET le nom affiché du propriétaire (insensible à la
+ * casse). */
+export interface AdminListListingsParams {
+  family?: ListingFamily;
+  categorySlug?: string;
+  status?: ListingStatus;
+  /** true : seulement les annonces de catégorie 'sensitive'/'forbidden'
+   * (file de modération) ; false : seulement 'standard' ; absent : toutes. */
+  flaggedOnly?: boolean;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface ListingsRepository {
+  findById(id: string): Promise<Listing | null>;
+  findByUrlSlug(urlSlug: string): Promise<Listing | null>;
+  /** Crée l'annonce AVEC ses médias et ses tags de façon atomique (équivalent
+   * transaction SQL). Vérifie les FK (owner, catégorie, sous-catégorie, tags),
+   * l'unicité de url_slug et les contraintes de valeur/exchangePrefs. */
+  create(input: CreateListingInput): Promise<Listing>;
+  update(id: string, patch: UpdateListingPatch): Promise<Listing>;
+  /** Remplace INTÉGRALEMENT l'ensemble des tags d'une annonce (PATCH tags par
+   * le propriétaire) : purge les liens existants puis réinsère `tagSlugs`
+   * (dédoublonnés). Chaque slug doit exister (FK listing_tags — même message
+   * d'erreur que create). Opération atomique (équivalent transaction SQL). */
+  setTags(id: string, tagSlugs: string[]): Promise<void>;
+  setStatus(id: string, status: ListingStatus): Promise<Listing>;
+  /** Annuaire PUBLIC paginé : annonces 'active' uniquement, antéchronologique
+   * (tie-break id — ordre stable), filtres family/category/subcategory/city/
+   * valeur/tags/recherche. */
+  listPublic(params: ListPublicListingsParams): Promise<PagedResult<Listing>>;
+  /** Annonces d'un propriétaire, filtrées par statuts, antéchronologiques. */
+  listByOwner(
+    ownerId: string,
+    params: ListOwnerListingsParams,
+  ): Promise<PagedResult<Listing>>;
+  /** Liste BACKOFFICE paginée : tous statuts, filtres et recherche titre/
+   * description/nom du propriétaire, antéchronologique (tie-break id). */
+  listAdmin(params: AdminListListingsParams): Promise<PagedResult<Listing>>;
+  /** Médias de plusieurs annonces EN UN APPEL (page d'annuaire — évite les
+   * N+1), triés par position croissante au sein de chaque annonce. */
+  listMediaByListingIds(listingIds: string[]): Promise<ListingMedia[]>;
+  /** Slugs de tags de plusieurs annonces EN UN APPEL : { listingId → slugs[] }
+   * (slugs triés). Les annonces sans tag sont absentes du résultat. */
+  listTagsByListingIds(
+    listingIds: string[],
+  ): Promise<Record<string, string[]>>;
 }

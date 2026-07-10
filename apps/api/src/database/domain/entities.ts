@@ -90,6 +90,125 @@ export type NotificationType =
   | 'system';
 
 // ────────────────────────────────────────────────────────────────────────────
+// Dealplace (Lot 2 — CP2.1) : taxonomie biens/services + annonces (listings)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Famille d'une catégorie / type d'une annonce Dealplace —
+ * CHECK (family IN ('good','service')) et CHECK (listing_type IN (...)). */
+export type ListingFamily = 'good' | 'service';
+
+/** Niveau de modération d'une catégorie Dealplace :
+ * - 'standard'  : catégorie normale ;
+ * - 'sensitive' : autorisée mais MARQUÉE (les annonces héritent d'un flag pour
+ *   la modération) ;
+ * - 'forbidden' : création d'annonce REFUSÉE par le service (400). */
+export type ModerationLevel = 'standard' | 'sensitive' | 'forbidden';
+
+/** Nature de la valeur d'une annonce — CHECK (value_kind IN ('fixed','range')).
+ * 'fixed' : prix/valeur unique (valueMin) ; 'range' : fourchette
+ * (valueMin ≤ valueMax). */
+export type ListingValueKind = 'fixed' | 'range';
+
+/** Statut d'une annonce Dealplace. */
+export type ListingStatus = 'active' | 'hidden' | 'deleted';
+
+/** Préférence d'échange d'une annonce (ce que le propriétaire accepte) —
+ * exchange_prefs est un sous-ensemble NON VIDE de ces valeurs. */
+export type ExchangePref = 'goods' | 'services' | 'money' | 'open';
+
+/** Type d'un média attaché à une annonce (miroir de post_media). */
+export type ListingMediaType = 'image' | 'video';
+
+/** Lien externe attaché à une annonce (external_links jsonb : tableau de ceux-ci). */
+export interface ListingExternalLink {
+  label: string;
+  url: string;
+}
+
+/** Table `listing_categories` — catégorie de la taxonomie Dealplace, pilotable
+ * par le backoffice (comme post_types : rien de hardcodé dans le code métier). */
+export interface ListingCategory {
+  slug: string;
+  family: ListingFamily;
+  labelFr: string;
+  position: number;
+  moderationLevel: ModerationLevel;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `listing_subcategories` — sous-catégorie rattachée à une catégorie.
+ * Chaque catégorie possède une sous-catégorie de repli « autres-<cat> »
+ * (label « Autres »). */
+export interface ListingSubcategory {
+  slug: string;
+  categorySlug: string;
+  labelFr: string;
+  position: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `listing_tags` — tag transversal pilotable par le backoffice. */
+export interface ListingTag {
+  slug: string;
+  labelFr: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `listings` — annonce Dealplace (bien ou service).
+ *
+ * Règles métier (appliquées au SERVICE) : valeur obligatoire (fixed → valueMin ;
+ * range → valueMin ≤ valueMax) ; PHOTO obligatoire pour listingType='good'
+ * (≥1 média) ; commune obligatoire (référentiel communes) ; category+subcategory
+ * cohérentes ; exchangePrefs non vide ; catégorie 'forbidden' → création
+ * refusée ; 'sensitive' → marquée. `location` = centre de la commune si fournie
+ * (adresse exacte JAMAIS stockée). `urlSlug` généré (slug titre + suffixe). */
+export interface Listing {
+  id: string;
+  ownerId: string;
+  listingType: ListingFamily;
+  title: string;
+  description: string;
+  categorySlug: string;
+  subcategorySlug: string;
+  valueKind: ListingValueKind;
+  /** Euros entiers, ≥ 0. */
+  valueMin: number;
+  /** Euros entiers, ≥ valueMin si 'range' ; null si 'fixed'. */
+  valueMax: number | null;
+  currency: string;
+  /** Commune (référentiel communes) — l'adresse exacte n'est jamais stockée. */
+  city: string;
+  /** Centre de la commune (optionnel) — WGS84. */
+  location: GeoPoint | null;
+  exchangePrefs: ExchangePref[];
+  externalLinks: ListingExternalLink[];
+  urlSlug: string;
+  status: ListingStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/** Table `listing_media` — média attaché à une annonce (image en pratique). */
+export interface ListingMedia {
+  id: string;
+  listingId: string;
+  mediaType: ListingMediaType;
+  url: string;
+  thumbnailUrl: string | null;
+  width: number | null;
+  height: number | null;
+  position: number;
+  createdAt: Date;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Entités (une interface par table du Lot 1)
 // ────────────────────────────────────────────────────────────────────────────
 

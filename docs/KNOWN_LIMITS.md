@@ -1,11 +1,11 @@
 # ENDIREK — Limites connues
 
-État honnête des limites du projet **au checkpoint 7 du Lot 1** (socle, couche
-base de données, auth/profils/follows/RGPD, posts/feed/interactions/médias,
-puis carte/caméras/notifications/temps réel, consolidation backoffice et
-stabilisation démo).
-Ce fichier est mis à jour au
-fil des étapes.
+État honnête des limites du projet **au Lot 1 (checkpoint 7 + Lot 1.5) et au
+CP2.1 du Lot 2** (socle, couche base de données, auth/profils/follows/RGPD,
+posts/feed/interactions/médias, carte/caméras/notifications/temps réel,
+consolidation backoffice, stabilisation démo, puis **Dealplace : taxonomie +
+listings**).
+Ce fichier est mis à jour au fil des checkpoints.
 
 ---
 
@@ -32,8 +32,10 @@ mais garde quelques nuances assumées :
   **TODO perf** : à très grande échelle, prévoir des triggers/colonnes maintenues
   plutôt que le recalcul systématique — non requis au Lot 1.
 - **Prérequis postgres** : conteneur Docker `endirek-postgres` démarré +
-  migrations appliquées (`npm run db:migrate`), sinon le boot échoue tôt avec un
-  message explicite.
+  migrations appliquées (`npm run db:migrate` applique 0001→0004, dont les tables
+  Dealplace du CP2.1), sinon le boot échoue tôt avec un message explicite. **Sur
+  cette machine, le conteneur est sur le port hôte `55432`** (un PostgreSQL natif
+  occupe 5432) — voir [AI_RUNBOOK.md](AI_RUNBOOK.md) §8 bis.
 
 ## 2. Périmètre de l'API au checkpoint 7
 
@@ -77,9 +79,11 @@ les routes métier `api/v1` des étapes 3 à 6 :
   `DELETE` caméra = masquage doux).
 
 Le temps réel passe par un socket WebSocket (socket.io, namespace par défaut,
-non préfixé `api/v1`), pas par une route HTTP. Les modules des lots futurs
-restent volontairement absents : ne pas s'étonner de 404 sur Dealplace,
-conversations, pages ou News.
+non préfixé `api/v1`), pas par une route HTTP. **Le CP2.1 ajoute les routes
+Dealplace** (`/dealplace/taxonomy`, `/dealplace/listings*`, `/users/me|:id/listings`,
+`/admin/dealplace/*` — voir §2 sexies). Les modules des checkpoints/lots non
+démarrés restent volontairement absents : ne pas s'étonner de 404 sur les
+conversations, deals, avis, pages ou News.
 
 ## 2 bis. Limites de l'authentification (étape 3)
 
@@ -172,6 +176,45 @@ conversations, pages ou News.
   `comment`/`reply` et `report_handled` (traitement de signalement) — toutes
   lisibles via les endpoints de l'étape 5.
 
+## 2 sexies. Limites du Dealplace (Lot 2 — CP2.1)
+
+Le CP2.1 livre la **taxonomie** (biens/services) et les **listings** (annonces).
+Périmètre volontairement restreint — tout le reste du Dealplace arrive aux
+checkpoints suivants :
+
+- **Pas de conversations ni de deals** : le module `dealplace` s'arrête aux
+  annonces. La messagerie 1-to-1 est le **CP2.3**, les deals contractuels le
+  **CP2.4**. Le bouton mobile **« Proposer un deal »** du détail d'annonce est un
+  **PLACEHOLDER** (snackbar « Disponible au prochain lot ») ; l'icône messagerie
+  du header reste **inactive**. Ne pas s'étonner de 404 sur `/conversations`,
+  `/deals`, `/reviews`.
+- **Pas d'avis ni de profil Dealplace** : la note/les critères/l'historique
+  d'échanges d'un profil Dealplace relèvent du **CP2.2** — non implémentés.
+- **Pas de signalement d'annonce côté utilisateur** : le CP2.1 n'expose pas de
+  « signaler cette annonce ». La modération passe uniquement par le backoffice
+  (`GET /admin/dealplace/listings`, `PATCH …/:id/status` masquer/republier). Une
+  annonce **`deleted` n'est jamais restaurée** (409) ; seul le propriétaire
+  supprime (soft-delete).
+- **Paiement hors application** : aucun flux de paiement dans l'app (décision
+  produit) — la valeur d'une annonce est **indicative** (fixe ou fourchette),
+  l'échange se règle hors app.
+- **Filtre par commune, pas par rayon** : l'annuaire filtre par `city` (commune
+  du référentiel La Réunion), `family`, `category`, `subcategory`, fourchette de
+  valeur, `tags` et `search` (titre/description). Il **n'y a pas encore de
+  recherche par proximité géographique** (rayon autour d'un point) — prévu en
+  réutilisant le module `map`. L'adresse exacte n'est jamais stockée : la
+  `location` d'une annonce est le **centre de la commune**.
+- **Pas de vidéos** : les médias d'annonce sont des **images** (upload via
+  `/media/upload`, mêmes règles que les posts) ; le schéma `listing_media`
+  prévoit `video` mais l'app ne le produit pas au CP2.1.
+- **Type d'annonce, commune et médias non modifiables** en édition
+  (`PATCH /dealplace/listings/:id`) au CP2.1 : seuls titre, description, valeur,
+  catégorie/sous-catégorie, préférences d'échange, liens externes et tags sont
+  éditables.
+- **Taxonomie : slug immuable** : le backoffice édite libellés, positions,
+  activation et `moderation_level`, mais ne renomme pas un slug ni la famille
+  d'une catégorie / la catégorie parente d'une sous-catégorie.
+
 ## 3. Pas de push réel
 
 `PUSH_DRIVER=mock` : aucune notification push n'est envoyée (pas de projet
@@ -215,8 +258,10 @@ des tests backoffice sur les actions critiques.
 
 ## 8. Rappels de périmètre
 
-- News et Dealplace sont des **onglets placeholders** au Lot 1 (développés
-  aux lots suivants — voir [TODO_LOT_2.md](TODO_LOT_2.md)).
+- **News** reste un **onglet placeholder** (Lot 4). **Dealplace est réel depuis
+  le CP2.1** (onglet mobile : annuaire, création, détail d'annonces) — mais
+  limité à la taxonomie + les listings ; conversations/deals/avis viennent aux
+  checkpoints suivants (voir §2 sexies et [TODO_LOT_2.md](TODO_LOT_2.md)).
 - L'onglet Carte du mobile est **réel depuis l'étape 5** (mode « Météo &
   trafic » : posts géolocalisés + caméras actives, clustering, cartes de
   preview). Les modes carte « Offres & restos » et « Événements » relèvent

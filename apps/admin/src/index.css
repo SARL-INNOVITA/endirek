@@ -906,6 +906,216 @@ code {
   margin-bottom: 4px;
 }
 
+/* ---------- CP2.1 : Dealplace (annonces & taxonomie) ---------- */
+
+.dealplace-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Sous-onglets internes à un onglet (Annonces / Taxonomie) — plus discrets
+   que les onglets principaux, forme « pilule ». */
+.subtabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--neutral-bg);
+  border-radius: 999px;
+  align-self: flex-start;
+  flex-wrap: wrap;
+}
+
+.subtab {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 6px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.subtab:hover {
+  color: var(--endirek-blue-dark);
+}
+
+.subtab--active {
+  background: var(--card-bg);
+  color: var(--endirek-blue);
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.08);
+}
+
+/* Vignette de couverture d'une annonce (colonne « Image ») */
+.listing-thumb {
+  width: 56px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--border);
+  background: var(--neutral-bg);
+}
+
+.listing-thumb--empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* Valeur d'une annonce dans les tableaux (tabulaire, ne se coupe pas) */
+.listing-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Tags d'une annonce dans le panneau détail */
+.listing-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Liste des liens externes du détail annonce */
+.listing-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ----- Taxonomie ----- */
+
+.taxonomy-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.taxonomy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.taxonomy-item {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.taxonomy-item:last-child {
+  border-bottom: none;
+}
+
+/* Une ligne : libellé+slug à gauche, badges au centre, actions à droite */
+.taxonomy-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.taxonomy-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  flex: 1;
+}
+
+.taxonomy-label {
+  font-weight: 600;
+}
+
+.taxonomy-slug {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  align-self: flex-start;
+}
+
+.taxonomy-slug--locked {
+  padding: 4px 8px;
+}
+
+.taxonomy-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.taxonomy-position {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.taxonomy-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+/* Formulaire de création / édition (catégorie, sous-catégorie, tag) */
+.taxonomy-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--page-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 8px 0;
+}
+
+.taxonomy-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+/* Panneau des sous-catégories, déplié sous une catégorie */
+.taxonomy-subpanel {
+  margin: 12px 0 4px 16px;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+}
+
+.taxonomy-subpanel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.taxonomy-sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.taxonomy-subitem {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.taxonomy-subitem:last-child {
+  border-bottom: none;
+}
+
 /* ---------- Bandeau santé de l'API (pied de page) ---------- */
 
 .health-strip {

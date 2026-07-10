@@ -27,6 +27,7 @@ import {
 } from './api'
 import type { FullProfile } from './api'
 import CamerasView from './CamerasView'
+import DealplaceView from './DealplaceView'
 import HealthCard from './HealthCard'
 import LoginView from './LoginView'
 import PostsView from './PostsView'
@@ -42,17 +43,25 @@ type Session =
   | { kind: 'authenticated'; admin: FullProfile }
 
 /** Onglets du backoffice connecté. */
-type Tab = 'users' | 'posts' | 'reports' | 'cameras' | 'settings'
+type Tab = 'users' | 'posts' | 'reports' | 'cameras' | 'dealplace' | 'settings'
 
 const TAB_LABELS: Record<Tab, string> = {
   users: 'Utilisateurs',
   posts: 'Publications',
   reports: 'Signalements',
   cameras: 'Caméras',
+  dealplace: 'Dealplace',
   settings: 'Paramètres',
 }
 
-const TABS: Tab[] = ['users', 'posts', 'reports', 'cameras', 'settings']
+const TABS: Tab[] = [
+  'users',
+  'posts',
+  'reports',
+  'cameras',
+  'dealplace',
+  'settings',
+]
 
 export default function App() {
   const [session, setSession] = useState<Session>({ kind: 'restoring' })
@@ -139,8 +148,8 @@ export default function App() {
           <div>
             <h1 className="app-title">ENDIREK</h1>
             <p className="app-subtitle">
-              Backoffice — Lot 1 · utilisateurs, publications, signalements &
-              caméras, paramètres
+              Backoffice · utilisateurs, publications, signalements, caméras,
+              Dealplace & paramètres
             </p>
           </div>
 
@@ -199,6 +208,9 @@ export default function App() {
           <ReportsView onOpenCountChanged={refreshOpenReportsCount} />
         )}
         {session.kind === 'authenticated' && tab === 'cameras' && <CamerasView />}
+        {session.kind === 'authenticated' && tab === 'dealplace' && (
+          <DealplaceView />
+        )}
         {session.kind === 'authenticated' && tab === 'settings' && <SettingsView />}
       </main>
 

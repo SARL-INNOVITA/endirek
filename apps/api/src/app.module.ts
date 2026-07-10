@@ -6,6 +6,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CamerasModule } from './modules/cameras/cameras.module';
 import { CommentsModule } from './modules/comments/comments.module';
+import { DealplaceModule } from './modules/dealplace/dealplace.module';
 import { HealthModule } from './modules/health/health.module';
 import { MapModule } from './modules/map/map.module';
 import { MediaModule } from './modules/media/media.module';
@@ -47,6 +48,10 @@ import { UsersModule } from './modules/users/users.module';
  * AdminModule (backoffice caméras).
  *
  * Étape 6 : le reste du backoffice admin (types de posts).
+ *
+ * Lot 2 — CP2.1 : DealplaceModule (taxonomie biens/services + annonces —
+ * PREMIÈRE fonctionnalité du Lot 2 ; le backoffice Dealplace vit dans
+ * AdminModule qui importe DealplaceModule pour l'assembler).
  */
 @Module({
   imports: [
@@ -68,6 +73,7 @@ import { UsersModule } from './modules/users/users.module';
     NotificationsModule,
     CamerasModule,
     MapModule,
+    DealplaceModule,
     HealthModule,
   ],
 })

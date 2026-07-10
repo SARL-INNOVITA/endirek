@@ -2,9 +2,16 @@
  * PostgresSeeder — insertion du seed La Réunion dans PostgreSQL.
  *
  * Miroir SQL de MockDatabaseService.loadSeed() : consomme la MÊME source
- * (buildSeed(), src/database/seed/) et insère les 11 collections d'entités
+ * (buildSeed(), src/database/seed/) et insère les 14 collections d'entités
  * (users, follows, posts, post_media, comments, reactions, saved_collections,
- * saved_posts, cameras, reports, notifications).
+ * saved_posts, cameras, reports, notifications, + Dealplace : listings,
+ * listing_media, listing_tag_map).
+ *
+ * TAXONOMIE Dealplace (listing_categories / listing_subcategories /
+ * listing_tags) : NON insérée ici — c'est de la donnée de RÉFÉRENCE, déjà en
+ * base via la migration 0004_dealplace_reference.sql (comme post_types /
+ * reaction_types via 0002). Le seeder ne pose que les ANNONCES du seed, dont les
+ * FK category_slug / subcategory_slug / tag_slug pointent vers cette référence.
  *
  * GARANTIES :
  *  - ATOMIQUE : tout passe dans UNE transaction (withTransaction) — soit tout
@@ -63,6 +70,12 @@ export class PostgresSeeder {
       c.cameras = await this.insertCameras(client, data);
       c.reports = await this.insertReports(client, data);
       c.notifications = await this.insertNotifications(client, data);
+      // Dealplace (CP2.1) : annonces, médias, associations tags. Insérés APRÈS
+      // les users (FK owner_id) ; les FK category_slug / subcategory_slug /
+      // tag_slug pointent vers la référence de la migration 0004.
+      c.listings = await this.insertListings(client, data);
+      c.listing_media = await this.insertListingMedia(client, data);
+      c.listing_tag_map = await this.insertListingTagMap(client, data);
       // Repositionne la séquence camera_number après le plus grand numéro seedé
       // (miroir de MockDatabaseService.syncCameraSequence()). Idempotent.
       await this.resyncCameraSequence(client);
@@ -75,7 +88,9 @@ export class PostgresSeeder {
         `${counts.comments} commentaires, ${counts.reactions} réactions, ` +
         `${counts.saved_collections} collections, ${counts.saved_posts} sauvegardes, ` +
         `${counts.cameras} caméras, ${counts.reports} signalements, ` +
-        `${counts.notifications} notifications.`,
+        `${counts.notifications} notifications, ` +
+        `${counts.listings} annonces, ${counts.listing_media} médias annonce, ` +
+        `${counts.listing_tag_map} tags annonce.`,
     );
     return counts;
   }
@@ -396,6 +411,107 @@ export class PostgresSeeder {
           n.readAt,
           n.createdAt,
         ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertListings(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const l of data.listings) {
+      // $1..$11 fixes, puis géométrie conditionnelle, puis
+      // external_links / exchange_prefs / url_slug / status / timestamps.
+      const params: unknown[] = [
+        l.id,
+        l.ownerId,
+        l.listingType,
+        l.title,
+        l.description,
+        l.categorySlug,
+        l.subcategorySlug,
+        l.valueKind,
+        l.valueMin,
+        l.valueMax,
+        l.currency,
+      ];
+      const geo = this.geoValue(l.location, params);
+      // exchange_prefs : text[] passé tel quel (node-postgres sérialise le
+      // tableau JS en littéral tableau PostgreSQL). external_links : jsonb.
+      params.push(
+        l.city,
+        JSON.stringify(l.externalLinks),
+        l.exchangePrefs,
+        l.urlSlug,
+        l.status,
+        l.createdAt,
+        l.updatedAt,
+        l.deletedAt,
+      );
+      const res = await client.query(
+        `INSERT INTO listings
+           (id, owner_id, listing_type, title, description,
+            category_slug, subcategory_slug,
+            value_kind, value_min, value_max, currency,
+            location, city, external_links, exchange_prefs, url_slug,
+            status, created_at, updated_at, deleted_at)
+         VALUES
+           ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+            ${geo},
+            $${params.length - 7}, $${params.length - 6}::jsonb,
+            $${params.length - 5}, $${params.length - 4}, $${params.length - 3},
+            $${params.length - 2}, $${params.length - 1}, $${params.length})
+         ON CONFLICT (id) DO NOTHING`,
+        params,
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertListingMedia(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const m of data.listingMedia) {
+      const res = await client.query(
+        `INSERT INTO listing_media
+           (id, listing_id, media_type, url, thumbnail_url, width, height,
+            position, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          m.id,
+          m.listingId,
+          m.mediaType,
+          m.url,
+          m.thumbnailUrl,
+          m.width,
+          m.height,
+          m.position,
+          m.createdAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertListingTagMap(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const t of data.listingTagMap) {
+      const res = await client.query(
+        `INSERT INTO listing_tag_map (listing_id, tag_slug)
+         VALUES ($1, $2)
+         ON CONFLICT (listing_id, tag_slug) DO NOTHING`,
+        [t.listingId, t.tagSlug],
       );
       inserted += res.rowCount ?? 0;
     }

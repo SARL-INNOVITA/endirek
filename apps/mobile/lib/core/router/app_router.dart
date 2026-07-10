@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/camera_detail/presentation/camera_detail_screen.dart';
+import '../../features/dealplace/presentation/create_listing_screen.dart';
+import '../../features/dealplace/presentation/dealplace_screen.dart';
+import '../../features/dealplace/presentation/listing_detail_screen.dart';
 import '../../features/feed/presentation/feed_screen.dart';
 import '../../features/map/presentation/map_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
@@ -94,11 +97,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/dealplace',
-                builder: (context, state) => const PlaceholderScreen(
-                  icone: Icons.storefront_outlined,
-                  titre: 'Dealplace',
-                  message: 'Bientôt disponible.',
-                ),
+                builder: (context, state) => const DealplaceScreen(),
               ),
             ],
           ),
@@ -114,6 +113,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/camera/:id',
         builder: (context, state) =>
             CameraDetailScreen(cameraId: state.pathParameters['id']!),
+      ),
+      // Dealplace (CP2.1) : création et détail d'annonce, plein écran au-dessus
+      // du shell. '/dealplace/create' AVANT '/dealplace/:id' pour ne pas être
+      // capturé par le paramètre dynamique.
+      GoRoute(
+        path: '/dealplace/create',
+        builder: (context, state) => const CreateListingScreen(),
+      ),
+      GoRoute(
+        path: '/dealplace/:id',
+        builder: (context, state) =>
+            ListingDetailScreen(listingId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/notifications',

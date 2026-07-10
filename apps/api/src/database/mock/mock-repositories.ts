@@ -27,6 +27,12 @@ import {
   CameraStatus,
   Comment,
   CommentStatus,
+  Listing,
+  ListingCategory,
+  ListingMedia,
+  ListingStatus,
+  ListingSubcategory,
+  ListingTag,
   Notification,
   Post,
   PostMedia,
@@ -42,11 +48,16 @@ import {
 } from '../domain/entities';
 import {
   AdminListCamerasParams,
+  AdminListListingsParams,
   AdminListPostsParams,
   CamerasRepository,
   CommentsRepository,
   CreateCameraInput,
   CreateCommentInput,
+  CreateListingCategoryInput,
+  CreateListingInput,
+  CreateListingSubcategoryInput,
+  CreateListingTagInput,
   CreateNotificationInput,
   CreatePostInput,
   CreateReportInput,
@@ -55,7 +66,11 @@ import {
   ListAuthorPostsParams,
   ListCamerasParams,
   ListFeedParams,
+  ListingsRepository,
+  ListingTaxonomyRepository,
   ListMapMarkersParams,
+  ListOwnerListingsParams,
+  ListPublicListingsParams,
   ListReportsParams,
   ListUsersParams,
   NotificationsRepository,
@@ -67,6 +82,10 @@ import {
   ReportsRepository,
   SavedRepository,
   UpdateCameraPatch,
+  UpdateListingCategoryPatch,
+  UpdateListingPatch,
+  UpdateListingSubcategoryPatch,
+  UpdateListingTagPatch,
   UpdatePostPatch,
   UpdatePostTypePatch,
   UpdateUserPatch,
@@ -1395,5 +1414,535 @@ export class MockNotificationsRepository implements NotificationsRepository {
       }
     }
     return Promise.resolve(count);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Dealplace — Taxonomie (catégories / sous-catégories / tags)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Tri par position croissante puis slug (tie-break) — ordre d'affichage stable
+ * de la taxonomie Dealplace (miroir ORDER BY position ASC, slug ASC). */
+function byPositionThenSlug(
+  a: { position: number; slug: string },
+  b: { position: number; slug: string },
+): number {
+  return a.position - b.position || a.slug.localeCompare(b.slug);
+}
+
+@Injectable()
+export class MockListingTaxonomyRepository
+  implements ListingTaxonomyRepository
+{
+  constructor(private readonly db: MockDatabaseService) {}
+
+  listCategories(activeOnly: boolean): Promise<ListingCategory[]> {
+    return Promise.resolve(
+      [...this.db.listingCategories.values()]
+        .filter((c) => !activeOnly || c.isActive)
+        .sort(byPositionThenSlug)
+        .map((c) => clone(c)),
+    );
+  }
+
+  listSubcategories(
+    categorySlug: string,
+    activeOnly: boolean,
+  ): Promise<ListingSubcategory[]> {
+    return Promise.resolve(
+      [...this.db.listingSubcategories.values()]
+        .filter(
+          (s) =>
+            s.categorySlug === categorySlug && (!activeOnly || s.isActive),
+        )
+        .sort(byPositionThenSlug)
+        .map((s) => clone(s)),
+    );
+  }
+
+  listTags(activeOnly: boolean): Promise<ListingTag[]> {
+    return Promise.resolve(
+      [...this.db.listingTags.values()]
+        .filter((t) => !activeOnly || t.isActive)
+        .sort((a, b) => a.slug.localeCompare(b.slug))
+        .map((t) => clone(t)),
+    );
+  }
+
+  findCategory(slug: string): Promise<ListingCategory | null> {
+    return Promise.resolve(clone(this.db.listingCategories.get(slug) ?? null));
+  }
+
+  findSubcategory(slug: string): Promise<ListingSubcategory | null> {
+    return Promise.resolve(
+      clone(this.db.listingSubcategories.get(slug) ?? null),
+    );
+  }
+
+  findTag(slug: string): Promise<ListingTag | null> {
+    return Promise.resolve(clone(this.db.listingTags.get(slug) ?? null));
+  }
+
+  createCategory(
+    input: CreateListingCategoryInput,
+  ): Promise<ListingCategory> {
+    if (this.db.listingCategories.has(input.slug)) {
+      throw new Error(
+        `Catégorie déjà existante : « ${input.slug} » (PK slug).`,
+      );
+    }
+    const now = new Date();
+    const category: ListingCategory = {
+      slug: input.slug,
+      family: input.family,
+      labelFr: input.labelFr,
+      position: input.position,
+      moderationLevel: input.moderationLevel ?? 'standard',
+      isActive: input.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.listingCategories.set(category.slug, category);
+    return Promise.resolve(clone(category));
+  }
+
+  updateCategory(
+    slug: string,
+    patch: UpdateListingCategoryPatch,
+  ): Promise<ListingCategory> {
+    const category = this.db.listingCategories.get(slug);
+    if (!category) {
+      throw new Error(`Catégorie introuvable : « ${slug} ».`);
+    }
+    applyPatch(category, patch);
+    this.db.touch(category);
+    return Promise.resolve(clone(category));
+  }
+
+  createSubcategory(
+    input: CreateListingSubcategoryInput,
+  ): Promise<ListingSubcategory> {
+    if (this.db.listingSubcategories.has(input.slug)) {
+      throw new Error(
+        `Sous-catégorie déjà existante : « ${input.slug} » (PK slug).`,
+      );
+    }
+    if (!this.db.listingCategories.has(input.categorySlug)) {
+      throw new Error(
+        `Catégorie inconnue : « ${input.categorySlug} » (FK listing_categories).`,
+      );
+    }
+    const now = new Date();
+    const subcategory: ListingSubcategory = {
+      slug: input.slug,
+      categorySlug: input.categorySlug,
+      labelFr: input.labelFr,
+      position: input.position,
+      isActive: input.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.listingSubcategories.set(subcategory.slug, subcategory);
+    return Promise.resolve(clone(subcategory));
+  }
+
+  updateSubcategory(
+    slug: string,
+    patch: UpdateListingSubcategoryPatch,
+  ): Promise<ListingSubcategory> {
+    const subcategory = this.db.listingSubcategories.get(slug);
+    if (!subcategory) {
+      throw new Error(`Sous-catégorie introuvable : « ${slug} ».`);
+    }
+    applyPatch(subcategory, patch);
+    this.db.touch(subcategory);
+    return Promise.resolve(clone(subcategory));
+  }
+
+  createTag(input: CreateListingTagInput): Promise<ListingTag> {
+    if (this.db.listingTags.has(input.slug)) {
+      throw new Error(`Tag déjà existant : « ${input.slug} » (PK slug).`);
+    }
+    const now = new Date();
+    const tag: ListingTag = {
+      slug: input.slug,
+      labelFr: input.labelFr,
+      isActive: input.isActive ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.listingTags.set(tag.slug, tag);
+    return Promise.resolve(clone(tag));
+  }
+
+  updateTag(slug: string, patch: UpdateListingTagPatch): Promise<ListingTag> {
+    const tag = this.db.listingTags.get(slug);
+    if (!tag) {
+      throw new Error(`Tag introuvable : « ${slug} ».`);
+    }
+    applyPatch(tag, patch);
+    this.db.touch(tag);
+    return Promise.resolve(clone(tag));
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Dealplace — Annonces (listings)
+// ────────────────────────────────────────────────────────────────────────────
+
+@Injectable()
+export class MockListingsRepository implements ListingsRepository {
+  constructor(private readonly db: MockDatabaseService) {}
+
+  findById(id: string): Promise<Listing | null> {
+    return Promise.resolve(clone(this.db.listings.get(id) ?? null));
+  }
+
+  findByUrlSlug(urlSlug: string): Promise<Listing | null> {
+    for (const listing of this.db.listings.values()) {
+      if (listing.urlSlug === urlSlug) {
+        return Promise.resolve(clone(listing));
+      }
+    }
+    return Promise.resolve(null);
+  }
+
+  async create(input: CreateListingInput): Promise<Listing> {
+    // FK / contraintes structurelles (les règles métier — photo obligatoire,
+    // catégorie 'forbidden' refusée, commune du référentiel — vivent au SERVICE
+    // en phase suivante ; ici on reproduit ce qui est garanti par le SCHÉMA).
+    if (!this.db.users.has(input.ownerId)) {
+      throw new Error(`Propriétaire introuvable : ${input.ownerId}.`);
+    }
+    const category = this.db.listingCategories.get(input.categorySlug);
+    if (!category) {
+      throw new Error(
+        `Catégorie inconnue : « ${input.categorySlug} » (FK listing_categories).`,
+      );
+    }
+    const subcategory = this.db.listingSubcategories.get(input.subcategorySlug);
+    if (!subcategory) {
+      throw new Error(
+        `Sous-catégorie inconnue : « ${input.subcategorySlug} » (FK listing_subcategories).`,
+      );
+    }
+    if (await this.findByUrlSlug(input.urlSlug)) {
+      throw new Error(
+        `url_slug déjà utilisé : « ${input.urlSlug} » (contrainte UNIQUE).`,
+      );
+    }
+    // Cohérence value_kind / value_max (miroir de listings_value_kind_max_ck).
+    if (input.valueMin < 0) {
+      throw new Error('value_min doit être >= 0.');
+    }
+    if (input.valueKind === 'fixed' && input.valueMax != null) {
+      throw new Error("value_kind='fixed' interdit une value_max.");
+    }
+    if (input.valueKind === 'range') {
+      if (input.valueMax == null) {
+        throw new Error("value_kind='range' exige une value_max.");
+      }
+      if (input.valueMax < input.valueMin) {
+        throw new Error('value_max doit être >= value_min (fourchette).');
+      }
+    }
+    // exchange_prefs non vide (miroir de listings_exchange_prefs_nonempty_ck).
+    if (input.exchangePrefs.length === 0) {
+      throw new Error(
+        'exchange_prefs doit être un sous-ensemble non vide (goods/services/money/open).',
+      );
+    }
+    // Tags : chacun doit exister (FK listing_tags). Dédoublonnés (PK composite).
+    const tagSlugs = [...new Set(input.tagSlugs ?? [])];
+    for (const tagSlug of tagSlugs) {
+      if (!this.db.listingTags.has(tagSlug)) {
+        throw new Error(
+          `Tag inconnu : « ${tagSlug} » (FK listing_tags).`,
+        );
+      }
+    }
+
+    const now = new Date();
+    const listing: Listing = {
+      id: randomUUID(),
+      ownerId: input.ownerId,
+      listingType: input.listingType,
+      title: input.title,
+      description: input.description,
+      categorySlug: input.categorySlug,
+      subcategorySlug: input.subcategorySlug,
+      valueKind: input.valueKind,
+      valueMin: input.valueMin,
+      valueMax: input.valueKind === 'range' ? (input.valueMax as number) : null,
+      currency: input.currency ?? 'EUR',
+      city: input.city,
+      location: input.location ?? null,
+      exchangePrefs: [...input.exchangePrefs],
+      externalLinks: (input.externalLinks ?? []).map((l) => ({ ...l })),
+      urlSlug: input.urlSlug,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    };
+    this.db.listings.set(listing.id, listing);
+    // Médias créés ATOMIQUEMENT avec l'annonce (équivalent transaction SQL) —
+    // position par défaut : l'index dans le tableau fourni.
+    (input.media ?? []).forEach((spec, index) => {
+      const media: ListingMedia = {
+        id: randomUUID(),
+        listingId: listing.id,
+        mediaType: spec.mediaType,
+        url: spec.url,
+        thumbnailUrl: spec.thumbnailUrl ?? null,
+        width: spec.width ?? null,
+        height: spec.height ?? null,
+        position: spec.position ?? index,
+        createdAt: now,
+      };
+      this.db.listingMedia.set(media.id, media);
+    });
+    // Tags créés ATOMIQUEMENT (PK composite (listing_id, tag_slug)).
+    for (const tagSlug of tagSlugs) {
+      this.db.listingTagMap.push({ listingId: listing.id, tagSlug });
+    }
+    return clone(listing);
+  }
+
+  update(id: string, patch: UpdateListingPatch): Promise<Listing> {
+    const listing = this.db.listings.get(id);
+    if (!listing) {
+      throw new Error(`Annonce introuvable : ${id}.`);
+    }
+    // Cohérence FK si la catégorie/sous-catégorie change.
+    if (
+      patch.categorySlug !== undefined &&
+      !this.db.listingCategories.has(patch.categorySlug)
+    ) {
+      throw new Error(
+        `Catégorie inconnue : « ${patch.categorySlug} » (FK listing_categories).`,
+      );
+    }
+    if (
+      patch.subcategorySlug !== undefined &&
+      !this.db.listingSubcategories.has(patch.subcategorySlug)
+    ) {
+      throw new Error(
+        `Sous-catégorie inconnue : « ${patch.subcategorySlug} » (FK listing_subcategories).`,
+      );
+    }
+    applyPatch(listing, patch);
+    // Cohérence value_kind / value_max après application du patch.
+    if (listing.valueKind === 'fixed') {
+      listing.valueMax = null;
+    } else if (listing.valueMax == null || listing.valueMax < listing.valueMin) {
+      throw new Error(
+        "value_kind='range' exige value_max >= value_min après mise à jour.",
+      );
+    }
+    if (listing.exchangePrefs.length === 0) {
+      throw new Error('exchange_prefs doit rester non vide.');
+    }
+    this.db.touch(listing);
+    return Promise.resolve(clone(listing));
+  }
+
+  setTags(id: string, tagSlugs: string[]): Promise<void> {
+    if (!this.db.listings.has(id)) {
+      throw new Error(`Annonce introuvable : ${id}.`);
+    }
+    const unique = [...new Set(tagSlugs)];
+    for (const tagSlug of unique) {
+      if (!this.db.listingTags.has(tagSlug)) {
+        throw new Error(`Tag inconnu : « ${tagSlug} » (FK listing_tags).`);
+      }
+    }
+    // Remplacement intégral : purge les liens existants (en place, l'array est
+    // readonly par sa référence), réinsère (PK composite (listing_id, tag_slug)).
+    for (let i = this.db.listingTagMap.length - 1; i >= 0; i--) {
+      if (this.db.listingTagMap[i].listingId === id) {
+        this.db.listingTagMap.splice(i, 1);
+      }
+    }
+    for (const tagSlug of unique) {
+      this.db.listingTagMap.push({ listingId: id, tagSlug });
+    }
+    return Promise.resolve();
+  }
+
+  setStatus(id: string, status: ListingStatus): Promise<Listing> {
+    const listing = this.db.listings.get(id);
+    if (!listing) {
+      throw new Error(`Annonce introuvable : ${id}.`);
+    }
+    listing.status = status;
+    // Soft-delete : on pose deleted_at (miroir de la colonne du même nom).
+    listing.deletedAt = status === 'deleted' ? new Date() : null;
+    this.db.touch(listing);
+    return Promise.resolve(clone(listing));
+  }
+
+  /** Slugs de tags d'UNE annonce (triés) — utilisé par les filtres. */
+  private tagSlugsOf(listingId: string): string[] {
+    return this.db.listingTagMap
+      .filter((m) => m.listingId === listingId)
+      .map((m) => m.tagSlug)
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  listPublic(
+    params: ListPublicListingsParams,
+  ): Promise<PagedResult<Listing>> {
+    // Annuaire public : annonces 'active' uniquement.
+    let items = [...this.db.listings.values()].filter(
+      (l) => l.status === 'active',
+    );
+    if (params.family !== undefined) {
+      items = items.filter((l) => l.listingType === params.family);
+    }
+    if (params.categorySlug !== undefined) {
+      items = items.filter((l) => l.categorySlug === params.categorySlug);
+    }
+    if (params.subcategorySlug !== undefined) {
+      items = items.filter((l) => l.subcategorySlug === params.subcategorySlug);
+    }
+    if (params.city !== undefined) {
+      const needle = params.city.trim().toLowerCase();
+      items = items.filter((l) => l.city.toLowerCase() === needle);
+    }
+    if (params.valueMin !== undefined) {
+      // Borne basse : la valeur (min pour un prix fixe, min de la fourchette)
+      // doit être >= au plancher demandé.
+      items = items.filter((l) => l.valueMin >= (params.valueMin as number));
+    }
+    if (params.valueMax !== undefined) {
+      // Borne haute : la valeur haute effective (valueMax si fourchette, sinon
+      // valueMin) doit être <= au plafond demandé.
+      items = items.filter(
+        (l) => (l.valueMax ?? l.valueMin) <= (params.valueMax as number),
+      );
+    }
+    if (params.tagSlugs !== undefined && params.tagSlugs.length > 0) {
+      const wanted = params.tagSlugs;
+      items = items.filter((l) => {
+        const have = new Set(this.tagSlugsOf(l.id));
+        return wanted.every((t) => have.has(t));
+      });
+    }
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim().toLowerCase();
+      items = items.filter(
+        (l) =>
+          l.title.toLowerCase().includes(needle) ||
+          l.description.toLowerCase().includes(needle),
+      );
+    }
+    // Antéchronologique, tie-break id : ordre STABLE entre deux pages.
+    items.sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((l) => clone(l)),
+      total: items.length,
+    });
+  }
+
+  listByOwner(
+    ownerId: string,
+    params: ListOwnerListingsParams,
+  ): Promise<PagedResult<Listing>> {
+    const statuses =
+      params.statuses !== undefined ? new Set(params.statuses) : null;
+    const items = [...this.db.listings.values()]
+      .filter(
+        (l) =>
+          l.ownerId === ownerId && (statuses === null || statuses.has(l.status)),
+      )
+      .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((l) => clone(l)),
+      total: items.length,
+    });
+  }
+
+  listAdmin(params: AdminListListingsParams): Promise<PagedResult<Listing>> {
+    // Liste BACKOFFICE : tous statuts par défaut (y compris 'deleted' — audit),
+    // recherche insensible à la casse sur titre, description et nom du
+    // propriétaire. Le driver postgres fera un JOIN users + ILIKE.
+    let items = [...this.db.listings.values()];
+    if (params.family !== undefined) {
+      items = items.filter((l) => l.listingType === params.family);
+    }
+    if (params.categorySlug !== undefined) {
+      items = items.filter((l) => l.categorySlug === params.categorySlug);
+    }
+    if (params.status !== undefined) {
+      items = items.filter((l) => l.status === params.status);
+    }
+    if (params.flaggedOnly !== undefined) {
+      // « Marquée » = catégorie de niveau sensitive/forbidden (champ dérivé de
+      // la modération). flaggedOnly=true : seules ces annonces ; false : les
+      // annonces de catégorie 'standard'.
+      items = items.filter((l) => {
+        const level =
+          this.db.listingCategories.get(l.categorySlug)?.moderationLevel ??
+          'standard';
+        const flagged = level !== 'standard';
+        return params.flaggedOnly ? flagged : !flagged;
+      });
+    }
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim().toLowerCase();
+      items = items.filter((l) => {
+        const ownerName =
+          this.db.users.get(l.ownerId)?.displayName.toLowerCase() ?? '';
+        return (
+          l.title.toLowerCase().includes(needle) ||
+          l.description.toLowerCase().includes(needle) ||
+          ownerName.includes(needle)
+        );
+      });
+    }
+    items.sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((l) => clone(l)),
+      total: items.length,
+    });
+  }
+
+  listMediaByListingIds(listingIds: string[]): Promise<ListingMedia[]> {
+    // Lecture PAR LOT des médias d'une page d'annuaire (évite les N+1) —
+    // triés par position croissante (regroupement par annonce à l'appelant,
+    // comme un WHERE listing_id = ANY($1) ORDER BY position).
+    const wanted = new Set(listingIds);
+    return Promise.resolve(
+      [...this.db.listingMedia.values()]
+        .filter((m) => wanted.has(m.listingId))
+        .sort((a, b) => a.position - b.position || byCreatedAtAsc(a, b))
+        .map((m) => clone(m)),
+    );
+  }
+
+  listTagsByListingIds(
+    listingIds: string[],
+  ): Promise<Record<string, string[]>> {
+    // Slugs de tags PAR LOT : { listingId → slugs[] } (slugs triés) ; les
+    // annonces sans tag sont absentes du résultat.
+    const wanted = new Set(listingIds);
+    const result: Record<string, string[]> = {};
+    for (const entry of this.db.listingTagMap) {
+      if (!wanted.has(entry.listingId)) {
+        continue;
+      }
+      (result[entry.listingId] ??= []).push(entry.tagSlug);
+    }
+    for (const listingId of Object.keys(result)) {
+      result[listingId].sort((a, b) => a.localeCompare(b));
+    }
+    return Promise.resolve(result);
   }
 }

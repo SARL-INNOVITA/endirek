@@ -10,6 +10,10 @@ import { listPostTypes } from './api'
 import type {
   CameraCategory,
   CameraStatus,
+  ListingFamily,
+  ListingStatus,
+  ListingValueKind,
+  ModerationLevel,
   PostStatus,
   PostType,
   ReportReasonCode,
@@ -102,6 +106,59 @@ const CAMERA_STATUS_BADGE_CLASSES: Record<CameraStatus, string> = {
   hidden: 'badge badge--dark',
 }
 
+// ─── Dealplace (CP2.1) : familles, statuts, modération ───────────────────────
+
+/** Famille d'annonce : bien / service. */
+export const LISTING_FAMILY_LABELS: Record<ListingFamily, string> = {
+  good: 'Bien',
+  service: 'Service',
+}
+
+/** Statuts d'annonce (miroir des publications) : active | hidden | deleted. */
+export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
+  active: 'Active',
+  hidden: 'Masquée',
+  deleted: 'Supprimée',
+}
+
+const LISTING_STATUS_BADGE_CLASSES: Record<ListingStatus, string> = {
+  active: 'badge badge--success',
+  hidden: 'badge badge--warning',
+  deleted: 'badge badge--neutral',
+}
+
+/** Niveaux de modération d'une catégorie : standard / sensible / interdit. */
+export const MODERATION_LEVEL_LABELS: Record<ModerationLevel, string> = {
+  standard: 'Standard',
+  sensitive: 'Sensible',
+  forbidden: 'Interdit',
+}
+
+/** Vert (standard), orange (sensible), rouge (interdit). */
+const MODERATION_LEVEL_BADGE_CLASSES: Record<ModerationLevel, string> = {
+  standard: 'badge badge--success',
+  sensitive: 'badge badge--warning',
+  forbidden: 'badge badge--error',
+}
+
+/**
+ * Formate la valeur d'une annonce pour l'affichage : montant unique ('fixed')
+ * ou fourchette ('range', valueMin–valueMax). La devise suit le montant.
+ */
+export function formatListingValue(
+  valueKind: ListingValueKind,
+  valueMin: number,
+  valueMax: number | null,
+  currency: string,
+): string {
+  const money = (amount: number) =>
+    `${amount.toLocaleString('fr-FR')} ${currency}`
+  if (valueKind === 'range' && valueMax !== null) {
+    return `${money(valueMin)} – ${money(valueMax)}`
+  }
+  return money(valueMin)
+}
+
 /** Formate une date ISO en date française courte (ex. « 06/07/2026 »). */
 export function formatDate(iso: string): string {
   const date = new Date(iso)
@@ -159,6 +216,40 @@ export function CameraStatusBadge({ status }: { status: CameraStatus }) {
     <span className={CAMERA_STATUS_BADGE_CLASSES[status]}>
       {CAMERA_STATUS_LABELS[status]}
     </span>
+  )
+}
+
+/** Badge de famille d'annonce (Bien / Service). */
+export function ListingFamilyBadge({ family }: { family: ListingFamily }) {
+  return (
+    <span className="badge badge--info">{LISTING_FAMILY_LABELS[family]}</span>
+  )
+}
+
+/** Badge de statut d'annonce (Active / Masquée / Supprimée). */
+export function ListingStatusBadge({ status }: { status: ListingStatus }) {
+  return (
+    <span className={LISTING_STATUS_BADGE_CLASSES[status]}>
+      {LISTING_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+/** Badge de niveau de modération (Standard / Sensible / Interdit). */
+export function ModerationLevelBadge({ level }: { level: ModerationLevel }) {
+  return (
+    <span className={MODERATION_LEVEL_BADGE_CLASSES[level]}>
+      {MODERATION_LEVEL_LABELS[level]}
+    </span>
+  )
+}
+
+/** Badge d'activation (Actif / Inactif) pour la taxonomie. */
+export function ActiveBadge({ isActive }: { isActive: boolean }) {
+  return isActive ? (
+    <span className="badge badge--success">Actif</span>
+  ) : (
+    <span className="badge badge--neutral">Inactif</span>
   )
 }
 

@@ -34,6 +34,8 @@ import {
   ALL_REPOSITORY_TOKENS,
   CAMERAS_REPOSITORY,
   COMMENTS_REPOSITORY,
+  LISTING_TAXONOMY_REPOSITORY,
+  LISTINGS_REPOSITORY,
   NOTIFICATIONS_REPOSITORY,
   POST_TYPES_REPOSITORY,
   POSTS_REPOSITORY,
@@ -46,6 +48,8 @@ import { MockDatabaseService } from './mock/mock-database.service';
 import {
   MockCamerasRepository,
   MockCommentsRepository,
+  MockListingsRepository,
+  MockListingTaxonomyRepository,
   MockNotificationsRepository,
   MockPostsRepository,
   MockPostTypesRepository,
@@ -58,6 +62,8 @@ import { PostgresDatabaseService } from './postgres/postgres-database.service';
 import { postgresPoolProvider } from './postgres/postgres-pool';
 import { PostgresCamerasRepository } from './postgres/repositories/postgres-cameras.repository';
 import { PostgresCommentsRepository } from './postgres/repositories/postgres-comments.repository';
+import { PostgresListingsRepository } from './postgres/repositories/postgres-listings.repository';
+import { PostgresListingTaxonomyRepository } from './postgres/repositories/postgres-listing-taxonomy.repository';
 import { PostgresNotificationsRepository } from './postgres/repositories/postgres-notifications.repository';
 import { PostgresPostTypesRepository } from './postgres/repositories/postgres-post-types.repository';
 import { PostgresPostsRepository } from './postgres/repositories/postgres-posts.repository';
@@ -90,6 +96,8 @@ const mockProviders: Provider[] = [
   bind(CAMERAS_REPOSITORY, MockCamerasRepository),
   bind(REPORTS_REPOSITORY, MockReportsRepository),
   bind(NOTIFICATIONS_REPOSITORY, MockNotificationsRepository),
+  bind(LISTING_TAXONOMY_REPOSITORY, MockListingTaxonomyRepository),
+  bind(LISTINGS_REPOSITORY, MockListingsRepository),
 ];
 
 /**
@@ -109,6 +117,8 @@ const postgresProviders: Provider[] = [
   bind(CAMERAS_REPOSITORY, PostgresCamerasRepository),
   bind(REPORTS_REPOSITORY, PostgresReportsRepository),
   bind(NOTIFICATIONS_REPOSITORY, PostgresNotificationsRepository),
+  bind(LISTING_TAXONOMY_REPOSITORY, PostgresListingTaxonomyRepository),
+  bind(LISTINGS_REPOSITORY, PostgresListingsRepository),
 ];
 
 /** Sélectionne les providers selon le driver ; échoue tôt et clairement sur un

@@ -21,6 +21,11 @@ import {
   Camera,
   Comment,
   Follow,
+  Listing,
+  ListingCategory,
+  ListingMedia,
+  ListingSubcategory,
+  ListingTag,
   Notification,
   Post,
   PostMedia,
@@ -32,7 +37,12 @@ import {
   SavedPost,
   User,
 } from '../domain/entities';
-import { buildSeed, SeedData } from '../seed';
+import { buildSeed, SeedData, SeedListingTagMap } from '../seed';
+import {
+  LISTING_CATEGORY_ROWS,
+  LISTING_SUBCATEGORY_ROWS,
+  LISTING_TAG_ROWS,
+} from './dealplace-reference';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Données de référence — MIROIR EXACT de db/migrations/0002_reference_data.sql.
@@ -127,6 +137,15 @@ export class MockDatabaseService implements OnModuleInit {
   readonly cameras = new Map<string, Camera>();
   readonly reports = new Map<string, Report>();
   readonly notifications = new Map<string, Notification>();
+
+  // ── Dealplace (Lot 2 — CP2.1) ────────────────────────────────────────────
+  readonly listingCategories = new Map<string, ListingCategory>();
+  readonly listingSubcategories = new Map<string, ListingSubcategory>();
+  readonly listingTags = new Map<string, ListingTag>();
+  readonly listings = new Map<string, Listing>();
+  readonly listingMedia = new Map<string, ListingMedia>();
+  /** Association N-N annonce <-> tag (miroir de listing_tag_map). */
+  readonly listingTagMap: SeedListingTagMap[] = [];
 
   /** Séquence en mémoire — équivalent de `camera_number ... AS IDENTITY`. */
   private cameraNumberSequence = 1;
@@ -249,6 +268,30 @@ export class MockDatabaseService implements OnModuleInit {
     for (const row of REACTION_TYPE_ROWS) {
       this.reactionTypes.set(row.emoji, { ...row });
     }
+    // Taxonomie Dealplace — miroir de db/migrations/0004_dealplace_reference.sql
+    // (dealplace-reference.ts). Toujours présente, seed ou pas : les
+    // repositories en dépendent (comme les FK côté SQL).
+    for (const row of LISTING_CATEGORY_ROWS) {
+      this.listingCategories.set(row.slug, {
+        ...row,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    for (const row of LISTING_SUBCATEGORY_ROWS) {
+      this.listingSubcategories.set(row.slug, {
+        ...row,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    for (const row of LISTING_TAG_ROWS) {
+      this.listingTags.set(row.slug, {
+        ...row,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
   }
 
   /** Charge le seed déclaratif dans les stores. Les compteurs dénormalisés
@@ -294,6 +337,17 @@ export class MockDatabaseService implements OnModuleInit {
     for (const notification of seed.notifications) {
       this.notifications.set(notification.id, { ...notification });
     }
+    // Dealplace : annonces + médias + associations tags. Les annonces seed sont
+    // des entités complètes (pas de compteur dénormalisé au CP2.1). Les liens
+    // vers catégories/sous-catégories/tags pointent vers la taxonomie de
+    // référence chargée par loadReferenceData().
+    for (const listing of seed.listings) {
+      this.listings.set(listing.id, { ...listing });
+    }
+    for (const media of seed.listingMedia) {
+      this.listingMedia.set(media.id, { ...media });
+    }
+    this.listingTagMap.push(...seed.listingTagMap.map((m) => ({ ...m })));
   }
 
   /** Recalcule TOUS les compteurs dénormalisés depuis les données chargées. */
@@ -342,7 +396,11 @@ export class MockDatabaseService implements OnModuleInit {
         `${this.reactions.size} réactions, ` +
         `${this.cameras.size} caméras, ` +
         `${this.reports.size} signalements, ` +
-        `${this.notifications.size} notifications`,
+        `${this.notifications.size} notifications, ` +
+        `${this.listings.size} annonces Dealplace ` +
+        `(${this.listingCategories.size} catégories, ` +
+        `${this.listingSubcategories.size} sous-catégories, ` +
+        `${this.listingTags.size} tags)`,
     );
   }
 }

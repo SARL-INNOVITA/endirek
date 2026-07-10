@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
 import { CamerasModule } from '../cameras/cameras.module';
+import { DealplaceModule } from '../dealplace/dealplace.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
 import { AdminCamerasController } from './admin-cameras.controller';
 import { AdminCommentsController } from './admin-comments.controller';
 import { AdminCommentsService } from './admin-comments.service';
+import { AdminDealplaceTaxonomyController } from './admin-dealplace-taxonomy.controller';
+import { AdminDealplaceTaxonomyService } from './admin-dealplace-taxonomy.service';
+import { AdminListingsController } from './admin-listings.controller';
+import { AdminListingsService } from './admin-listings.service';
 import { AdminNotificationsController } from './admin-notifications.controller';
 import { AdminNotificationsService } from './admin-notifications.service';
 import { AdminPostTypesController } from './admin-post-types.controller';
@@ -38,9 +43,13 @@ import { AdminUsersService } from './admin-users.service';
  * NotificationsModule fournit NotificationsService (notification
  * « report_handled » émise au traitement d'un signalement). Les repositories
  * sont fournis par DatabaseModule (@Global) via les tokens d'injection.
+ *
+ * Lot 2 — CP2.1 : backoffice Dealplace (annonces + taxonomie). DealplaceModule
+ * est importé pour ListingAssembler : la forme LISTING/LISTING_CARD servie au
+ * backoffice est assemblée par la MÊME source unique que l'annuaire public.
  */
 @Module({
-  imports: [PostsModule, CamerasModule, NotificationsModule],
+  imports: [PostsModule, CamerasModule, NotificationsModule, DealplaceModule],
   controllers: [
     AdminUsersController,
     AdminPostsController,
@@ -49,6 +58,8 @@ import { AdminUsersService } from './admin-users.service';
     AdminPostTypesController,
     AdminCommentsController,
     AdminNotificationsController,
+    AdminListingsController,
+    AdminDealplaceTaxonomyController,
   ],
   providers: [
     AdminUsersService,
@@ -57,6 +68,8 @@ import { AdminUsersService } from './admin-users.service';
     AdminPostTypesService,
     AdminCommentsService,
     AdminNotificationsService,
+    AdminListingsService,
+    AdminDealplaceTaxonomyService,
   ],
 })
 export class AdminModule {}

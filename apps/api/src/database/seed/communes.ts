@@ -41,3 +41,16 @@ export function communeByName(name: string): Commune {
   }
   return commune;
 }
+
+/**
+ * Résout une commune par son nom, insensible à la casse et aux espaces de
+ * bord — retourne `null` si le nom ne fait pas partie du référentiel. Utilisé
+ * par les services métier (ex. Dealplace) pour VALIDER qu'une commune fournie
+ * appartient bien au référentiel et récupérer son centre WGS84 (l'adresse
+ * exacte n'est jamais stockée). Ne lève pas d'erreur : l'appelant décide du
+ * message et du code HTTP (400 métier plutôt qu'un throw brut).
+ */
+export function findCommuneByName(name: string): Commune | null {
+  const needle = name.trim().toLowerCase();
+  return COMMUNES.find((c) => c.name.toLowerCase() === needle) ?? null;
+}

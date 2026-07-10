@@ -1,11 +1,16 @@
-# ENDIREK — Base de données (Lot 1)
+# ENDIREK — Base de données (Lot 1 + Dealplace CP2.1)
 
-Documentation du schéma de données posé à **l'étape 2 du Lot 1**.
+Documentation du schéma de données posé à **l'étape 2 du Lot 1**, étendu au
+**CP2.1 du Lot 2** (Dealplace : taxonomie + listings, voir §9).
 
 - **Source de vérité** : le schéma **PostgreSQL 16 + PostGIS 3.4**, écrit dans
-  [`apps/api/db/migrations/`](../apps/api/db/migrations/)
-  (`0001_lot1_init.sql` : tables, index, triggers ; `0002_reference_data.sql` :
-  données de référence, rejouable via `ON CONFLICT DO NOTHING`).
+  [`apps/api/db/migrations/`](../apps/api/db/migrations/) :
+  `0001_lot1_init.sql` (Lot 1 : tables, index, triggers) ;
+  `0002_reference_data.sql` (Lot 1 : données de référence, rejouable via
+  `ON CONFLICT DO NOTHING`) ; **`0003_dealplace_listings.sql`** (CP2.1 : tables
+  Dealplace, rejouable via `CREATE TABLE/INDEX IF NOT EXISTS` + triggers
+  recréés) ; **`0004_dealplace_reference.sql`** (CP2.1 : taxonomie de référence,
+  rejouable via `ON CONFLICT DO NOTHING`).
 - **Deux drivers fonctionnels** (comportement observable identique, choisi au
   chargement du module via `DB_DRIVER`) :
   - `DB_DRIVER=mock` (défaut, fallback) — adapter **in-memory TypeScript**
@@ -17,8 +22,10 @@ Documentation du schéma de données posé à **l'étape 2 du Lot 1**.
   Détails du driver mock :
   [`apps/api/src/database/README.md`](../apps/api/src/database/README.md).
 - **État** : Docker/PostGIS (`postgis/postgis:16-3.4`) démarre via
-  `infra/docker-compose.yml`, les migrations SQL Lot 1 sont appliquées, et
-  `DB_DRIVER=postgres` fait tourner l'API à l'identique du mock (voir §7).
+  `infra/docker-compose.yml`, les migrations SQL Lot 1 **et CP2.1** sont
+  appliquées, et `DB_DRIVER=postgres` fait tourner l'API à l'identique du mock
+  (voir §7). Sur cette machine, le conteneur `endirek-postgres` écoute sur le
+  **port hôte 55432** (un PostgreSQL natif occupe 5432).
 
 Le miroir TypeScript du schéma (entités, contraintes reproduites en code) vit
 dans `apps/api/src/database/domain/entities.ts` ; le code métier ne dépend que
@@ -275,6 +282,129 @@ Elles restent in-app + WebSocket ; aucun push FCM/APNs réel n'est envoyé.
 
 ---
 
+## 2 bis. Tables Dealplace — CP2.1 (6 tables, migrations 0003/0004)
+
+Le CP2.1 du Lot 2 ajoute la **taxonomie** biens/services (tables de référence
+pilotables par le backoffice, même modèle que `post_types`) et les **listings**
+(annonces). Créées par `0003_dealplace_listings.sql` (tables/index/triggers,
+rejouable) ; peuplées par `0004_dealplace_reference.sql` (taxonomie de référence,
+rejouable `ON CONFLICT DO NOTHING`). Le mock TypeScript embarque les mêmes lignes
+(parité mock/postgres, D52).
+
+| Table | Rôle |
+|---|---|
+| `listing_categories` | Référence : catégories (famille `good`/`service` + niveau de modération) |
+| `listing_subcategories` | Référence : sous-catégories rattachées à une catégorie (repli « Autres » par catégorie) |
+| `listing_tags` | Référence : tags transversaux (urgent, gratuit, pro, occasion…) |
+| `listings` | Annonces (biens et services) |
+| `listing_media` | Médias attachés à une annonce (images ordonnées) |
+| `listing_tag_map` | Association N-N annonces ↔ tags |
+
+### 2b.1 `listing_categories` (référence pilotable backoffice)
+
+| Colonne | Type / contrainte |
+|---|---|
+| `slug` | `text` PK — **immuable** (D53) |
+| `family` | `text NOT NULL`, `CHECK IN ('good','service')` — **figé** |
+| `label_fr` | `text NOT NULL` |
+| `position` | `int NOT NULL` — ordre d'affichage |
+| `moderation_level` | `text DEFAULT 'standard'`, `CHECK IN ('standard','sensitive','forbidden')` — `standard` normale ; `sensitive` autorisée mais **marquée** ; **`forbidden` → création d'annonce refusée par le service (400)** (D56) |
+| `is_active` | `boolean DEFAULT true` |
+| `created_at`, `updated_at` | trigger `set_updated_at()` |
+
+Index : `listing_categories_family_idx`. Référence peuplée par `0004` : **20
+catégories** (10 biens + 10 services ; `vehicules-mobilite` et
+`bien-etre-beaute-forme` en `sensitive`).
+
+### 2b.2 `listing_subcategories`
+
+| Colonne | Type / contrainte |
+|---|---|
+| `slug` | `text` PK — **immuable** |
+| `category_slug` | `text NOT NULL REFERENCES listing_categories(slug)` — **figé** |
+| `label_fr` | `text NOT NULL` |
+| `position` | `int NOT NULL` (la sous-catégorie de repli « autres-<cat> » est en position 99) |
+| `is_active` | `boolean DEFAULT true` |
+| `created_at`, `updated_at` | trigger `set_updated_at()` |
+
+Index : `listing_subcategories_category_slug_idx`. **Chaque catégorie possède une
+sous-catégorie de repli « autres-<cat> » (label « Autres »)** — repli métier
+autorisé pour ne jamais bloquer une annonce faute de sous-catégorie précise.
+
+### 2b.3 `listing_tags`
+
+| Colonne | Type / contrainte |
+|---|---|
+| `slug` | `text` PK — **immuable** |
+| `label_fr` | `text NOT NULL` |
+| `is_active` | `boolean DEFAULT true` |
+| `created_at`, `updated_at` | trigger `set_updated_at()` |
+
+Référence peuplée par `0004` : ~10 tags (`urgent`, `gratuit`, `pro`, `occasion`,
+`neuf`, `local`, `livraison`, `echange-ok`, `negociable`, `fait-main`).
+
+### 2b.4 `listings`
+
+| Colonne | Type / contrainte |
+|---|---|
+| `id` | `uuid` PK `DEFAULT gen_random_uuid()` |
+| `owner_id` | `uuid NOT NULL REFERENCES users(id)` |
+| `listing_type` | `text NOT NULL`, `CHECK IN ('good','service')` |
+| `title` | `text NOT NULL`, `CHECK char_length BETWEEN 1 AND 120` |
+| `description` | `text NOT NULL`, `CHECK char_length BETWEEN 1 AND 4000` |
+| `category_slug` | `text NOT NULL REFERENCES listing_categories(slug)` |
+| `subcategory_slug` | `text NOT NULL REFERENCES listing_subcategories(slug)` |
+| `value_kind` | `text NOT NULL`, `CHECK IN ('fixed','range')` (D54) |
+| `value_min` | `integer NOT NULL`, `CHECK >= 0` |
+| `value_max` | `integer`, `CHECK value_max IS NULL OR value_max >= value_min` |
+| `currency` | `text NOT NULL DEFAULT 'EUR'` |
+| `city` | `text NOT NULL` — commune du référentiel (adresse exacte **jamais** stockée) |
+| `location` | `geometry(Point,4326)`, nullable — **centre de la commune** (pas l'adresse exacte) |
+| `exchange_prefs` | `text[] NOT NULL` — sous-ensemble **non vide** de `{goods, services, money, open}` |
+| `external_links` | `jsonb NOT NULL DEFAULT '[]'` — `[{label, url}]` |
+| `url_slug` | `text NOT NULL UNIQUE` — identifiant public stable (slug titre + suffixe, comme les posts) |
+| `status` | `text DEFAULT 'active'`, `CHECK IN ('active','hidden','deleted')` — miroir des posts |
+| `created_at`, `updated_at` | trigger `set_updated_at()` |
+| `deleted_at` | `timestamptz`, nullable — soft-delete |
+| — | `CONSTRAINT listings_value_kind_max_ck` : `fixed` ⇒ `value_max NULL` ; `range` ⇒ `value_max NOT NULL` |
+| — | `CONSTRAINT listings_exchange_prefs_nonempty_ck` : `array_length(exchange_prefs,1) >= 1` |
+
+Index : `listings_owner_id_idx`, `listings_category_slug_idx`,
+`listings_status_idx`, `listings_created_at_idx` (`created_at DESC`),
+`listings_location_gist_idx` (**GIST partiel** `WHERE location IS NOT NULL`).
+
+Règles métier au **service** (pas de contrainte DB) : **photo obligatoire pour
+un bien** (D55), commune du référentiel, catégorie+sous-catégorie cohérentes
+(sous-catégorie de la catégorie, catégorie de la bonne famille), catégorie
+`forbidden` refusée, `sensitive` marquée, médias issus de l'upload Endirek.
+
+### 2b.5 `listing_media`
+
+| Colonne | Type / contrainte |
+|---|---|
+| `id` | `uuid` PK |
+| `listing_id` | `uuid NOT NULL REFERENCES listings(id) ON DELETE CASCADE` |
+| `media_type` | `text`, `CHECK IN ('image','video')` |
+| `url` | `text NOT NULL` |
+| `thumbnail_url` | `text`, nullable |
+| `width`, `height` | `int`, nullables |
+| `position` | `int DEFAULT 0` — ordre d'affichage |
+| `created_at` | `timestamptz` |
+
+Index : `listing_media_listing_id_idx`.
+
+### 2b.6 `listing_tag_map`
+
+| Colonne | Type / contrainte |
+|---|---|
+| `listing_id` | `uuid NOT NULL REFERENCES listings(id) ON DELETE CASCADE` |
+| `tag_slug` | `text NOT NULL REFERENCES listing_tags(slug)` |
+| — | PK composite `(listing_id, tag_slug)` |
+
+Index : `listing_tag_map_tag_slug_idx`.
+
+---
+
 ## 3. Décisions de conception
 
 - **« reported » n'est PAS un statut de post.** `posts.status` ne contient que
@@ -344,7 +474,8 @@ C'est aussi la **spécification de comportement** que le driver postgres (§7)
 reproduit à l'identique :
 
 - stores en mémoire (une `Map`/tableau par table du schéma) ;
-- données de référence embarquées, miroir exact de `0002_reference_data.sql` ;
+- données de référence embarquées, miroir exact de `0002_reference_data.sql`
+  (Lot 1) **et de `0004_dealplace_reference.sql`** (taxonomie Dealplace du CP2.1) ;
 - contraintes SQL (FK, UNIQUE, CHECK) reproduites en code avec des erreurs
   claires en français ;
 - `updated_at` posé en code (équivalent du trigger `set_updated_at()`) ;
@@ -352,7 +483,9 @@ reproduit à l'identique :
   chargé au boot : 15 utilisateurs fictifs, ~30 follows, 42 posts répartis sur
   **12 communes de La Réunion (sélection du seed — l'île en compte 24)**
   (+ 12 médias), 60 commentaires, ~155 réactions, collections
-  et sauvegardes, 4 signalements, 12 notifications, 12 caméras météo/trafic.
+  et sauvegardes, 4 signalements, 12 notifications, 12 caméras météo/trafic,
+  et — depuis le CP2.1 — la **taxonomie Dealplace** (20 catégories, 79
+  sous-catégories, 10 tags) + **8 annonces** de démonstration.
   Le géocodage inverse mock (étape 5 du Lot 1) ne couvrira que cette
   sélection de communes.
   Les dates sont **relatives au démarrage** (`minutesAgo`) et les UUID
@@ -476,24 +609,25 @@ Au démarrage, l'API loggue :
 
 ---
 
-## 8. Tables FUTURES — documentées, PAS créées au Lot 1
+## 8. Tables FUTURES — documentées, PAS encore créées
 
 Aucune de ces tables n'existe dans les migrations : elles sont uniquement
 anticipées (ancrages dans `apps/api/src/modules/_future/` et
-[TODO_LOT_2.md](TODO_LOT_2.md)).
+[TODO_LOT_2.md](TODO_LOT_2.md)). **Les tables Dealplace listings/taxonomie ont
+quitté cette liste : elles sont créées au CP2.1** (§2 bis, migrations 0003/0004).
 
-| Table future | Rôle (une ligne) | Lot |
+| Table future | Rôle (une ligne) | Lot / CP |
 |---|---|---|
 | `pages` | Pages restaurants/entreprises possédées par des utilisateurs (cible de la future FK `posts.page_id`) | Lot 3 |
-| `listings` | Annonces Dealplace (bien ou service, valeur estimée obligatoire, photo obligatoire pour un bien) | Lot 2 |
-| `conversations` | Fils de messagerie privée 1-to-1 liés à un listing/deal | Lot 2 |
-| `messages` | Messages des conversations (temps réel via la gateway WebSocket du Lot 1) | Lot 2 |
-| `deals` | Deals contractuels avec machine à états (brouillon → conclu, annulation, litige) | Lot 2 |
-| `deal_elements` | Éléments d'un deal validables par les deux parties | Lot 2 |
-| `deal_sub_items` | Sous-éléments détaillant un élément de deal | Lot 2 |
-| `news_sources` | Sources d'actualité locales à scraper pour le module News | Lot 2+ (News IA) |
-| `news_events` | Événements d'actualité détectés/agrégés à partir des sources | Lot 2+ (News IA) |
-| `generated_articles` | Articles rédigés par l'agent IA à partir des news_events | Lot 2+ (News IA) |
+| `conversations` | Fils de messagerie privée 1-to-1 liés à un listing/deal | Lot 2 — CP2.3 |
+| `reviews` (avis Dealplace) | Avis détaillés d'un profil Dealplace (note + critères + commentaire) | Lot 2 — CP2.2 |
+| `messages` | Messages des conversations (temps réel via la gateway WebSocket du Lot 1) | Lot 2 — CP2.3 |
+| `deals` | Deals contractuels avec machine à états (brouillon → conclu, annulation, litige) | Lot 2 — CP2.4 |
+| `deal_elements` | Éléments d'un deal validables par les deux parties | Lot 2 — CP2.4 |
+| `deal_sub_items` | Sous-éléments détaillant un élément de deal | Lot 2 — CP2.4 |
+| `news_sources` | Sources d'actualité locales à scraper pour le module News | Lot 4 (News IA) |
+| `news_events` | Événements d'actualité détectés/agrégés à partir des sources | Lot 4 (News IA) |
+| `generated_articles` | Articles rédigés par l'agent IA à partir des news_events | Lot 4 (News IA) |
 | `restaurant_menus` | Menus des pages restaurants | Lot 3 |
 | `dishes` | Plats composant les menus des restaurants | Lot 3 |
-| `billing` / premium | Abonnements premium, paiements (Stripe ou équivalent), publicité | Lot 2+ (module `_future/billing`) |
+| `billing` / premium | Abonnements premium, paiements (Stripe ou équivalent), publicité | Transverse (module `_future/billing`) |

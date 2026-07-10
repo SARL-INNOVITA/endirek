@@ -38,7 +38,19 @@ import {
   Comment,
   CommentDepth,
   CommentStatus,
+  ExchangePref,
   GeoPoint,
+  Listing,
+  ListingCategory,
+  ListingExternalLink,
+  ListingFamily,
+  ListingMedia,
+  ListingMediaType,
+  ListingStatus,
+  ListingSubcategory,
+  ListingTag,
+  ListingValueKind,
+  ModerationLevel,
   Notification,
   NotificationType,
   Post,
@@ -167,6 +179,47 @@ function toJsonObject(value: unknown): Record<string, unknown> {
     return JSON.parse(value) as Record<string, unknown>;
   }
   return value as Record<string, unknown>;
+}
+
+/**
+ * jsonb (tableau) → tableau de liens externes {label, url}. node-postgres
+ * désérialise déjà le jsonb ; ce helper couvre les cas de bord (string, null)
+ * et se protège d'une valeur mal formée pour toujours renvoyer un tableau
+ * (miroir du DEFAULT '[]' de listings.external_links). On ne conserve que les
+ * entrées ayant label ET url en chaîne.
+ */
+function toExternalLinks(value: unknown): ListingExternalLink[] {
+  let parsed: unknown = value;
+  if (parsed === null || parsed === undefined) {
+    return [];
+  }
+  if (typeof parsed === 'string') {
+    parsed = JSON.parse(parsed);
+  }
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+  return parsed
+    .filter(
+      (item): item is { label: unknown; url: unknown } =>
+        typeof item === 'object' && item !== null,
+    )
+    .filter(
+      (item) => typeof item.label === 'string' && typeof item.url === 'string',
+    )
+    .map((item) => ({ label: item.label as string, url: item.url as string }));
+}
+
+/**
+ * text[] PostgreSQL → tableau de chaînes typé. node-postgres renvoie déjà un
+ * tableau JS pour une colonne text[] ; ce helper sécurise le null (colonne
+ * absente) en tableau vide.
+ */
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v));
+  }
+  return [];
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -359,6 +412,90 @@ export function rowToNotification(row: SqlRow): Notification {
   };
 }
 
+// ── Dealplace : taxonomie + annonces ────────────────────────────────────────
+
+export function rowToListingCategory(row: SqlRow): ListingCategory {
+  return {
+    slug: row.slug as string,
+    family: row.family as ListingFamily,
+    labelFr: row.label_fr as string,
+    position: Number(row.position),
+    moderationLevel: row.moderation_level as ModerationLevel,
+    isActive: row.is_active as boolean,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+export function rowToListingSubcategory(row: SqlRow): ListingSubcategory {
+  return {
+    slug: row.slug as string,
+    categorySlug: row.category_slug as string,
+    labelFr: row.label_fr as string,
+    position: Number(row.position),
+    isActive: row.is_active as boolean,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+export function rowToListingTag(row: SqlRow): ListingTag {
+  return {
+    slug: row.slug as string,
+    labelFr: row.label_fr as string,
+    isActive: row.is_active as boolean,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+export function rowToListing(row: SqlRow): Listing {
+  return {
+    id: row.id as string,
+    ownerId: row.owner_id as string,
+    listingType: row.listing_type as ListingFamily,
+    title: row.title as string,
+    description: row.description as string,
+    categorySlug: row.category_slug as string,
+    subcategorySlug: row.subcategory_slug as string,
+    valueKind: row.value_kind as ListingValueKind,
+    valueMin: Number(row.value_min),
+    valueMax:
+      row.value_max === null || row.value_max === undefined
+        ? null
+        : Number(row.value_max),
+    currency: row.currency as string,
+    city: row.city as string,
+    // location reconstruit depuis les colonnes lat/lng (convention géométrie).
+    location: rowToGeoPoint(row),
+    exchangePrefs: toStringArray(row.exchange_prefs) as ExchangePref[],
+    externalLinks: toExternalLinks(row.external_links),
+    urlSlug: row.url_slug as string,
+    status: row.status as ListingStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+    deletedAt: toDateOrNull(row.deleted_at),
+  };
+}
+
+export function rowToListingMedia(row: SqlRow): ListingMedia {
+  return {
+    id: row.id as string,
+    listingId: row.listing_id as string,
+    mediaType: row.media_type as ListingMediaType,
+    url: row.url as string,
+    thumbnailUrl: (row.thumbnail_url as string | null) ?? null,
+    width:
+      row.width === null || row.width === undefined ? null : Number(row.width),
+    height:
+      row.height === null || row.height === undefined
+        ? null
+        : Number(row.height),
+    position: Number(row.position),
+    createdAt: toDate(row.created_at),
+  };
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Fragments SQL réutilisables (listes de colonnes)
 // ────────────────────────────────────────────────────────────────────────────
@@ -429,6 +566,33 @@ export const SQL_CAMERA_COLUMNS = `
   c.status,
   c.created_at,
   c.updated_at
+`.trim();
+
+/** Colonnes de `listings` (alias de table `l`) — location exposée en lat/lng
+ * (convention géométrie). Pas de compteur dénormalisé sur les annonces au
+ * CP2.1 : la liste des colonnes suffit. */
+export const SQL_LISTING_COLUMNS = `
+  l.id,
+  l.owner_id,
+  l.listing_type,
+  l.title,
+  l.description,
+  l.category_slug,
+  l.subcategory_slug,
+  l.value_kind,
+  l.value_min,
+  l.value_max,
+  l.currency,
+  l.city,
+  ST_Y(l.location) AS lat,
+  ST_X(l.location) AS lng,
+  l.exchange_prefs,
+  l.external_links,
+  l.url_slug,
+  l.status,
+  l.created_at,
+  l.updated_at,
+  l.deleted_at
 `.trim();
 
 /**

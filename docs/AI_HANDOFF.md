@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : Lot 1.5 — driver PostgreSQL implémenté et fonctionnel (2026-07-10)._
+_Dernière mise à jour : Lot 2 — CP2.1 livré (Dealplace : taxonomie biens/services + listings, parité mock+postgres) (2026-07-10)._
 
 ---
 
@@ -23,7 +23,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | Lot | Contenu | Statut |
 |---|---|---|
 | **Lot 1 — Socle + Live Local** | Auth, profils, follows, feed social (5 types de posts), interactions, carte météo/trafic, caméras, notifications, backoffice minimal, préparation démo | **STABILISÉ — validation product owner attendue** |
-| **Lot 2 — Dealplace** | Marketplace biens/services, annonces, conversations 1-to-1 temps réel, deals contractuels (états, éléments validables, litiges) | Non commencé — anticipé |
+| **Lot 2 — Dealplace** | Marketplace biens/services, annonces, conversations 1-to-1 temps réel, deals contractuels (états, éléments validables, litiges) | **DÉMARRÉ — CP2.1 livré** (taxonomie + listings) ; conversations/deals/avis à venir (CP2.2-2.5) |
 | **Lot 3 — Pages restaurants / entreprises** | Pages pro, menus programmés, cartes, offres, événements | Non commencé — anticipé |
 | **Lot 4 — News automatisées IA** | Harnais IA supervisé, sources, génération d'articles, page News | Non commencé — anticipé |
 
@@ -34,7 +34,9 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 
 ## 3. Lot actuel et checkpoints
 
-**Lot actuel : Lot 1.** Il est exécuté en **7 checkpoints** (= « étapes »), validés un par un par le product owner.
+**Lot 1 : terminé** (7 checkpoints validés/implémentés + Lot 1.5). **Lot actuel : Lot 2 — Dealplace**, exécuté par checkpoints validés un par un par le product owner.
+
+### Lot 1 (rappel)
 
 | # | Checkpoint | Statut |
 |---|---|---|
@@ -53,15 +55,35 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 > un comportement observable identique. Voir §4 (composant DB) et
 > [AI_DECISIONS.md](AI_DECISIONS.md) D47-D50.
 
-**Dernier commit connu : `85d4b95`** — `feat: driver PostgreSQL fonctionnel pour le Lot 1 (Lot 1.5)`.
-Branche : `main`. Historique récent : `be5308f` (checkpoint 7) → `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS) → `a7a99b2` (doc hash PostGIS) → `85d4b95` (Lot 1.5 — driver PostgreSQL).
+### Lot 2 — Dealplace (en cours)
+
+| # | Checkpoint | Statut |
+|---|---|---|
+| **2.1** | **Dealplace : taxonomie biens/services (tables de référence pilotables) + listings (annonces) — annuaire public filtré, CRUD propriétaire, backoffice annonces + taxonomie, parité mock+postgres** | ✅ **implémenté** (validation product owner à venir) |
+| 2.2 | Profil Dealplace + avis détaillés (note + critères) | ⏳ à venir |
+| 2.3 | Conversations 1-to-1 temps réel (gateway WebSocket du Lot 1) | ⏳ à venir |
+| 2.4 | Deals contractuels (machine à états, éléments validables, litiges) — le bouton « Proposer un deal » du mobile est aujourd'hui un **placeholder** | ⏳ à venir |
+| 2.5 | Modération avancée Dealplace / consolidation | ⏳ à venir |
+
+> **CP2.1 (2026-07-10) — première fonctionnalité produit du Lot 2.** La
+> **taxonomie** (catégories/sous-catégories/tags biens & services, en tables de
+> référence pilotables par le backoffice) et les **listings** (annonces) sont
+> livrés : annuaire public paginé/filtré, création/édition/suppression par le
+> propriétaire, listes de profil, backoffice annonces + taxonomie. **Parité
+> mock+postgres** maintenue (2 nouveaux repositories : listings + taxonomie,
+> comportement observable identique). HORS périmètre CP2.1 : conversations,
+> deals, avis/profil Dealplace, paiement (hors app). Voir §4 (module
+> `dealplace`) et [AI_DECISIONS.md](AI_DECISIONS.md) D51-D58.
+
+**Dernier commit connu : `9aa7755`** — `docs: renseigne le hash du Lot 1.5 dans AI_HANDOFF` (Lot 1.5). **Le commit CP2.1 reste à créer — TODO : renseigner ici son hash.**
+Branche : `main`. Historique récent : `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS) → `a7a99b2` (doc hash PostGIS) → `85d4b95` (Lot 1.5 — driver PostgreSQL) → `9aa7755` (doc hash Lot 1.5) → *(CP2.1 — Dealplace : à committer)*.
 
 ---
 
 ## 4. État actuel par composant
 
 ### API — `apps/api` (NestJS 11, TypeScript, port **3001**)
-Fonctionnelle. Modules livrés : `health`, `database` (mock), `auth`, `users`, `admin` (utilisateurs + posts + signalements + **caméras + types de posts + commentaires signalés + notifications système dev/mock**), `media`, `posts`, `feed`, `comments`, `reactions`, `saved-posts`, `moderation`, `map`, **`cameras`**, **`notifications`**, **`realtime`**.
+Fonctionnelle. Modules livrés : `health`, `database` (mock/postgres), `auth`, `users`, `admin` (utilisateurs + posts + signalements + caméras + types de posts + commentaires signalés + notifications système dev/mock + **annonces & taxonomie Dealplace**), `media`, `posts`, `feed`, `comments`, `reactions`, `saved-posts`, `moderation`, `map`, `cameras`, `notifications`, `realtime`, **`dealplace` (Lot 2 — CP2.1)**.
 - Routes métier préfixées `/api/v1`, `GET /health` hors préfixe, Swagger sur `/docs`.
 - Guard JWT **global** (@Public pour exceptions), access + refresh tokens, bcrypt.
 - Upload médias local (`/uploads/` statique), validation par décodage réel (sharp), thumbnails.
@@ -71,15 +93,17 @@ Fonctionnelle. Modules livrés : `health`, `database` (mock), `auth`, `users`, `
 - **Notifications** : `GET /notifications` (+ `total`/`unreadCount`), `/unread-count`, `PATCH /read-all`, `/:id/read` (uniquement les siennes) ; types `comment`/`reply`/`reaction`/`report_handled` créés via un point d'entrée unique (persistance + émission socket).
 - **Checkpoint 6 admin** : `GET|PATCH /admin/post-types` (types actifs/inactifs, `showsOnMap`, durée carte, activation, ordre), `PATCH /admin/comments/:id/status`, `POST /admin/notifications/system`, filtres admin `role`, `mapVisible`, `targetType` et alias `pending` → `open`.
 - **Temps réel** : gateway **socket.io** (namespace par défaut, auth handshake JWT), events `notification.created` (room `user:<id>`) et `map.updated` (room `map`), CORS aligné sur l'API via `RealtimeIoAdapter`.
+- **Dealplace (Lot 2 — CP2.1)** : `GET /dealplace/taxonomy` (catégories actives + sous-catégories + tags, pour le formulaire mobile) ; annuaire public `GET /dealplace/listings` (annonces `active`, filtres `family/category/subcategory/city/valueMin/valueMax/tags/search`, pagination) ; `POST /dealplace/listings` (règles métier : valeur fixe/fourchette cohérente, **photo obligatoire pour un bien**, commune du référentiel, catégorie+sous-catégorie cohérentes, **catégorie « forbidden » refusée 400**, médias issus de `/media/upload`) ; `GET /dealplace/listings/:id`, `GET /dealplace/listings/slug/:slug`, `PATCH|DELETE /dealplace/listings/:id` (propriétaire, soft-delete) ; listes de profil `GET /users/me/listings` (active+hidden) et `GET /users/:id/listings` (active). **Backoffice** : `GET|POST|PATCH /admin/dealplace/categories|subcategories|tags` (taxonomie pilotable, slug immuable) ; `GET /admin/dealplace/listings` (tous statuts + recherche), `GET /admin/dealplace/listings/:id`, `PATCH /admin/dealplace/listings/:id/status` (masquer/republier — `deleted` non restaurable). Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, partagée avec le backoffice, comme `FeedPostAssembler`).
 
 ### Mobile — `apps/mobile` (Flutter 3.44, Riverpod, go_router, dio)
-Fonctionnel et stabilisé pour la démo Lot 1. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News / Dealplace = placeholders propres**, mais la **Carte est réelle**. Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types actifs depuis `GET /posts/types`, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**. Les notifications `system` affichent `payload.title` ou `payload.message`. Temps réel via **socket.io** (`socket_io_client`) : notifications poussées en direct + `map.updated`, avec **fallback polling ~45 s**. Header : icône messagerie **inactive** (Lot 2), cloche **active**. Les libellés Material sont localisés en français via `flutter_localizations`.
+Fonctionnel et stabilisé. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News = placeholder propre**, la **Carte** et **désormais le Dealplace (CP2.1)** sont réels. Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types actifs depuis `GET /posts/types`, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**, et l'**onglet Dealplace** (`features/dealplace`) : annuaire (grille de cartes, recherche + filtres, états loading/vide/erreur, pull-to-refresh, pagination, FAB), **création d'annonce** (`/dealplace/create` — photo obligatoire pour un bien, upload via `/media/upload`), **détail** (`/dealplace/:id`, fidèle au mockup 06). Le bouton **« Proposer un deal »** du détail est un **PLACEHOLDER** (deals = CP2.4) : il affiche un snackbar « Disponible au prochain lot ». Les notifications `system` affichent `payload.title` ou `payload.message`. Temps réel via **socket.io** (`socket_io_client`) : notifications poussées en direct + `map.updated`, avec **fallback polling ~45 s**. Header : icône messagerie **inactive** (conversations = CP2.3), cloche **active**. Les libellés Material sont localisés en français via `flutter_localizations`.
 
 ### Admin — `apps/admin` (React 19 + Vite 7, CSS pur, port 5173)
-Backoffice Lot 1 consolidé : connexion réservée aux rôles admin, onglets **Utilisateurs** (recherche + statut + rôle, suspendre/réactiver), **Publications** (type/statut/recherche + filtre carte `mapVisible`, détail, masquer/réactiver), **Signalements** (statut + cible, traitement, action directe sur commentaire signalé), **Caméras** (`CamerasView` + `CameraForm` : liste tous statuts, création/édition, changement de statut, masquage doux) et **Paramètres** (types de posts pilotables + notification système dev/mock).
+Backoffice consolidé : connexion réservée aux rôles admin, onglets **Utilisateurs** (recherche + statut + rôle, suspendre/réactiver), **Publications** (type/statut/recherche + filtre carte `mapVisible`, détail, masquer/réactiver), **Signalements** (statut + cible, traitement, action directe sur commentaire signalé), **Caméras** (`CamerasView` + `CameraForm` : liste tous statuts, création/édition, changement de statut, masquage doux), **Dealplace (CP2.1)** — `DealplaceView` à deux sous-vues : **Annonces** (`ListingsView` + `ListingDetailAdmin` : liste tous statuts + filtres famille/catégorie/statut/recherche, détail, masquer/republier) et **Taxonomie** (`TaxonomyView` : catégories/sous-catégories/tags pilotables, création + édition, slug immuable) — et **Paramètres** (types de posts pilotables + notification système dev/mock).
 
 ### DB mock + PostgreSQL/PostGIS — `apps/api/src/database` / `infra`
-La couche persistance expose **9 repositories** derrière un contrat unique
+La couche persistance expose **11 repositories** (9 du Lot 1 + `listings` et
+`listing-taxonomy` ajoutés au CP2.1) derrière un contrat unique
 (`repositories/interfaces.ts`) et deux drivers au **comportement observable
 identique**, choisis au chargement du module via `process.env.DB_DRIVER` :
 
@@ -107,8 +131,13 @@ Points saillants du driver postgres :
 
 Docker : `infra/docker-compose.yml` démarre PostgreSQL/PostGIS
 (`postgis/postgis:16-3.4`) ; migrations `0001_lot1_init.sql` +
-`0002_reference_data.sql` appliquées avec succès.
-**Log de boot attendu (mock)** : `Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications`.
+`0002_reference_data.sql` (Lot 1) puis `0003_dealplace_listings.sql` +
+`0004_dealplace_reference.sql` (Lot 2 — CP2.1 : tables Dealplace + taxonomie)
+appliquées avec succès (`npm run db:migrate` applique tout le dossier dans
+l'ordre lexicographique). **Sur cette machine, le conteneur `endirek-postgres`
+est remappé sur le port hôte `55432`** (un PostgreSQL natif occupe déjà 5432) —
+`DATABASE_URL=postgresql://endirek:endirek@127.0.0.1:55432/endirek`.
+**Log de boot attendu (mock)** : `Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags)` (suffixe Dealplace ajouté au CP2.1).
 **Log de boot attendu (postgres, première base seedée)** : `PostgreSQL prêt : connecté (15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications)`.
 
 ---
@@ -145,6 +174,7 @@ Détail complet : [MOCKED_SERVICES.md](MOCKED_SERVICES.md). Accès à fournir pl
 - **Pas de présence temps réel** (« N personnes ici » du mockup non implémenté) ; temps réel = notifications + `map.updated` seulement (pas de messagerie), **fallback polling ~45 s**.
 - **Clustering client-side** (grille maison) ; clustering serveur à prévoir à grande échelle.
 - Carte mobile **réelle** mais centrée sur l'île ; **GPS réel non branché** (pas de « autour de moi », position par choix de commune).
+- **Dealplace (CP2.1)** : taxonomie + listings seulement. **Pas de deals** (« Proposer un deal » = placeholder, CP2.4), **pas de conversations** (CP2.3, icône messagerie inactive), **pas d'avis/profil Dealplace** (CP2.2), **pas de signalement d'annonce côté user** (modération backoffice seulement), **paiement hors app**. Annuaire filtré par commune (pas de rayon géographique) ; images seulement ; en édition, type/commune/médias non modifiables.
 - Visual Studio C++ absent → pas de build Flutter Windows desktop (non nécessaire, cible Android/iOS).
 
 Liste complète et à jour : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
@@ -153,30 +183,31 @@ Liste complète et à jour : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
 
 ## 7. Prochaine étape recommandée
 
-**Checkpoint 7 implémenté puis Lot 1.5 livré.** Lot 1 stabilisé pour démo :
-parcours mobile et backoffice audités, localisation Flutter branchée,
-documentation de démo créée ([DEMO_LOT_1.md](DEMO_LOT_1.md)), README obsolètes
-remis à jour, tests/builds passés. **Lot 1.5** : driver PostgreSQL implémenté et
-fonctionnel (repositories SQL, seeder idempotent, compteurs à la lecture) — le
-Lot 1 tourne à l'identique en mock ou postgres.
+**Lot 1 terminé (7 checkpoints + Lot 1.5), Lot 2 démarré : CP2.1 implémenté.**
+Le CP2.1 livre la **première fonctionnalité produit du Lot 2** : la taxonomie
+biens/services (tables de référence pilotables) et les listings (annonces) —
+annuaire public filtré, CRUD propriétaire, listes de profil, backoffice annonces
++ taxonomie, onglet Dealplace mobile réel. **Parité mock+postgres** maintenue
+(2 nouveaux repositories). Builds/tests passés.
 
-**Prochaine étape recommandée : attendre le feu vert du product owner pour
-démarrer le CP2.1** (premier checkpoint du **Lot 2 — Dealplace**). Ne pas
-démarrer Dealplace, messagerie, deals, pages, News IA, premium ou paiements
-avant ce feu vert. Côté base, un chantier de **performance** reste ouvert
-(compteurs calculés à la lecture → triggers/colonnes maintenues à grande
-échelle) mais n'est pas requis au Lot 1.
+**Prochaine étape recommandée : attendre la validation du product owner du CP2.1,
+puis démarrer le CP2.2** (profil Dealplace + avis détaillés). Ne pas anticiper les
+checkpoints suivants avant le feu vert : conversations (CP2.3), deals contractuels
+(CP2.4 — le bouton « Proposer un deal » reste un placeholder d'ici là), modération
+avancée (CP2.5). **Paiement = hors app** (jamais dans le périmètre applicatif).
+Côté base, le chantier de **performance** (compteurs calculés à la lecture →
+triggers/colonnes maintenues à grande échelle) reste ouvert mais non requis.
 
 ---
 
 ## 8. Consignes strictes pour le prochain modèle
 
 1. **Lire d'abord** : ce fichier, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md). Puis `git status`.
-2. **Rester dans le périmètre du Lot 1.** Ne développe PAS Dealplace, conversations, deals, pages restos/entreprises, premium, paiement, offres exceptionnelles, News IA, Google Ads réel.
-3. **`DB_DRIVER=mock` par défaut**, mais **`DB_DRIVER=postgres` est désormais fonctionnel** (Lot 1.5). Les deux drivers doivent rester au comportement observable identique : toute modification d'un repository doit être répercutée dans les DEUX implémentations (mock ET postgres), le mock restant la spécification de référence.
+2. **Rester dans le périmètre du checkpoint courant du Lot 2.** Le CP2.1 (taxonomie + listings) est livré. Ne développe PAS, avant le feu vert : conversations (CP2.3), deals contractuels (CP2.4 — « Proposer un deal » reste un placeholder), avis/profil Dealplace (CP2.2), pages restos/entreprises (Lot 3), News IA (Lot 4), premium/Google Ads réel. **Paiement = hors app.**
+3. **`DB_DRIVER=mock` par défaut**, mais **`DB_DRIVER=postgres` est fonctionnel** (Lot 1.5). Les deux drivers doivent rester au comportement observable identique : toute modification d'un repository (y compris les nouveaux `listings`/`listing-taxonomy` du CP2.1) doit être répercutée dans les DEUX implémentations (mock ET postgres), le mock restant la spécification de référence. **La parité mock+postgres est OBLIGATOIRE aussi pour le Lot 2.**
 4. **Aucun secret dans le repo.** Jamais de clé API, token, mot de passe réel. Tout via variables d'environnement ; mettre à jour `.env.example` si une variable apparaît.
 5. **Ne pas versionner** `01_PRD/`, `02_MOCKUPS/`, `03_PROMPTS/`, `04_ACCESS/` (contexte produit local, dans `.gitignore`).
-6. **Ne pas créer les tables complexes des futurs lots** ; se contenter de les documenter.
+6. **Ne pas créer les tables des lots/checkpoints non encore démarrés** (conversations, deals, pages, news, billing…) ; se contenter de les documenter. Les tables du CP2.1 (`listings`, `listing_media`, `listing_tag_map`, `listing_categories/subcategories/tags`) sont créées (migrations 0003/0004).
 7. **Respecter les décisions figées** (voir [AI_DECISIONS.md](AI_DECISIONS.md)), notamment : commentaires option A (commentaire + réponse, pas de réponse à une réponse), durée carte 2 h pilotée par `post_types`, feed-only vs feed+carte selon le type.
 8. **Vérifier avant de commiter** : `npm run api:build`, `npm run admin:build`, `flutter analyze`, `flutter test` (voir [AI_RUNBOOK.md](AI_RUNBOOK.md)). Le log de boot du seed doit rester inchangé.
 9. **Ne pas réécrire l'historique Git**, ne pas force-push, sauf demande explicite du product owner.
@@ -191,7 +222,7 @@ avant ce feu vert. Côté base, un chantier de **performance** reste ouvert
 2. **`docs/AI_DECISIONS.md`** — décisions figées, à ne pas rediscuter.
 3. **`docs/AI_RUNBOOK.md`** — comment lancer, tester, vérifier.
 4. `docs/ARCHITECTURE.md` — arborescence, modules, stack, décisions techniques.
-5. `docs/DATABASE.md` — schéma des tables du Lot 1 + drivers mock/postgres (bascule réalisée au Lot 1.5).
+5. `docs/DATABASE.md` — schéma des tables du Lot 1 + tables Dealplace du CP2.1 (migrations 0003/0004) + drivers mock/postgres (bascule réalisée au Lot 1.5).
 6. `docs/KNOWN_LIMITS.md` — limites détaillées et à jour.
 7. `apps/api/README.md`, `apps/mobile/README.md`, `apps/admin/README.md` — spécifiques à chaque app.
 8. Les `README.md` dans `apps/api/src/modules/*/` — rôle et règles métier de chaque module.

@@ -26,6 +26,10 @@ export const CAMERAS_REPOSITORY = Symbol('CAMERAS_REPOSITORY');
 export const REPORTS_REPOSITORY = Symbol('REPORTS_REPOSITORY');
 export const NOTIFICATIONS_REPOSITORY = Symbol('NOTIFICATIONS_REPOSITORY');
 
+// Dealplace (Lot 2 — CP2.1).
+export const LISTING_TAXONOMY_REPOSITORY = Symbol('LISTING_TAXONOMY_REPOSITORY');
+export const LISTINGS_REPOSITORY = Symbol('LISTINGS_REPOSITORY');
+
 /** Liste complète des tokens de repositories — source unique de vérité,
  * réellement utilisée par DatabaseModule pour ses `exports` (tout nouveau
  * token ajouté ici est automatiquement exposé au code métier). */
@@ -39,4 +43,6 @@ export const ALL_REPOSITORY_TOKENS: symbol[] = [
   CAMERAS_REPOSITORY,
   REPORTS_REPOSITORY,
   NOTIFICATIONS_REPOSITORY,
+  LISTING_TAXONOMY_REPOSITORY,
+  LISTINGS_REPOSITORY,
 ];

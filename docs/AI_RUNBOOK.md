@@ -3,7 +3,7 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : Lot 1.5 — driver PostgreSQL fonctionnel (2026-07-10)._
+_Dernière mise à jour : Lot 2 — CP2.1 (Dealplace : taxonomie + listings) (2026-07-10)._
 
 Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. `DB_DRIVER=mock` reste le défaut et le fallback API ; **`DB_DRIVER=postgres` est fonctionnel** (Docker requis — voir §8 bis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
@@ -149,12 +149,65 @@ Rappels : le slug d'un type de post n'est pas modifiable, les changements de
 durée carte ne recalculent pas les posts existants, et les notifications
 système sont in-app + WebSocket uniquement (pas de push FCM/APNs réel).
 
+## 4 quater. Vérifier le Dealplace (Lot 2 — CP2.1)
+
+Toutes ces routes exigent un Bearer token (§6). Testables aussi dans Swagger
+(`/docs`, tag `dealplace` / `admin`). Le Dealplace fonctionne à l'identique en
+mock (défaut) **et** en postgres (`DB_DRIVER=postgres`, migrations 0003/0004
+appliquées — cf. §8/§8 bis, DB sur le port hôte **55432** sur cette machine).
+
+```bash
+# Taxonomie active servie au formulaire mobile (catégories + sous-catégories + tags)
+curl "http://localhost:3001/api/v1/dealplace/taxonomy" -H "Authorization: Bearer <TOKEN>"
+
+# Annuaire public paginé + filtres (family/category/subcategory/city/valueMin/valueMax/tags/search)
+curl "http://localhost:3001/api/v1/dealplace/listings?family=good&limit=20&offset=0" -H "Authorization: Bearer <TOKEN>"
+
+# Détail d'une annonce (par id ou par urlSlug public)
+curl "http://localhost:3001/api/v1/dealplace/listings/<LISTING_ID>" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/dealplace/listings/slug/<URL_SLUG>" -H "Authorization: Bearer <TOKEN>"
+
+# Créer une annonce (bien : photo obligatoire ; catégorie « forbidden » → 400 ;
+# médias issus de POST /media/upload uniquement). Exemple minimal d'un service :
+curl -X POST "http://localhost:3001/api/v1/dealplace/listings" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"listingType":"service","title":"Cours de guitare","description":"Débutants bienvenus","categorySlug":"cours-formation","subcategorySlug":"cours-musique-art","valueKind":"fixed","valueMin":25,"city":"Saint-Denis","exchangePrefs":["money"],"tags":["pro"]}'
+
+# Mes annonces (active + hidden) et annonces d'un profil (active)
+curl "http://localhost:3001/api/v1/users/me/listings" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/users/<USER_ID>/listings" -H "Authorization: Bearer <TOKEN>"
+
+# ── Backoffice (rôle moderator/super_admin — 403 sinon) ──
+# Taxonomie pilotable (GET tous statuts, POST, PATCH ; slug immuable)
+curl "http://localhost:3001/api/v1/admin/dealplace/categories" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/dealplace/subcategories?category=cours-formation" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/dealplace/tags" -H "Authorization: Bearer <TOKEN_ADMIN>"
+
+# Annonces au backoffice (tous statuts + filtres famille/catégorie/statut/recherche)
+curl "http://localhost:3001/api/v1/admin/dealplace/listings?status=hidden&limit=20&offset=0" -H "Authorization: Bearer <TOKEN_ADMIN>"
+
+# Masquer / republier une annonce (active|hidden uniquement ; deleted non restaurable → 409)
+curl -X PATCH "http://localhost:3001/api/v1/admin/dealplace/listings/<LISTING_ID>/status" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"hidden"}'
+```
+
+Rappels CP2.1 : valeur obligatoire (fixe ou fourchette), **photo obligatoire
+pour un bien**, commune du référentiel La Réunion, catégorie « forbidden »
+refusée à la création, **pas de signalement d'annonce côté utilisateur**, le
+bouton mobile « Proposer un deal » est un **placeholder** (deals = CP2.4),
+**paiement hors app**.
+
 ## 5. Log de boot attendu (seed mock)
 
 ```
-Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications
+Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags)
 ```
-Si ce log change après une modification non liée au seed, c'est un signal de régression à investiguer.
+Le suffixe Dealplace (annonces + taxonomie) a été ajouté au CP2.1. Si ce log
+change après une modification non liée au seed, c'est un signal de régression à
+investiguer.
 
 ---
 
@@ -215,22 +268,41 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -U endirek -d endirek -c "SELECT postgis_version();"
 ```
 
-Migrations Lot 1 (première base ou après `docker compose -f infra/docker-compose.yml down -v`) :
+Migrations (première base ou après `docker compose -f infra/docker-compose.yml down -v`) —
+Lot 1 (`0001`, `0002`) **puis** Dealplace CP2.1 (`0003`, `0004`) :
 
 ```bash
 docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
 docker cp apps/api/db/migrations/0002_reference_data.sql endirek-postgres:/tmp/0002_reference_data.sql
+docker cp apps/api/db/migrations/0003_dealplace_listings.sql endirek-postgres:/tmp/0003_dealplace_listings.sql
+docker cp apps/api/db/migrations/0004_dealplace_reference.sql endirek-postgres:/tmp/0004_dealplace_reference.sql
 
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0002_reference_data.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0003_dealplace_listings.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0004_dealplace_reference.sql
 ```
 
-État validé : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables métier Lot 1 + `spatial_ref_sys`, 5 `post_types`, 6 `reaction_types`.
+État validé : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables
+métier Lot 1 + `spatial_ref_sys`, 5 `post_types`, 6 `reaction_types` ; CP2.1
+ajoute 6 tables Dealplace (`listing_categories`, `listing_subcategories`,
+`listing_tags`, `listings`, `listing_media`, `listing_tag_map`) + la taxonomie
+de référence (20 catégories, sous-catégories, ~10 tags).
 
 > Les migrations sont aussi applicables via le raccourci `npm run db:migrate`
-> (copie + `psql -f` de chaque `.sql` dans le conteneur, voir §8 bis).
+> (copie + `psql -f` de **tout** le dossier `migrations/` dans l'ordre
+> lexicographique — `0001`→`0004` — dans le conteneur, voir §8 bis).
+
+> **Port hôte sur cette machine : `55432`.** Un PostgreSQL natif occupe déjà
+> `5432`, donc le conteneur `endirek-postgres` est remappé sur `55432`
+> (`DATABASE_URL=postgresql://endirek:endirek@127.0.0.1:55432/endirek`, déjà
+> dans `apps/api/.env`). Les commandes `docker … exec … psql` ci-dessus
+> fonctionnent indépendamment du port hôte (auth interne au conteneur). Détail
+> et remèdes : §8 bis.
 
 ---
 
@@ -286,6 +358,12 @@ comportement observable identique au mock.
 > - **remapper le conteneur sur un port libre** sans toucher au natif :
 >   `POSTGRES_HOST_PORT=55432 docker compose -f infra/docker-compose.yml up -d`,
 >   puis pointer `DATABASE_URL` (et `POSTGRES_PORT`) sur `55432`.
+>
+> **Sur la machine de dev actuelle, c'est le second remède qui est en place** :
+> le conteneur est remappé sur le **port hôte `55432`**, et `apps/api/.env`
+> contient déjà `DATABASE_URL=postgresql://endirek:endirek@127.0.0.1:55432/endirek`.
+> Adapter les exemples `…@localhost:5432…` de ce fichier en conséquence sur cette
+> machine.
 >
 > `docker exec endirek-postgres psql -U endirek -d endirek` fonctionne toujours
 > (auth interne au conteneur), indépendamment de cette collision.

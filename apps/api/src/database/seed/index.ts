@@ -16,6 +16,8 @@ import {
   Camera,
   Comment,
   Follow,
+  Listing,
+  ListingMedia,
   Notification,
   Post,
   PostMedia,
@@ -43,9 +45,17 @@ export type SeedPost = Omit<
 /** Commentaire seed — reactionCount recalculé depuis `reactions`. */
 export type SeedComment = Omit<Comment, 'reactionCount'>;
 
+/** Association annonce <-> tag du seed Dealplace (miroir de listing_tag_map). */
+export interface SeedListingTagMap {
+  listingId: string;
+  tagSlug: string;
+}
+
 /** Jeu de données complet chargé par MockDatabaseService au démarrage.
- * NB : post_types et reaction_types (tables de référence) ne passent PAS par
- * le seed — le mock embarque les mêmes lignes que la migration SQL 0002. */
+ * NB : les tables de référence (post_types, reaction_types, ainsi que la
+ * taxonomie Dealplace listing_categories/subcategories/tags) ne passent PAS
+ * par le seed — le mock embarque les mêmes lignes que les migrations SQL
+ * (0002 pour le Lot 1, 0004 pour le Dealplace). */
 export interface SeedData {
   users: SeedUser[];
   follows: Follow[];
@@ -58,6 +68,10 @@ export interface SeedData {
   cameras: Camera[];
   reports: Report[];
   notifications: Notification[];
+  // Dealplace (Lot 2 — CP2.1).
+  listings: Listing[];
+  listingMedia: ListingMedia[];
+  listingTagMap: SeedListingTagMap[];
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -73,6 +87,11 @@ import {
   buildSeedSavedCollections,
   buildSeedSavedPosts,
 } from './interactions.seed';
+import {
+  buildSeedListingMedia,
+  buildSeedListings,
+  buildSeedListingTagMap,
+} from './listings.seed';
 import { buildSeedPostMedia, buildSeedPosts } from './posts.seed';
 import { buildSeedFollows, buildSeedUsers } from './users.seed';
 
@@ -93,8 +112,9 @@ import { buildSeedFollows, buildSeedUsers } from './users.seed';
  * 42 posts sur les 12 communes + 12 médias (posts.seed), 60 commentaires,
  * ~155 réactions, collections + sauvegardes, 4 signalements et
  * 12 notifications (interactions.seed), 12 caméras météo/trafic
- * (cameras.seed). Toutes les références croisées passent par seedUuid —
- * chaque fichier vérifie sa propre cohérence à la construction.
+ * (cameras.seed), 8 annonces Dealplace + médias + tags (listings.seed).
+ * Toutes les références croisées passent par seedUuid — chaque fichier
+ * vérifie sa propre cohérence à la construction.
  */
 export function buildSeed(): SeedData {
   return {
@@ -109,5 +129,8 @@ export function buildSeed(): SeedData {
     cameras: buildSeedCameras(),
     reports: buildSeedReports(),
     notifications: buildSeedNotifications(),
+    listings: buildSeedListings(),
+    listingMedia: buildSeedListingMedia(),
+    listingTagMap: buildSeedListingTagMap(),
   };
 }
