@@ -75,8 +75,9 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 > deals, avis/profil Dealplace, paiement (hors app). Voir §4 (module
 > `dealplace`) et [AI_DECISIONS.md](AI_DECISIONS.md) D51-D58.
 
-**Dernier commit connu : `9aa7755`** — `docs: renseigne le hash du Lot 1.5 dans AI_HANDOFF` (Lot 1.5). **Le commit CP2.1 reste à créer — TODO : renseigner ici son hash.**
-Branche : `main`. Historique récent : `5bb43d6` (CORS Flutter Web) → `591d54f` (validation Docker/PostGIS) → `a7a99b2` (doc hash PostGIS) → `85d4b95` (Lot 1.5 — driver PostgreSQL) → `9aa7755` (doc hash Lot 1.5) → *(CP2.1 — Dealplace : à committer)*.
+**Dernier commit connu : `0cce389`** — `feat: Dealplace — taxonomie biens/services + listings (Lot 2 CP2.1)`.
+Branche : `main`. Historique récent : `591d54f` (validation Docker/PostGIS) → `a7a99b2` (doc hash PostGIS) → `85d4b95` (Lot 1.5 — driver PostgreSQL) → `9aa7755` (doc hash Lot 1.5) → `0cce389` (CP2.1 — Dealplace taxonomie + listings).
+> ⚠️ Revue adversariale formelle CP2.1 NON exécutée (limite de dépense mensuelle atteinte le 2026-07-10) — vérification croisée directe (deux drivers) + relecture manuelle du repo postgres des listings effectuées à la place. Revue à relancer avant CP2.2.
 
 ---
 
