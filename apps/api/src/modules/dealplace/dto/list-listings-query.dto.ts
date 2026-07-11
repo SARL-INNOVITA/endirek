@@ -15,18 +15,24 @@ import { LISTING_FAMILIES } from './create-listing.dto';
 /**
  * Découpe un paramètre de requête « tags » en liste de slugs : accepte soit
  * une valeur répétée (?tags=a&tags=b), soit une chaîne séparée par des virgules
- * (?tags=a,b). Les entrées vides sont éliminées ; `undefined` reste `undefined`
- * (aucun filtre).
+ * (?tags=a,b). Les entrées vides sont éliminées et les slugs DÉDOUBLONNÉS —
+ * un doublon (?tags=a,a) ferait diverger les drivers (le mock teste
+ * l'appartenance, postgres compte les tags DISTINCTS présents : parité) ;
+ * `undefined` reste `undefined` (aucun filtre).
  */
 function toTagSlugs(value: unknown): string[] | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
   const raw = Array.isArray(value) ? value : [value];
-  const slugs = raw
-    .flatMap((entry) => String(entry).split(','))
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
+  const slugs = [
+    ...new Set(
+      raw
+        .flatMap((entry) => String(entry).split(','))
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0),
+    ),
+  ];
   return slugs.length > 0 ? slugs : undefined;
 }
 
