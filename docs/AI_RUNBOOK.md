@@ -326,20 +326,29 @@ comportement observable identique au mock.
    npm run db:migrate --workspace apps/api
    ```
 
-3. **Configurer l'environnement** (`apps/api/.env`) — `DATABASE_URL` est
-   prioritaire sur les champs `POSTGRES_*` :
+3. **Configurer l'environnement** — `DATABASE_URL` est prioritaire sur les
+   champs `POSTGRES_*` :
 
-   ```env
-   DB_DRIVER=postgres
-   DATABASE_URL=postgresql://endirek:endirek@localhost:5432/endirek
-   DB_MOCK_SEED=true
-   ```
-
-   Sous PowerShell, pour un lancement ponctuel sans éditer `.env` :
+   > **⚠️ `DB_DRIVER` doit être défini dans l'ENVIRONNEMENT DU SHELL, pas
+   > seulement dans `.env`.** Le choix du driver est lu au CHARGEMENT du module
+   > (`database.module.ts`, décision de bootstrap assumée), c'est-à-dire AVANT
+   > que `ConfigModule` ne charge `apps/api/.env` : un `DB_DRIVER=postgres`
+   > présent uniquement dans `.env` est ignoré et l'API démarre en mock
+   > (constaté le 2026-07-11). Les AUTRES variables (`DATABASE_URL`,
+   > `DB_MOCK_SEED`…) sont bien lues depuis `.env` via ConfigService.
 
    ```powershell
+   # PowerShell (Windows)
    $env:DB_DRIVER="postgres"; $env:DATABASE_URL="postgresql://endirek:endirek@localhost:5432/endirek"; npm run api:dev
    ```
+
+   ```bash
+   # bash / Git Bash
+   DB_DRIVER=postgres DATABASE_URL="postgresql://endirek:endirek@localhost:5432/endirek" npm run api:dev
+   ```
+
+   Garder aussi `DATABASE_URL` (et `DB_MOCK_SEED=true`) dans `apps/api/.env`
+   reste utile — seul `DB_DRIVER` exige le shell.
 
 4. **Démarrer l'API** (`npm run api:dev`). Au premier boot sur une base vide, le
    seeder insère le seed La Réunion (idempotent, transaction). **Log de

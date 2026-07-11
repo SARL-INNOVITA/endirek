@@ -75,9 +75,9 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 > deals, avis/profil Dealplace, paiement (hors app). Voir §4 (module
 > `dealplace`) et [AI_DECISIONS.md](AI_DECISIONS.md) D51-D58.
 
-**Dernier commit connu : `0cce389`** — `feat: Dealplace — taxonomie biens/services + listings (Lot 2 CP2.1)`.
-Branche : `main`. Historique récent : `591d54f` (validation Docker/PostGIS) → `a7a99b2` (doc hash PostGIS) → `85d4b95` (Lot 1.5 — driver PostgreSQL) → `9aa7755` (doc hash Lot 1.5) → `0cce389` (CP2.1 — Dealplace taxonomie + listings).
-> ⚠️ Revue adversariale formelle CP2.1 NON exécutée (limite de dépense mensuelle atteinte le 2026-07-10) — vérification croisée directe (deux drivers) + relecture manuelle du repo postgres des listings effectuées à la place. Revue à relancer avant CP2.2.
+**Dernier commit connu : `3f1c1a1`** — `fix: déduplique le filtre tags de l'annuaire Dealplace (parité mock/postgres)`.
+Branche : `main`. Historique récent : `85d4b95` (Lot 1.5 — driver PostgreSQL) → `9aa7755` (doc hash Lot 1.5) → `0cce389` (CP2.1 — Dealplace taxonomie + listings) → `eb97b7c` (doc hash CP2.1) → `3f1c1a1` (fix parité filtre tags, issu de la revue).
+> ✅ **Revue qualité complète CP2.1 exécutée le 2026-07-11** (l'avertissement « revue à relancer » du 2026-07-10 est levé) : relecture intégrale du diff (migrations, contrat + 2 implémentations de repositories, service, DTOs, assembleur, admin, mobile), builds/tests (`api:build`, `admin:build`, `flutter analyze`, `flutter test` — tous verts), boot des DEUX drivers et sondes croisées (taxonomie, annuaire, filtres, détail, backoffice : résultats identiques). **1 finding de parité corrigé** (`3f1c1a1`) : le filtre `?tags=` avec doublons divergeait entre mock et postgres. **2 points mineurs relevés, en attente d'arbitrage product owner avant correction** (aucun n'est atteignable depuis les écrans livrés) : (a) la création/édition d'annonce accepte une catégorie/sous-catégorie INACTIVE (`resolveTaxonomy` ne vérifie pas `isActive`, contrairement aux tags et au précédent posts « type inactif refusé ») ; (b) la description Swagger de `GET /users/me/listings` promet un `status` dans chaque carte alors que `LISTING_CARD` ne le porte pas (seule la variante admin l'ajoute) — à trancher au CP2.2 (écran « mes annonces »).
 
 ---
 
