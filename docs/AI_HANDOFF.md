@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : Lot 2 — CP2.1 revu/poussé + **CP2.2 implémenté** (Profil Dealplace sans avis — D59/D62, validation product owner à venir) (2026-07-11)._
+_Dernière mise à jour : Lot 2 — CP2.1 revu/poussé + **CP2.2 implémenté** (Profil Dealplace sans avis — D59/D62, validé et poussé) (2026-07-11)._
 
 ---
 
@@ -46,7 +46,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 4 | Posts, feed, interactions sociales, médias | ✅ validé |
 | 5 | **Carte, caméras, notifications, temps réel (WebSocket)** | ✅ validé |
 | 6 | **Backoffice minimal (types de posts, modération, UX, robustesse)** | ✅ validé techniquement |
-| 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **implémenté** (validation product owner à venir) |
+| 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **validé et poussé** (2026-07-11) |
 
 > **Lot 1.5 (2026-07-10) — driver PostgreSQL fonctionnel.** Chantier technique
 > transverse (aucune nouvelle fonctionnalité produit) : les repositories SQL
@@ -59,8 +59,8 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 
 | # | Checkpoint | Statut |
 |---|---|---|
-| **2.1** | **Dealplace : taxonomie biens/services (tables de référence pilotables) + listings (annonces) — annuaire public filtré, CRUD propriétaire, backoffice annonces + taxonomie, parité mock+postgres** | ✅ **implémenté** (validation product owner à venir) |
-| **2.2** | **Profil Dealplace — volet profil SANS avis (D59/D62)** : onglets « Mes infos »/« Profil Dealplace » sur mon profil, écran public `/dealplace/profil/:userId`, « Ce que je recherche » (`users.dealplace_seeking`, migration 0005), sections Services/Biens (`?family=`), placeholders avis/deals | ✅ **implémenté** (validation product owner à venir) |
+| **2.1** | **Dealplace : taxonomie biens/services (tables de référence pilotables) + listings (annonces) — annuaire public filtré, CRUD propriétaire, backoffice annonces + taxonomie, parité mock+postgres** | ✅ **validé et poussé** (2026-07-11) |
+| **2.2** | **Profil Dealplace — volet profil SANS avis (D59/D62)** : onglets « Mes infos »/« Profil Dealplace » sur mon profil, écran public `/dealplace/profil/:userId`, « Ce que je recherche » (`users.dealplace_seeking`, migration 0005), sections Services/Biens (`?family=`), placeholders avis/deals | ✅ **validé et poussé** (2026-07-11) |
 | 2.3 | Conversations 1-to-1 temps réel (gateway WebSocket du Lot 1) | ⏳ à venir |
 | 2.4 | Deals contractuels (machine à états, éléments validables, litiges) **+ avis détaillés** (note + critères, liés à un deal conclu — reportés du CP2.2, D59) — le bouton « Proposer un deal » du mobile est aujourd'hui un **placeholder** | ⏳ à venir |
 | 2.5 | Modération avancée Dealplace / consolidation | ⏳ à venir |
@@ -75,8 +75,8 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 > deals, avis/profil Dealplace, paiement (hors app). Voir §4 (module
 > `dealplace`) et [AI_DECISIONS.md](AI_DECISIONS.md) D51-D58.
 
-**Dernier commit connu : `30581dd`** — `feat: Profil Dealplace — volet profil sans avis (Lot 2 CP2.2)`.
-Branche : `main`. Historique récent : `0cce389` (CP2.1) → `eb97b7c` (doc) → `3f1c1a1` (fix parité tags — revue) → `9398de6` (doc revue) → `043582d` (arbitrages D60/D61) → `7734783` (doc D59-D61) → `30581dd` (CP2.2 — Profil Dealplace, **local, non poussé** : validation product owner attendue).
+**Dernier commit connu : `1a8f0e6`** — `fix: ajoute les annonces Dealplace à l'export RGPD`.
+Branche : `main`. Historique récent : `0cce389` (CP2.1) → `eb97b7c` (doc) → `3f1c1a1` (fix parité tags — revue) → `9398de6` (doc revue) → `043582d` (arbitrages D60/D61) → `7734783` (doc D59-D61) → `30581dd` (**CP2.2 — Profil Dealplace**) → `1ca0a79` (doc CP2.2) → `1a8f0e6` (fix export RGPD : bloc `listings`). CP2.2 **validé par le product owner et poussé le 2026-07-11**.
 > ✅ **Revue qualité complète CP2.1 exécutée le 2026-07-11** (l'avertissement « revue à relancer » du 2026-07-10 est levé) : relecture intégrale du diff (migrations, contrat + 2 implémentations de repositories, service, DTOs, assembleur, admin, mobile), builds/tests (`api:build`, `admin:build`, `flutter analyze`, `flutter test` — tous verts), boot des DEUX drivers et sondes croisées (taxonomie, annuaire, filtres, détail, backoffice : résultats identiques). **1 finding de parité corrigé** (`3f1c1a1`) : le filtre `?tags=` avec doublons divergeait entre mock et postgres. **2 points mineurs relevés puis ARBITRÉS et CORRIGÉS le jour même** (décisions D60/D61) : (a) une catégorie/sous-catégorie INACTIVE refuse désormais toute nouvelle annonce (400 « inconnue ou inactive », les annonces existantes restent affichées et éditables) ; (b) les cartes de `GET /users/me/listings` portent désormais le champ `status` (le propriétaire distingue ses annonces masquées). Vérifiés par sondes runtime (création/édition refusées sur inactif, édition hors taxonomie toujours OK, statut présent).
 
 ---
@@ -191,15 +191,15 @@ annuaire public filtré, CRUD propriétaire, listes de profil, backoffice annonc
 + taxonomie, onglet Dealplace mobile réel. **Parité mock+postgres** maintenue
 (2 nouveaux repositories). Builds/tests passés.
 
-**Le CP2.2 est implémenté et vérifié** (builds/tests verts, sondes croisées
-mock/postgres identiques) mais **NON poussé** : attendre la **validation du
-product owner du CP2.2** (et relancer une revue si demandé), pousser, puis
-**démarrer le CP2.3** (conversations 1-to-1 temps réel — réutiliser la gateway
-socket.io du Lot 1, activer l'icône messagerie du header mobile). Ne pas
-anticiper : deals contractuels **+ avis détaillés** (CP2.4 — « Proposer un
-deal » et les blocs avis/deals du profil restent des placeholders d'ici là),
-modération avancée (CP2.5). **Paiement = hors app** (jamais dans le périmètre
-applicatif).
+**Le CP2.2 est implémenté, vérifié, validé par le product owner et poussé**
+(builds/tests verts, sondes croisées mock/postgres identiques ; l'export RGPD
+inclut désormais les annonces). **Prochaine étape : le CP2.3** — conversations
+1-to-1 temps réel : réutiliser la **gateway socket.io du Lot 1** (ne pas créer
+un second canal temps réel), messagerie privée liée à une annonce, activer
+l'**icône messagerie du header mobile** (badge de non-lus). Ne pas anticiper :
+deals contractuels **+ avis détaillés** (CP2.4 — « Proposer un deal » et les
+blocs avis/deals du profil restent des placeholders d'ici là), modération
+avancée (CP2.5). **Paiement = hors app** (jamais dans le périmètre applicatif).
 Côté base, le chantier de **performance** (compteurs calculés à la lecture →
 triggers/colonnes maintenues à grande échelle) reste ouvert mais non requis.
 
