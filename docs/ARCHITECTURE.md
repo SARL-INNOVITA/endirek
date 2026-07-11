@@ -67,11 +67,12 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `map` | Marqueurs par viewport/bbox, géocodage inverse (adapter), caméras + posts en un appel — `GET /map/overview`, `/map/cameras`, `/map/posts`, `/map/communes` ; seuls les types `showsOnMap` (météo/trafic/danger) sortent sur la carte | 5 ✅ |
 | `cameras` | Caméras météo/trafic (numéro auto, ville déduite par géocodage, statuts) — détail public `GET /cameras/:id` (caméra `active` uniquement) ; gestion backoffice sous `/admin/cameras` | 5 ✅ |
 | `notifications` | Notifications in-app persistées + émission temps réel — lecture `GET /notifications`, `/unread-count`, `PATCH /read-all`, `/:id/read` ; types `comment`/`reply`/`reaction`/`report_handled` créés via un point d'entrée unique (persistance + push socket) | 5 ✅ |
-| `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` (room privée `user:<id>`) et `map.updated` (room `map`) ; fallback polling REST côté client | 5 ✅ |
+| `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` (room privée `user:<id>`), `map.updated` (room `map`) et `message.created` (CP2.3, room du destinataire) ; fallback polling REST côté client | 5 ✅ |
 | `moderation` | Signalements, masquage de posts, modération de commentaires signalés ; le signalement utilisateur de posts (`POST /posts/:id/report`, anti-doublon 409) reste le flux public Lot 1 | 4 + 6 ✅ |
 | `admin` | Endpoints d'administration consommés par le backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires signalés, notifications système dev/mock, **annonces & taxonomie Dealplace (CP2.1)** | 3-6 + CP2.1 ✅ |
 | `dealplace` | **Lot 2 — CP2.1** : taxonomie biens/services (référence pilotable) + annonces (listings). `GET /dealplace/taxonomy` ; annuaire public filtré `GET /dealplace/listings` ; CRUD propriétaire `POST /dealplace/listings`, `GET …/:id` (+ `/slug/:slug`), `PATCH|DELETE …/:id` (soft-delete) ; listes de profil `GET /users/me/listings`, `GET /users/:id/listings`. Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, exportée au module `admin` — comme `FeedPostAssembler`). Règles métier au service (valeur fixe/fourchette, photo obligatoire pour un bien, catégorie `forbidden` refusée, médias `/media/upload`) | Lot 2 CP2.1 ✅ |
-| `modules/_future/*` | Placeholders des checkpoints/lots non démarrés (deals, conversations, pages, news, billing — voir §6) — **TODO** | — |
+| `modules/conversations` | Messagerie 1-to-1 liée aux annonces (CP2.3 — D63) : fils, messages, badge, temps réel via la gateway | 2.3 ✅ |
+| `modules/_future/*` | Placeholders des checkpoints/lots non démarrés (deals, pages, news, billing — voir §6) — **TODO** | — |
 
 > **État réel au checkpoint 7** : le socle est en place — `health`, la couche
 > `database` (driver mock + seed La Réunion), `auth` et `users` (étape 3) —
@@ -290,7 +291,7 @@ le code :
 |---|---|---|
 | Dealplace : taxonomie biens/services + listings | ✅ **CP2.1** | Module réel `modules/dealplace` (remplace `_future/dealplace`) ; onglet Dealplace mobile réel ; tables `listing_*` (migrations 0003/0004) |
 | Avis / profil Dealplace | ⏳ CP2.2 | Profil `users` du Lot 1 à étendre (pas de duplication) |
-| Conversations 1-to-1 temps réel | ⏳ CP2.3 | Gateway WebSocket de l'étape 5 (namespaces réservés) ; `modules/_future/conversations` ; icône messagerie mobile (inactive) |
+| Conversations 1-to-1 temps réel | ✅ CP2.3 (D63) | Gateway WebSocket de l'étape 5 réutilisée (`message.created`) ; module réel `modules/conversations` ; icône messagerie mobile ACTIVE avec badge |
 | Deals contractuels (états, éléments validables, litiges) | ⏳ CP2.4 | `modules/_future/deals` ; machine à états documentée dans [TODO_LOT_2.md](TODO_LOT_2.md) ; bouton « Proposer un deal » (placeholder) |
 | Pages restaurants / entreprises | ⏳ Lot 3 | `page_id` nullable ; `modules/_future/pages` ; profil utilisateur prêt à « posséder » des pages |
 | News IA automatisées | ⏳ Lot 4 | Onglet News placeholder mobile ; `modules/_future/news` |

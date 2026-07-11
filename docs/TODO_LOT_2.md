@@ -60,12 +60,20 @@ applicatif).
       « Deals conclus » du mockup = **placeholders visibles** (pastille
       « Bientôt »), comme « Proposer un deal ».
 
-### 1.4 Conversations 1-to-1 temps réel — ⏳ CP2.3
-- [ ] Messagerie privée liée à un listing/deal, **temps réel via WebSocket**.
-- [ ] S'appuyer sur la **gateway WebSocket posée à l'étape 5** du Lot 1
-      (namespaces réservés) — ne pas créer un second canal temps réel.
-- [ ] Persistance + notifications (adapter push déjà en place).
-- [ ] Activer l'icône messagerie du header mobile (inactive au CP2.1).
+### 1.4 Conversations 1-to-1 temps réel — ✅ CP2.3 (D63)
+- [x] Messagerie privée **liée à une annonce** (une conversation par
+      (annonce, initiateur), « Contacter » du détail, get-or-create + premier
+      message obligatoire), **temps réel via WebSocket**.
+- [x] **Gateway WebSocket de l'étape 5 réutilisée** (event `message.created`
+      vers la room `user:<id>` du destinataire — pas de second canal).
+- [x] Persistance (tables `conversations`/`messages`, migration 0006, parité
+      mock+postgres) ; **badge messagerie dédié** au lieu de notifications
+      in-app par message (anti-flood — D63), polling de repli ~45 s.
+- [x] Icône messagerie du header mobile ACTIVE avec badge ; écrans
+      `/messages` (liste) et `/messages/:id` (fil, bulles, temps réel).
+- [ ] **Reste ouvert (post-CP2.3)** : pièces jointes (adapter média prêt),
+      modération backoffice des messages (CP2.5), pagination profonde des
+      fils très actifs.
 
 ### 1.5 Page de deal contractuelle — ⏳ CP2.4
 - [ ] Machine à états explicite :

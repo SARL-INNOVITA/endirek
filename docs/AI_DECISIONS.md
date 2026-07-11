@@ -159,3 +159,27 @@ _Dernière mise à jour : Lot 2 — CP2.1 (Dealplace : taxonomie + listings) (20
   (pagination à prévoir avec la croissance réelle des profils). Le seed
   pré-remplit « Ce que je recherche » pour 3 propriétaires d'annonces
   (n°4, 11, 13) — le log de boot du seed est INCHANGÉ.
+
+## Lot 2 — CP2.3 : Conversations 1-to-1 (2026-07-11)
+
+- **D63.** **La messagerie 1-to-1 est LIÉE À UNE ANNONCE au CP2.3** (aucun
+  mockup de messagerie n'existe — conception dérivée du TODO « messagerie
+  privée liée à un listing/deal ») : une conversation = **(annonce,
+  initiateur)** UNIQUE, `owner_id` dénormalisé à la création ; point d'entrée
+  unique = bouton **« Contacter »** du détail d'annonce (masqué sur ses
+  propres annonces — sa propre annonce → 400) ; **pas de fil vide** (le
+  démarrage exige le premier message, get-or-create serveur). **Texte seul**
+  (1-2000 caractères), pas de pièces jointes/édition/suppression/groupe.
+  Lecture par **jalons par participant** (`initiator/owner_last_read_at`,
+  NULL = tout non lu), non-lus calculés À LA LECTURE ; seule exception :
+  `last_message_at` posé dans la MÊME transaction que l'INSERT (tri des
+  listes). **Pas de ligne de notification in-app par message** (anti-flood) :
+  badge messagerie DÉDIÉ (`unreadConversations` = nb de fils avec non-lus) +
+  event socket **`message.created`** émis au DESTINATAIRE via la room
+  `user:<id>` de la **gateway du Lot 1** (pas de second canal), fallback
+  polling ~45 s (miroir cloche). Accès strictement réservé aux participants
+  (404 sinon). Une annonce soft-supprimée laisse le fil consultable
+  (référence « Annonce supprimée »). Les deals (CP2.4) s'appuieront sur ces
+  fils pour la négociation. Migration `0006`, 12ᵉ repository
+  (`conversations`), parité mock+postgres, seed : 2 fils / 6 messages (1 fil
+  non lu pour Valérie — démo badge).

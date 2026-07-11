@@ -155,13 +155,15 @@ conversations, deals, avis, pages ou News.
   l'application » — l'intégration lecteur vidéo/webview arrive plus tard.
 - **Pas de présence temps réel** : le « N personnes ici » des mockups n'est
   **pas implémenté** (aucun comptage de présence sur la carte au Lot 1).
-- **Temps réel = notifications + `map.updated` seulement** : le socket
-  (socket.io) ne pousse que `notification.created` et `map.updated`. **Pas
-  de messagerie** ni de présence. Le temps réel est un **confort, pas une
-  source de vérité** : les listes et le badge restent alimentés par REST.
+- **Temps réel = notifications + `map.updated` + messages (CP2.3)** : le
+  socket (socket.io) pousse `notification.created`, `map.updated` et
+  `message.created`. Pas de présence, pas d'indicateur de frappe. Le temps
+  réel est un **confort, pas une source de vérité** : les listes et les
+  badges restent alimentés par REST.
 - **Fallback polling ~45 s** : si le socket est indisponible (réseau, proxy),
-  le client retombe sur `GET /notifications/unread-count` toutes les ~45 s —
-  la fraîcheur des non-lues est donc dégradée hors socket.
+  le client retombe sur `GET /notifications/unread-count` et
+  `GET /conversations/unread-count` toutes les ~45 s — la fraîcheur des
+  non-lus est donc dégradée hors socket.
 - **Clustering client-side** : le regroupement des marqueurs proches se fait
   côté client (grille maison). Suffisant au volume du Lot 1 ; un clustering
   serveur est à prévoir à grande échelle.
@@ -183,12 +185,17 @@ le CP2.2 livre le **volet Profil Dealplace** (SANS avis — périmètre D59).
 Périmètre volontairement restreint — tout le reste du Dealplace arrive aux
 checkpoints suivants :
 
-- **Pas de conversations ni de deals** : le module `dealplace` s'arrête aux
-  annonces et au volet profil. La messagerie 1-to-1 est le **CP2.3**, les deals
-  contractuels le **CP2.4**. Le bouton mobile **« Proposer un deal »** du détail
-  d'annonce est un **PLACEHOLDER** (snackbar « Disponible au prochain lot ») ;
-  l'icône messagerie du header reste **inactive**. Ne pas s'étonner de 404 sur
-  `/conversations`, `/deals`, `/reviews`.
+- **Pas de deals** : les deals contractuels sont le **CP2.4**. Le bouton
+  mobile **« Proposer un deal »** du détail d'annonce est un **PLACEHOLDER**
+  (snackbar « Disponible au prochain lot »). Ne pas s'étonner de 404 sur
+  `/deals`, `/reviews`.
+- **Messagerie (CP2.3) volontairement minimale (D63)** : fils TOUJOURS liés à
+  une annonce (pas de message direct sans annonce), **texte seul** (pas de
+  pièces jointes malgré l'adapter média prêt), pas d'édition/suppression de
+  message, pas de groupe, pas d'indicateur de frappe ni d'accusé par message
+  (jalon de lecture par fil), **pas de modération backoffice des messages**
+  (CP2.5). Pages des fils bornées à 50 messages côté mobile (pagination
+  profonde à brancher avec l'usage réel).
 - **Pas d'avis au CP2.2 (décision D59)** : le volet Profil Dealplace est livré
   SANS note, critères ni historique d'échanges — les avis détaillés sont
   construits AVEC les deals au **CP2.4**. Les blocs avis / « X deals

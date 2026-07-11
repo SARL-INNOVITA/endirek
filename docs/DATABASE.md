@@ -12,7 +12,8 @@ Documentation du schéma de données posé à **l'étape 2 du Lot 1**, étendu a
   recréés) ; **`0004_dealplace_reference.sql`** (CP2.1 : taxonomie de référence,
   rejouable via `ON CONFLICT DO NOTHING`) ; **`0005_dealplace_profile.sql`**
   (CP2.2 : colonne `users.dealplace_seeking`, rejouable via
-  `ADD COLUMN IF NOT EXISTS`).
+  `ADD COLUMN IF NOT EXISTS`) ; **`0006_conversations.sql`** (CP2.3 : tables
+  `conversations` + `messages`, rejouable).
 - **Deux drivers fonctionnels** (comportement observable identique, choisi au
   chargement du module via `DB_DRIVER`) :
   - `DB_DRIVER=mock` (défaut, fallback) — adapter **in-memory TypeScript**
@@ -405,6 +406,42 @@ Index : `listing_media_listing_id_idx`.
 | — | PK composite `(listing_id, tag_slug)` |
 
 Index : `listing_tag_map_tag_slug_idx`.
+
+## 2 ter. Tables conversations — CP2.3 (2 tables, migration 0006)
+
+Messagerie 1-to-1 **liée à une annonce** (décision D63). Créées par
+`0006_conversations.sql` (rejouable). Les non-lus sont calculés **à la
+lecture** via les jalons `*_last_read_at` ; seule exception assumée :
+`last_message_at`, horodatage posé dans la MÊME transaction que l'INSERT du
+message (tri des listes, jamais divergent).
+
+### 2t.1 `conversations`
+
+| Colonne | Type / contrainte |
+|---|---|
+| `id` | `uuid` PK `DEFAULT gen_random_uuid()` |
+| `listing_id` | `uuid NOT NULL REFERENCES listings(id)` — le fil est TOUJOURS lié à une annonce au CP2.3 |
+| `initiator_id` | `uuid NOT NULL REFERENCES users(id)` — celui qui contacte |
+| `owner_id` | `uuid NOT NULL REFERENCES users(id)` — propriétaire de l'annonce (dénormalisé à la création) |
+| `initiator_last_read_at`, `owner_last_read_at` | `timestamptz`, nullables — jalons de lecture par participant (NULL = tout est non lu) |
+| `last_message_at` | `timestamptz`, nullable — posé à CHAQUE message (même transaction), tri des listes |
+| `created_at`, `updated_at` | `timestamptz`, trigger `set_updated_at()` |
+| — | `CHECK (initiator_id <> owner_id)` ; `UNIQUE (listing_id, initiator_id)` |
+
+Index : `conversations_initiator_id_idx`, `conversations_owner_id_idx`,
+`conversations_last_message_at_idx` (DESC).
+
+### 2t.2 `messages`
+
+| Colonne | Type / contrainte |
+|---|---|
+| `id` | `uuid` PK `DEFAULT gen_random_uuid()` |
+| `conversation_id` | `uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE` |
+| `sender_id` | `uuid NOT NULL REFERENCES users(id)` |
+| `body` | `text NOT NULL`, `CHECK char_length BETWEEN 1 AND 2000` — texte seul au CP2.3 |
+| `created_at` | `timestamptz NOT NULL DEFAULT now()` |
+
+Index : `messages_conversation_created_idx` (`conversation_id, created_at DESC`).
 
 ---
 
