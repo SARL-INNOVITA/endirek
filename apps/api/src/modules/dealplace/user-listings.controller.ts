@@ -11,7 +11,11 @@ import {
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
-import { DealplaceService, PagedListingCards } from './dealplace.service';
+import {
+  DealplaceService,
+  PagedListingCards,
+  PagedOwnerListingCards,
+} from './dealplace.service';
 
 /**
  * Listes d'annonces d'un profil — routes /users/... déclarées ICI (le module
@@ -33,12 +37,15 @@ export class UserListingsController {
       'Le statut figure dans chaque carte — un propriétaire voit ses annonces ' +
       'masquées par la modération.',
   })
-  @ApiResponse({ status: 200, description: '{ items: LISTING_CARD[], total }' })
+  @ApiResponse({
+    status: 200,
+    description: '{ items: (LISTING_CARD + status)[], total }',
+  })
   @ApiResponse({ status: 401, description: 'Authentification requise' })
   listMyListings(
     @CurrentUser() user: AuthenticatedUser,
     @Query() pagination: PaginationQueryDto,
-  ): Promise<PagedListingCards> {
+  ): Promise<PagedOwnerListingCards> {
     return this.dealplaceService.listMine(
       user,
       pagination.limit,

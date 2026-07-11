@@ -62,6 +62,19 @@ export interface PagedListingCards {
   total: number;
 }
 
+/** LISTING_CARD enrichi du statut — servi UNIQUEMENT au propriétaire
+ * (GET /users/me/listings) pour distinguer ses annonces masquées par la
+ * modération (même enrichissement que la liste backoffice). */
+export interface OwnerListingCard extends ListingCardView {
+  status: ListingStatus;
+}
+
+/** Liste paginée de cartes du propriétaire (LISTING_CARD + status). */
+export interface PagedOwnerListingCards {
+  items: OwnerListingCard[];
+  total: number;
+}
+
 /**
  * Service Dealplace (CP2.1) — taxonomie + annonces (listings).
  *
@@ -333,18 +346,26 @@ export class DealplaceService {
     return this.pageOwnerListings(ownerId, ['active'], limit, offset);
   }
 
-  /** Mes annonces 'active' + 'hidden' (GET /users/me/listings). */
+  /** Mes annonces 'active' + 'hidden' (GET /users/me/listings) — cartes
+   * enrichies du STATUT : le propriétaire distingue ses annonces masquées
+   * (le repository préserve l'ordre : statut ré-associé par index, comme au
+   * backoffice). */
   async listMine(
     viewer: AuthenticatedUser,
     limit: number,
     offset: number,
-  ): Promise<PagedListingCards> {
-    return this.pageOwnerListings(
-      viewer.userId,
-      ['active', 'hidden'],
+  ): Promise<PagedOwnerListingCards> {
+    const page = await this.listingsRepository.listByOwner(viewer.userId, {
+      statuses: ['active', 'hidden'],
       limit,
       offset,
-    );
+    });
+    const cards = await this.assembler.assembleCards(page.items);
+    const items: OwnerListingCard[] = cards.map((card, index) => ({
+      ...card,
+      status: page.items[index].status,
+    }));
+    return { items, total: page.total };
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -397,9 +418,12 @@ export class DealplaceService {
 
   /**
    * Résout et vérifie la cohérence catégorie ↔ sous-catégorie ↔ famille :
-   * - la catégorie existe (400 sinon) ;
+   * - la catégorie existe ET est active (400 sinon — comme les types de posts
+   *   du Lot 1 et les tags : une entrée désactivée au backoffice n'accepte
+   *   plus de NOUVELLE annonce ; les annonces existantes restent affichées) ;
    * - sa famille correspond au type d'annonce attendu (400 sinon) ;
-   * - la sous-catégorie existe ET appartient à cette catégorie (400 sinon).
+   * - la sous-catégorie existe, est active ET appartient à cette catégorie
+   *   (400 sinon).
    */
   private async resolveTaxonomy(
     categorySlug: string,
@@ -407,9 +431,9 @@ export class DealplaceService {
     listingType: 'good' | 'service',
   ): Promise<{ category: ListingCategory; subcategory: ListingSubcategory }> {
     const category = await this.taxonomyRepository.findCategory(categorySlug);
-    if (!category) {
+    if (!category || !category.isActive) {
       throw new BadRequestException(
-        `Catégorie inconnue : « ${categorySlug} »`,
+        `Catégorie inconnue ou inactive : « ${categorySlug} »`,
       );
     }
     if (category.family !== listingType) {
@@ -419,9 +443,9 @@ export class DealplaceService {
     }
     const subcategory =
       await this.taxonomyRepository.findSubcategory(subcategorySlug);
-    if (!subcategory) {
+    if (!subcategory || !subcategory.isActive) {
       throw new BadRequestException(
-        `Sous-catégorie inconnue : « ${subcategorySlug} »`,
+        `Sous-catégorie inconnue ou inactive : « ${subcategorySlug} »`,
       );
     }
     if (subcategory.categorySlug !== category.slug) {

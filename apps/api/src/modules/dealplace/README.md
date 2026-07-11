@@ -23,7 +23,7 @@ conversations, deals contractuels, avis/profil Dealplace (CP2.2+), paiement
 | GET | `/api/v1/dealplace/listings/:id` | Détail — `deleted` → 404 ; `hidden` → 404 sauf propriétaire/moderator/super_admin |
 | PATCH | `/api/v1/dealplace/listings/:id` | title/description/value*/category/subcategory/exchangePrefs/externalLinks/tags — PROPRIÉTAIRE uniquement |
 | DELETE | `/api/v1/dealplace/listings/:id` | Soft-delete (`status='deleted'`), PROPRIÉTAIRE uniquement → 204 |
-| GET | `/api/v1/users/me/listings` | Mes annonces `active` + `hidden` (statut jamais `deleted`) |
+| GET | `/api/v1/users/me/listings` | Mes annonces `active` + `hidden` (statut jamais `deleted`) — cartes enrichies du champ `status` (le propriétaire distingue ses annonces masquées) |
 | GET | `/api/v1/users/:id/listings` | Annonces `active` d'un profil visible (404 si compte absent/supprimé/suspendu) |
 
 Le **backoffice** Dealplace (liste tous statuts + PATCH status, gestion de la
@@ -39,9 +39,12 @@ taxonomie) vit dans le module `admin` (`/api/v1/admin/dealplace/...`) — voir
 - **commune du référentiel** (12 communes de La Réunion,
   `database/seed/communes.ts`) — l'adresse exacte n'est **jamais** stockée ;
   `location` = centre de la commune (400 si commune inconnue) ;
-- **catégorie + sous-catégorie cohérentes** : la catégorie existe, sa famille
-  correspond au type d'annonce, la sous-catégorie appartient à la catégorie —
-  repli `autres-<cat>` autorisé (400 sinon) ;
+- **catégorie + sous-catégorie cohérentes et ACTIVES** : la catégorie existe
+  et est active, sa famille correspond au type d'annonce, la sous-catégorie
+  est active et appartient à la catégorie — repli `autres-<cat>` autorisé
+  (400 sinon). Une entrée désactivée au backoffice n'accepte plus de nouvelle
+  annonce (comme les types de posts) ; les annonces existantes restent
+  affichées ;
 - **catégorie `forbidden`** → création REFUSÉE (400) ; **`sensitive`** →
   autorisée mais marquée (visible via le filtre `flaggedOnly` du backoffice) ;
 - **`exchangePrefs` non vide** (sous-ensemble de `goods/services/money/open`) ;
@@ -67,7 +70,8 @@ la ligne reste pour l'audit).
 - **`LISTING_CARD`** (listes) : sous-ensemble `{ id, ownerId, owner,
   listingType, title, category:{slug,labelFr,family}, subcategory, valueKind,
   valueMin, valueMax, currency, city, coverMedia (1er média ou null), tags,
-  urlSlug, createdAt }`.
+  urlSlug, createdAt }`. Les listes du PROPRIÉTAIRE (`/users/me/listings`) et
+  du BACKOFFICE ajoutent `status` à chaque carte.
 
 Les deux formes sont projetées par `common/mappers/listing.mapper.ts` (source
 unique, la forme AUTEUR est mutualisée avec `post.mapper.ts`) et assemblées
