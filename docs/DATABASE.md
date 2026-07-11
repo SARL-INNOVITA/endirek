@@ -13,7 +13,8 @@ Documentation du schéma de données posé à **l'étape 2 du Lot 1**, étendu a
   rejouable via `ON CONFLICT DO NOTHING`) ; **`0005_dealplace_profile.sql`**
   (CP2.2 : colonne `users.dealplace_seeking`, rejouable via
   `ADD COLUMN IF NOT EXISTS`) ; **`0006_conversations.sql`** (CP2.3 : tables
-  `conversations` + `messages`, rejouable).
+  `conversations` + `messages`, rejouable) ; **`0007_deals.sql`** (CP2.4 :
+  6 tables deals + avis, rejouable).
 - **Deux drivers fonctionnels** (comportement observable identique, choisi au
   chargement du module via `DB_DRIVER`) :
   - `DB_DRIVER=mock` (défaut, fallback) — adapter **in-memory TypeScript**
@@ -442,6 +443,21 @@ Index : `conversations_initiator_id_idx`, `conversations_owner_id_idx`,
 | `created_at` | `timestamptz NOT NULL DEFAULT now()` |
 
 Index : `messages_conversation_created_idx` (`conversation_id, created_at DESC`).
+
+## 2 quater. Tables deals — CP2.4 (6 tables, migration 0007)
+
+Deals contractuels + avis (décision D64, mockups 05/07). Créées par
+`0007_deals.sql` (rejouable). Badges d'éléments, stepper et note globale
+d'avis **dérivés à la lecture** — rien de stocké.
+
+| Table | Rôle | Points clés |
+|---|---|---|
+| `deals` | Contrat d'échange lié à une annonce | `deal_number` (séquence, « Deal 345 »), `conversation_id` nullable, `status CHECK (proposed/active/completed/declined/cancelled/disputed)`, `cancellation_requested_by` (annulation 2 temps), `disputed_by`+`dispute_reason`, `CHECK proposer <> recipient` |
+| `deal_items` | Élément fourni par UNE partie | `provider_id`, `kind CHECK (service/good/money)`, `value >= 0` (euros entiers, indicatif), `ON DELETE CASCADE` du deal |
+| `deal_item_steps` | Sous-élément validable (≥ 1 par élément) | `honored_at` (fournisseur), `validated_at` (contrepartie), `CHECK validated ⇒ honored` |
+| `deal_adjustments` | Négociation en phase active | `kind CHECK (add/modify/remove)`, `item_id ON DELETE SET NULL`, `payload jsonb` appliqué à l'acceptation, `status CHECK (pending/accepted/rejected)` |
+| `deal_notes` | Timeline « Suivi du deal » | `body CHECK 1..1000` |
+| `deal_reviews` | Avis sur deal CONCLU | 3 critères `CHECK 1..5`, `UNIQUE (deal_id, reviewer_id)`, `CHECK reviewer <> reviewee`, note globale = moyenne à la lecture |
 
 ---
 

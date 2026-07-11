@@ -5,12 +5,12 @@ Réunionnais, selon le PRD global — dossier `01_PRD`). Il est exécuté par
 checkpoints : **CP2.1** (taxonomie + listings) est **livré** ; ce fichier suit
 l'avancement et rappelle les points d'ancrage déjà posés dans le socle.
 
-**État (2026-07-11)** : ✅ **CP2.1** (taxonomie + listings, revu et poussé) et
-✅ **CP2.2** (volet Profil Dealplace SANS avis — D59) implémentés — §1.1, §1.2
-et §1.3 faits. Restent : conversations 1-to-1 temps réel (**CP2.3**), deals
-contractuels **+ avis détaillés** (**CP2.4**), modération avancée /
-consolidation (**CP2.5**). **Paiement = hors app** (jamais dans le périmètre
-applicatif).
+**État (2026-07-11)** : ✅ **CP2.1** (taxonomie + listings), ✅ **CP2.2**
+(profil sans avis — D59), ✅ **CP2.3** (conversations 1-to-1 — D63) validés et
+poussés ; ✅ **CP2.4** (deals contractuels + avis — D64) implémenté — §1.1 à
+§1.5 faits. Reste : modération avancée / consolidation (**CP2.5** — dont
+arbitrage des litiges, modération messages/deals, signalement d'annonce).
+**Paiement = hors app** (jamais dans le périmètre applicatif).
 
 ---
 
@@ -75,23 +75,25 @@ applicatif).
       modération backoffice des messages (CP2.5), pagination profonde des
       fils très actifs.
 
-### 1.5 Page de deal contractuelle — ⏳ CP2.4
-- [ ] Machine à états explicite :
-      `BROUILLON → … → CONCLU` (états intermédiaires à préciser avec le PRD :
-      proposition, négociation, accepté, en cours…), plus les sorties
-      **annulation** et **litige**.
-- [ ] **Éléments et sous-éléments validables** : chaque partie coche ce qui
-      est convenu/livré ; le deal n'avance que si les deux parties valident.
-- [ ] **Ajustements** en cours de deal (modification d'éléments, contre-
-      propositions) avec historique.
-- [ ] **Annulation / litige** : flux d'annulation amiable + ouverture de
-      litige (l'arbitrage **litige IA** est prévu architecturalement mais
-      reste hors périmètre — voir [MOCKED_SERVICES.md](MOCKED_SERVICES.md) §2).
-- [ ] **Avis détaillés** (reportés du CP2.2 — décision D59) : note globale /5
-      + critères **Honnêteté et fiabilité / Conformité à la description /
-      Amabilité et courtoisie** + commentaire, liés à un **deal conclu**
-      (mockup 05) ; alimente la note globale et le compteur « X deals
-      réalisés » du profil Dealplace.
+### 1.5 Page de deal contractuelle — ✅ CP2.4 (D64)
+- [x] Machine à états explicite : `proposed → active → completed`
+      (conclusion AUTOMATIQUE quand les deux parties ont tout validé), plus
+      les sorties **declined**, **cancelled** (retrait de proposition OU
+      annulation amiable EN DEUX TEMPS) et **disputed** (litige unilatéral —
+      TERMINAL au CP2.4, arbitrage à venir avec la modération avancée / IA,
+      voir [MOCKED_SERVICES.md](MOCKED_SERVICES.md) §2).
+- [x] **Éléments et sous-éléments validables** : le fournisseur « honore »,
+      la contrepartie « valide » — le deal n'avance que si les deux parties
+      valident ; badges d'éléments et stepper 5 étapes DÉRIVÉS.
+- [x] **Ajustements** en cours de deal (add/modify/remove d'éléments,
+      payload appliqué à l'acceptation) avec historique tracé + notes de
+      suivi (timeline mockup 07).
+- [x] **Avis détaillés** (D59) : 3 critères 1-5 + commentaire sur deal
+      CONCLU, un par partie ; profil Dealplace ACTIVÉ (note globale, barres
+      des critères, « X deals réalisés », « Deals conclus », derniers avis).
+- [ ] **Reste ouvert (post-CP2.4)** : arbitrage des litiges (backoffice /
+      IA), modération backoffice des deals, échéance avec rappels,
+      modification des sous-éléments par ajustement.
 
 ---
 

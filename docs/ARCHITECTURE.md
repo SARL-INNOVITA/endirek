@@ -72,7 +72,8 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `admin` | Endpoints d'administration consommés par le backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires signalés, notifications système dev/mock, **annonces & taxonomie Dealplace (CP2.1)** | 3-6 + CP2.1 ✅ |
 | `dealplace` | **Lot 2 — CP2.1** : taxonomie biens/services (référence pilotable) + annonces (listings). `GET /dealplace/taxonomy` ; annuaire public filtré `GET /dealplace/listings` ; CRUD propriétaire `POST /dealplace/listings`, `GET …/:id` (+ `/slug/:slug`), `PATCH|DELETE …/:id` (soft-delete) ; listes de profil `GET /users/me/listings`, `GET /users/:id/listings`. Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, exportée au module `admin` — comme `FeedPostAssembler`). Règles métier au service (valeur fixe/fourchette, photo obligatoire pour un bien, catégorie `forbidden` refusée, médias `/media/upload`) | Lot 2 CP2.1 ✅ |
 | `modules/conversations` | Messagerie 1-to-1 liée aux annonces (CP2.3 — D63) : fils, messages, badge, temps réel via la gateway | 2.3 ✅ |
-| `modules/_future/*` | Placeholders des checkpoints/lots non démarrés (deals, pages, news, billing — voir §6) — **TODO** | — |
+| `modules/deals` | Deals contractuels + avis (CP2.4 — D64) : machine à états, éléments validables, ajustements, litiges, stats du profil | 2.4 ✅ |
+| `modules/_future/*` | Placeholders des checkpoints/lots non démarrés (pages, news, billing — voir §6) — **TODO** | — |
 
 > **État réel au checkpoint 7** : le socle est en place — `health`, la couche
 > `database` (driver mock + seed La Réunion), `auth` et `users` (étape 3) —

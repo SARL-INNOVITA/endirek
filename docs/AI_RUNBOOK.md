@@ -3,7 +3,7 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : Lot 2 — CP2.3 (conversations 1-to-1 temps réel) (2026-07-11)._
+_Dernière mise à jour : Lot 2 — CP2.4 (deals contractuels + avis) (2026-07-11)._
 
 Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. `DB_DRIVER=mock` reste le défaut et le fallback API ; **`DB_DRIVER=postgres` est fonctionnel** (Docker requis — voir §8 bis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
@@ -76,7 +76,7 @@ flutter test                         # doit afficher "All tests passed!"
 | `http://localhost:3001/docs` | Documentation Swagger (OpenAPI) de toutes les routes |
 | `http://localhost:3001/api/v1/...` | Routes métier (préfixe global, JWT requis sauf `@Public`) |
 | `http://localhost:3001/uploads/...` | Médias uploadés (statique, public) |
-| `ws://localhost:3001` (socket.io) | Temps réel (namespace par défaut, hors préfixe) — auth au handshake, events `notification.created` / `map.updated` / `message.created` (CP2.3) |
+| `ws://localhost:3001` (socket.io) | Temps réel (namespace par défaut, hors préfixe) — auth au handshake, events `notification.created` / `map.updated` / `message.created` (CP2.3) / `deal.updated` (CP2.4) |
 
 Guide de démonstration Lot 1 : [DEMO_LOT_1.md](DEMO_LOT_1.md).
 
@@ -266,10 +266,56 @@ badge messagerie et le fil ouvert se mettent à jour en direct ; sans socket,
 polling de repli ~45 s. Comptes de démo : `valerie.grondin@` /
 `kevin.dijoux@` / `david.payet@` `endirek.invalid` (fils seed).
 
+## 4 septies. Vérifier les deals (Lot 2 — CP2.4)
+
+Accès STRICTEMENT réservé aux deux parties (404 sinon). Parité mock/postgres
+(migration `0007`). Seed : **Deal 1 ACTIF** (Valérie ⇄ Kévin, panier péi —
+badges d'éléments variés, 1 ajustement pending, 1 note) et **Deal 2 CONCLU**
+(David ⇄ Valérie, canapé — avis croisés ⇒ profils Dealplace alimentés).
+
+```bash
+# Mes deals (cartes) / page de deal complète / deal ouvert d'un fil
+curl "http://localhost:3001/api/v1/deals" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/deals/<DEAL_ID>" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/deals/conversation/<CONV_ID>" -H "Authorization: Bearer <TOKEN>"
+
+# Proposer un deal (annonce active, JAMAIS la sienne ; 409 si un deal est
+# déjà ouvert sur cette annonce avec ce partenaire)
+curl -X POST "http://localhost:3001/api/v1/deals" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"listingId":"<LISTING_ID>","items":[{"kind":"service","title":"Initiation parapente","value":50}]}'
+
+# Cycle : accepter (destinataire), honorer (fournisseur du step), valider
+# (contrepartie) — le deal se CONCLUT AUTOMATIQUEMENT quand tout est validé
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/accept" -H "Authorization: Bearer <TOKEN>"
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/steps/<STEP_ID>/honor" -H "Authorization: Bearer <TOKEN>"
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/steps/<STEP_ID>/validate" -H "Authorization: Bearer <TOKEN>"
+
+# Ajustements / notes / annulation (2 temps) / litige
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/adjustments" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"kind":"add","item":{"kind":"good","title":"Pot de miel","value":8},"description":"Un pot en bonus"}'
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/adjustments/<ADJ_ID>/accept" -H "Authorization: Bearer <TOKEN_AUTRE>"
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/cancellation" -H "Authorization: Bearer <TOKEN>"
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/dispute" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"reason":"Créneau annulé trois fois sans explication."}'
+
+# Avis (deal CONCLU, une seule fois) + stats du profil Dealplace (mockup 05)
+curl -X POST "http://localhost:3001/api/v1/deals/<ID>/review" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"ratingHonesty":5,"ratingConformity":4,"ratingKindness":5,"comment":"Top échange !"}'
+curl "http://localhost:3001/api/v1/users/<USER_ID>/deal-profile" -H "Authorization: Bearer <TOKEN>"
+```
+
+Rappels : notifications in-app type `deal` sur les JALONS uniquement ; event
+socket `deal.updated` pour la page ouverte ; litige TERMINAL (modération
+avancée = CP2.5) ; valeur des éléments INDICATIVE (paiement hors app).
+
 ## 5. Log de boot attendu (seed mock)
 
 ```
-Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags), 2 conversations (6 messages)
+Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags), 2 conversations (6 messages), 2 deals (2 avis)
 ```
 Le suffixe Dealplace (annonces + taxonomie) a été ajouté au CP2.1. Si ce log
 change après une modification non liée au seed, c'est un signal de régression à
@@ -336,7 +382,7 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
 
 Migrations (première base ou après `docker compose -f infra/docker-compose.yml down -v`) —
 Lot 1 (`0001`, `0002`) **puis** Dealplace CP2.1 (`0003`, `0004`) **puis**
-profil Dealplace CP2.2 (`0005`) **puis** conversations CP2.3 (`0006`) :
+profil Dealplace CP2.2 (`0005`), conversations CP2.3 (`0006`) **puis** deals CP2.4 (`0007`) :
 
 ```bash
 docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
@@ -345,6 +391,7 @@ docker cp apps/api/db/migrations/0003_dealplace_listings.sql endirek-postgres:/t
 docker cp apps/api/db/migrations/0004_dealplace_reference.sql endirek-postgres:/tmp/0004_dealplace_reference.sql
 docker cp apps/api/db/migrations/0005_dealplace_profile.sql endirek-postgres:/tmp/0005_dealplace_profile.sql
 docker cp apps/api/db/migrations/0006_conversations.sql endirek-postgres:/tmp/0006_conversations.sql
+docker cp apps/api/db/migrations/0007_deals.sql endirek-postgres:/tmp/0007_deals.sql
 
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
@@ -358,6 +405,8 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0005_dealplace_profile.sql
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0006_conversations.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0007_deals.sql
 ```
 
 État validé : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables
@@ -366,11 +415,12 @@ ajoute 6 tables Dealplace (`listing_categories`, `listing_subcategories`,
 `listing_tags`, `listings`, `listing_media`, `listing_tag_map`) + la taxonomie
 de référence (20 catégories, sous-catégories, ~10 tags) ; CP2.2 ajoute la
 colonne `users.dealplace_seeking` (migration `0005`, rejouable) ; CP2.3 ajoute
-les tables `conversations` et `messages` (migration `0006`, rejouable).
+les tables `conversations` et `messages` (migration `0006`, rejouable) ; CP2.4
+ajoute les 6 tables deals + avis (migration `0007`, rejouable).
 
 > Les migrations sont aussi applicables via le raccourci `npm run db:migrate`
 > (copie + `psql -f` de **tout** le dossier `migrations/` dans l'ordre
-> lexicographique — `0001`→`0006` — dans le conteneur, voir §8 bis).
+> lexicographique — `0001`→`0007` — dans le conteneur, voir §8 bis).
 > **⚠️ Uniquement sur une base VIERGE** : `0001` n'est pas rejouable
 > (`CREATE TABLE` sans `IF NOT EXISTS`) — sur une base déjà migrée, appliquer
 > uniquement les NOUVELLES migrations via `docker cp` + `psql -f` (ci-dessus).

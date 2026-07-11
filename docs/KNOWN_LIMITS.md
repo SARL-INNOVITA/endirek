@@ -185,10 +185,13 @@ le CP2.2 livre le **volet Profil Dealplace** (SANS avis — périmètre D59).
 Périmètre volontairement restreint — tout le reste du Dealplace arrive aux
 checkpoints suivants :
 
-- **Pas de deals** : les deals contractuels sont le **CP2.4**. Le bouton
-  mobile **« Proposer un deal »** du détail d'annonce est un **PLACEHOLDER**
-  (snackbar « Disponible au prochain lot »). Ne pas s'étonner de 404 sur
-  `/deals`, `/reviews`.
+- **Deals (CP2.4) volontairement bornés (D64)** : le **litige est TERMINAL**
+  — personne ne peut le trancher avant la modération avancée (CP2.5+,
+  arbitrage IA prévu architecturalement) ; les ajustements ne modifient pas
+  les SOUS-ÉLÉMENTS (seulement nature/titre/description/valeur des
+  éléments) ; l'échéance est indicative (pas de rappel) ; **aucune modération
+  backoffice des deals** ; la **valeur des éléments est indicative** — le
+  paiement se règle hors app ; un avis n'est ni modifiable ni supprimable.
 - **Messagerie (CP2.3) volontairement minimale (D63)** : fils TOUJOURS liés à
   une annonce (pas de message direct sans annonce), **texte seul** (pas de
   pièces jointes malgré l'adapter média prêt), pas d'édition/suppression de

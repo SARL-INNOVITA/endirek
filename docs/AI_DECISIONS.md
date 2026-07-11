@@ -183,3 +183,38 @@ _Dernière mise à jour : Lot 2 — CP2.1 (Dealplace : taxonomie + listings) (20
   fils pour la négociation. Migration `0006`, 12ᵉ repository
   (`conversations`), parité mock+postgres, seed : 2 fils / 6 messages (1 fil
   non lu pour Valérie — démo badge).
+
+## Lot 2 — CP2.4 : Deals contractuels + avis (2026-07-11)
+
+- **D64.** **Machine à états des deals** (mockup 07, TODO §1.5) :
+  `proposed → active` (accepté par le DESTINATAIRE) ou `declined`/`cancelled`
+  (retiré par le proposeur) ; `active → completed` **AUTOMATIQUEMENT quand
+  tous les sous-éléments des deux parties sont validés**, ou `cancelled`
+  (annulation amiable EN DEUX TEMPS : demandée puis confirmée par l'autre) ou
+  `disputed` (unilatéral, motif requis — état TERMINAL au CP2.4, l'arbitrage
+  arrive avec la modération avancée). Le **stepper 5 étapes** du mockup
+  (Discussion→Accord→En cours→Validations→Conclu) est **DÉRIVÉ** (statut +
+  état des steps), jamais stocké. **Éléments** (`deal_items` : fournisseur ∈
+  parties, nature service/bien/paiement, valeur estimée INDICATIVE — paiement
+  hors app) décomposés en **sous-éléments** (`deal_item_steps`, ≥ 1 par
+  élément — step automatique portant le titre sinon) : le FOURNISSEUR
+  « honore », la CONTREPARTIE « valide » (jamais sans honoré), badges
+  d'éléments dérivés. En phase `proposed`, seul le PROPOSEUR édite (l'accord
+  FIGE) ; en `active`, toute modification passe par un **ajustement**
+  (add/modify/remove, payload structuré APPLIQUÉ transactionnellement à
+  l'acceptation par la contrepartie). **Notes de suivi** utilisateur (deal en
+  cours). **Avis** (D59) : deal `completed` uniquement, un par partie, non
+  modifiable — 3 critères 1-5 (Honnêteté et fiabilité / Conformité à la
+  description / Amabilité et courtoisie), note globale = moyenne ARRONDIE à
+  2 décimales calculée à la lecture (les deux drivers arrondissent
+  identiquement). **Un seul deal ouvert par (annonce, paire)** (409) ;
+  conversation liée créée avec message automatique si absente ; notifications
+  in-app type **'deal'** sur les jalons uniquement (proposition, acceptation,
+  refus, annulation demandée/confirmée, litige, conclusion, avis reçu — pas
+  de notif par step/note/ajustement, l'event `deal.updated` rafraîchit la
+  page ouverte). Numéro lisible « Deal N » (séquence, resynchronisée après le
+  seed). `GET /users/:id/deal-profile` ACTIVE le mockup 05 (stats, derniers
+  avis, deals conclus). Migration `0007` (6 tables), 13ᵉ repository. Entrées
+  mobiles : « Proposer un deal » du détail (non-propriétaire), action du fil
+  de conversation (les deux parties, `?recipient=`), liste « Mes deals »
+  depuis le profil.
