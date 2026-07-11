@@ -23,7 +23,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | Lot | Contenu | Statut |
 |---|---|---|
 | **Lot 1 — Socle + Live Local** | Auth, profils, follows, feed social (5 types de posts), interactions, carte météo/trafic, caméras, notifications, backoffice minimal, préparation démo | **STABILISÉ — validation product owner attendue** |
-| **Lot 2 — Dealplace** | Marketplace biens/services, annonces, conversations 1-to-1 temps réel, deals contractuels (états, éléments validables, litiges) | **DÉMARRÉ — CP2.1 livré** (taxonomie + listings) ; conversations/deals/avis à venir (CP2.2-2.5) |
+| **Lot 2 — Dealplace** | Marketplace biens/services, annonces, conversations 1-to-1 temps réel, deals contractuels (états, éléments validables, litiges) | **EN COURS — CP2.1 (taxonomie + listings) et CP2.2 (profil sans avis) validés et poussés** ; conversations (CP2.3), deals + avis (CP2.4), modération (CP2.5) à venir |
 | **Lot 3 — Pages restaurants / entreprises** | Pages pro, menus programmés, cartes, offres, événements | Non commencé — anticipé |
 | **Lot 4 — News automatisées IA** | Harnais IA supervisé, sources, génération d'articles, page News | Non commencé — anticipé |
 
@@ -46,7 +46,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | 4 | Posts, feed, interactions sociales, médias | ✅ validé |
 | 5 | **Carte, caméras, notifications, temps réel (WebSocket)** | ✅ validé |
 | 6 | **Backoffice minimal (types de posts, modération, UX, robustesse)** | ✅ validé techniquement |
-| 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **validé et poussé** (2026-07-11) |
+| 7 | **Audit final, stabilisation, polish, préparation démo** | ✅ **implémenté** (validation product owner à venir) |
 
 > **Lot 1.5 (2026-07-10) — driver PostgreSQL fonctionnel.** Chantier technique
 > transverse (aucune nouvelle fonctionnalité produit) : les repositories SQL
