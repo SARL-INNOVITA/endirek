@@ -137,3 +137,25 @@ _Dernière mise à jour : Lot 2 — CP2.1 (Dealplace : taxonomie + listings) (20
   (comme la liste backoffice) : le propriétaire distingue ses annonces
   masquées par la modération. La forme LISTING_CARD de base (annuaire, profil
   public) reste SANS statut.
+
+## Lot 2 — CP2.2 : Profil Dealplace (2026-07-11)
+
+- **D62.** **Le volet Profil Dealplace (CP2.2) = extension du profil `users`,
+  pas de table dédiée** : colonne `users.dealplace_seeking` (« Ce que je
+  recherche », texte PUBLIC nullable, 500 caractères max au service — aligné
+  sur `bio`), migration `0005_dealplace_profile.sql` (rejouable), éditée via
+  le `PATCH /users/me/profile` existant (chaîne vide = effacement → null),
+  exposée dans les DEUX formes de profil (complet + public). Les listes
+  d'annonces de profil (`/users/me/listings`, `/users/:id/listings`) gagnent
+  un filtre **`?family=good|service`** (sections Services / Biens). Côté
+  mobile : **onglets « Mes infos » / « Profil Dealplace »** sur mon profil
+  (mockups 04/05) et **écran public `/dealplace/profil/:userId`** (en-tête
+  avatar/nom/commune/bio, ouvert depuis le bloc vendeur du détail d'annonce) ;
+  vue partagée entre les deux surfaces. Blocs avis (note globale + critères
+  Honnêteté et fiabilité / Conformité à la description / Amabilité et
+  courtoisie), « X deals réalisés » et « Deals conclus » = **placeholders
+  visibles** (D59) avec pastille « Bientôt » ; bottom sheet statique
+  « Comment ça marche ? ». Sections d'annonces limitées à 50 par famille
+  (pagination à prévoir avec la croissance réelle des profils). Le seed
+  pré-remplit « Ce que je recherche » pour 3 propriétaires d'annonces
+  (n°4, 11, 13) — le log de boot du seed est INCHANGÉ.

@@ -10,7 +10,9 @@ Documentation du schéma de données posé à **l'étape 2 du Lot 1**, étendu a
   `ON CONFLICT DO NOTHING`) ; **`0003_dealplace_listings.sql`** (CP2.1 : tables
   Dealplace, rejouable via `CREATE TABLE/INDEX IF NOT EXISTS` + triggers
   recréés) ; **`0004_dealplace_reference.sql`** (CP2.1 : taxonomie de référence,
-  rejouable via `ON CONFLICT DO NOTHING`).
+  rejouable via `ON CONFLICT DO NOTHING`) ; **`0005_dealplace_profile.sql`**
+  (CP2.2 : colonne `users.dealplace_seeking`, rejouable via
+  `ADD COLUMN IF NOT EXISTS`).
 - **Deux drivers fonctionnels** (comportement observable identique, choisi au
   chargement du module via `DB_DRIVER`) :
   - `DB_DRIVER=mock` (défaut, fallback) — adapter **in-memory TypeScript**
@@ -76,6 +78,7 @@ driver.
 | `avatar_url`, `cover_url` | `text`, nullables |
 | `bio` | `text NOT NULL DEFAULT ''` |
 | `city` | `text`, nullable |
+| `dealplace_seeking` | `text`, nullable — **CP2.2 (migration `0005_dealplace_profile.sql`)** : « Ce que je recherche » du volet Profil Dealplace (public, 500 caractères max garantis au service, null = non renseigné) |
 | `location` | `geometry(Point,4326)`, nullable — position publique **approximative** choisie par l'utilisateur, jamais sa position GPS exacte |
 | `settings` | `jsonb NOT NULL DEFAULT '{}'` |
 | `role` | `text DEFAULT 'user'`, `CHECK IN ('user','moderator','super_admin')` |

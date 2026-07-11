@@ -176,20 +176,28 @@ conversations, deals, avis, pages ou News.
   `comment`/`reply` et `report_handled` (traitement de signalement) — toutes
   lisibles via les endpoints de l'étape 5.
 
-## 2 sexies. Limites du Dealplace (Lot 2 — CP2.1)
+## 2 sexies. Limites du Dealplace (Lot 2 — CP2.1 + CP2.2)
 
-Le CP2.1 livre la **taxonomie** (biens/services) et les **listings** (annonces).
+Le CP2.1 livre la **taxonomie** (biens/services) et les **listings** (annonces) ;
+le CP2.2 livre le **volet Profil Dealplace** (SANS avis — périmètre D59).
 Périmètre volontairement restreint — tout le reste du Dealplace arrive aux
 checkpoints suivants :
 
 - **Pas de conversations ni de deals** : le module `dealplace` s'arrête aux
-  annonces. La messagerie 1-to-1 est le **CP2.3**, les deals contractuels le
-  **CP2.4**. Le bouton mobile **« Proposer un deal »** du détail d'annonce est un
-  **PLACEHOLDER** (snackbar « Disponible au prochain lot ») ; l'icône messagerie
-  du header reste **inactive**. Ne pas s'étonner de 404 sur `/conversations`,
-  `/deals`, `/reviews`.
-- **Pas d'avis ni de profil Dealplace** : la note/les critères/l'historique
-  d'échanges d'un profil Dealplace relèvent du **CP2.2** — non implémentés.
+  annonces et au volet profil. La messagerie 1-to-1 est le **CP2.3**, les deals
+  contractuels le **CP2.4**. Le bouton mobile **« Proposer un deal »** du détail
+  d'annonce est un **PLACEHOLDER** (snackbar « Disponible au prochain lot ») ;
+  l'icône messagerie du header reste **inactive**. Ne pas s'étonner de 404 sur
+  `/conversations`, `/deals`, `/reviews`.
+- **Pas d'avis au CP2.2 (décision D59)** : le volet Profil Dealplace est livré
+  SANS note, critères ni historique d'échanges — les avis détaillés sont
+  construits AVEC les deals au **CP2.4**. Les blocs avis / « X deals
+  réalisés » / « Deals conclus » du mockup 05 sont des **placeholders
+  visibles** (pastille « Bientôt »). Le profil expose « Ce que je recherche »
+  (public, 500 caractères) et les annonces par famille (Services / Biens,
+  50 max par section — pagination à prévoir avec la croissance des profils).
+  Pas de bouton « partager le profil » ni de badge type « DealPlace partner »
+  (mockup) au CP2.2.
 - **Pas de signalement d'annonce côté utilisateur** : le CP2.1 n'expose pas de
   « signaler cette annonce ». La modération passe uniquement par le backoffice
   (`GET /admin/dealplace/listings`, `PATCH …/:id/status` masquer/republier). Une

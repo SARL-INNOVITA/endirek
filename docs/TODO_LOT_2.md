@@ -5,10 +5,11 @@ Réunionnais, selon le PRD global — dossier `01_PRD`). Il est exécuté par
 checkpoints : **CP2.1** (taxonomie + listings) est **livré** ; ce fichier suit
 l'avancement et rappelle les points d'ancrage déjà posés dans le socle.
 
-**État (2026-07-10)** : ✅ **CP2.1** (taxonomie + listings) implémenté —
-§1.1 et §1.2 faits. Restent : profil Dealplace + avis (**CP2.2**), conversations
-1-to-1 temps réel (**CP2.3**), deals contractuels (**CP2.4**), modération avancée
-/ consolidation (**CP2.5**). **Paiement = hors app** (jamais dans le périmètre
+**État (2026-07-11)** : ✅ **CP2.1** (taxonomie + listings, revu et poussé) et
+✅ **CP2.2** (volet Profil Dealplace SANS avis — D59) implémentés — §1.1, §1.2
+et §1.3 faits. Restent : conversations 1-to-1 temps réel (**CP2.3**), deals
+contractuels **+ avis détaillés** (**CP2.4**), modération avancée /
+consolidation (**CP2.5**). **Paiement = hors app** (jamais dans le périmètre
 applicatif).
 
 ---
@@ -45,15 +46,19 @@ applicatif).
       rayon) ; **signalement d'annonce côté utilisateur** (non exposé au CP2.1,
       la modération passe par le backoffice).
 
-### 1.3 Profil Dealplace — ⏳ CP2.2 (périmètre arbitré le 2026-07-11, D59)
-- [ ] Volet « Profil Dealplace » du profil utilisateur (mockup 05) : en-tête,
-      annonces du profil par famille (**Services** / **Biens** — réutilise
-      `GET /users/:id/listings`), champ **« Ce que je recherche »** (extension
-      du profil `users` du Lot 1, pas de duplication).
-- [ ] **SANS avis au CP2.2** : les avis détaillés sont **reportés au CP2.4**
+### 1.3 Profil Dealplace — ✅ CP2.2 (périmètre arbitré le 2026-07-11, D59/D62)
+- [x] Volet « Profil Dealplace » du profil utilisateur (mockup 05) : onglets
+      « Mes infos » / « Profil Dealplace » sur MON profil + écran public
+      `/dealplace/profil/:userId` (ouvert depuis le bloc vendeur d'une
+      annonce) ; annonces du profil par famille (**Services** / **Biens** —
+      filtre `?family=` sur `GET /users/me|:id/listings`) ; champ
+      **« Ce que je recherche »** (`users.dealplace_seeking`, migration 0005 —
+      extension du profil `users` du Lot 1, pas de duplication), éditable via
+      `PATCH /users/me/profile`.
+- [x] **SANS avis au CP2.2** : les avis détaillés sont **reportés au CP2.4**
       (liés aux deals — décision D59). Les blocs avis / « X deals réalisés » /
-      « Deals conclus » du mockup = **placeholders visibles** (« disponible au
-      prochain lot »), comme « Proposer un deal ».
+      « Deals conclus » du mockup = **placeholders visibles** (pastille
+      « Bientôt »), comme « Proposer un deal ».
 
 ### 1.4 Conversations 1-to-1 temps réel — ⏳ CP2.3
 - [ ] Messagerie privée liée à un listing/deal, **temps réel via WebSocket**.

@@ -195,10 +195,39 @@ curl -X PATCH "http://localhost:3001/api/v1/admin/dealplace/listings/<LISTING_ID
 ```
 
 Rappels CP2.1 : valeur obligatoire (fixe ou fourchette), **photo obligatoire
-pour un bien**, commune du référentiel La Réunion, catégorie « forbidden »
-refusée à la création, **pas de signalement d'annonce côté utilisateur**, le
-bouton mobile « Proposer un deal » est un **placeholder** (deals = CP2.4),
-**paiement hors app**.
+pour un bien**, commune du référentiel La Réunion, catégorie **inactive ou
+« forbidden »** refusée à la création (D56/D60), **pas de signalement
+d'annonce côté utilisateur**, le bouton mobile « Proposer un deal » est un
+**placeholder** (deals = CP2.4), **paiement hors app**.
+
+## 4 quinquies. Vérifier le profil Dealplace (Lot 2 — CP2.2)
+
+Le CP2.2 (périmètre D59 — **sans avis**, reportés au CP2.4) ajoute le champ
+de profil « Ce que je recherche » (`dealplaceSeeking`, migration `0005`) et
+le filtre `family` des listes d'annonces de profil. Côté mobile : onglets
+« Mes infos » / « Profil Dealplace » sur mon profil, écran public
+`/dealplace/profil/:userId` (accessible depuis le bloc vendeur d'une
+annonce), blocs avis/deals en placeholders.
+
+```bash
+# « Ce que je recherche » : édition (500 caractères max ; '' ou null efface)
+curl -X PATCH "http://localhost:3001/api/v1/users/me/profile" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"dealplaceSeeking":"Je recherche du matériel de rando."}'
+
+# Le champ est PUBLIC : présent dans le profil complet ET le profil public
+curl "http://localhost:3001/api/v1/users/me/profile" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/users/<USER_ID>" -H "Authorization: Bearer <TOKEN>"
+
+# Sections Services / Biens du profil : filtre family sur les listes
+curl "http://localhost:3001/api/v1/users/<USER_ID>/listings?family=service" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/users/me/listings?family=good" -H "Authorization: Bearer <TOKEN>"
+```
+
+Comptes seed avec un « Ce que je recherche » pré-rempli : Valérie Grondin
+(n°4), Kévin Dijoux (n°11), David Payet (n°13). Le log de boot du seed est
+INCHANGÉ (le champ ne modifie aucun comptage).
 
 ## 5. Log de boot attendu (seed mock)
 
@@ -269,13 +298,15 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
 ```
 
 Migrations (première base ou après `docker compose -f infra/docker-compose.yml down -v`) —
-Lot 1 (`0001`, `0002`) **puis** Dealplace CP2.1 (`0003`, `0004`) :
+Lot 1 (`0001`, `0002`) **puis** Dealplace CP2.1 (`0003`, `0004`) **puis**
+profil Dealplace CP2.2 (`0005`) :
 
 ```bash
 docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
 docker cp apps/api/db/migrations/0002_reference_data.sql endirek-postgres:/tmp/0002_reference_data.sql
 docker cp apps/api/db/migrations/0003_dealplace_listings.sql endirek-postgres:/tmp/0003_dealplace_listings.sql
 docker cp apps/api/db/migrations/0004_dealplace_reference.sql endirek-postgres:/tmp/0004_dealplace_reference.sql
+docker cp apps/api/db/migrations/0005_dealplace_profile.sql endirek-postgres:/tmp/0005_dealplace_profile.sql
 
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
@@ -285,17 +316,23 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0003_dealplace_listings.sql
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0004_dealplace_reference.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0005_dealplace_profile.sql
 ```
 
 État validé : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables
 métier Lot 1 + `spatial_ref_sys`, 5 `post_types`, 6 `reaction_types` ; CP2.1
 ajoute 6 tables Dealplace (`listing_categories`, `listing_subcategories`,
 `listing_tags`, `listings`, `listing_media`, `listing_tag_map`) + la taxonomie
-de référence (20 catégories, sous-catégories, ~10 tags).
+de référence (20 catégories, sous-catégories, ~10 tags) ; CP2.2 ajoute la
+colonne `users.dealplace_seeking` (migration `0005`, rejouable).
 
 > Les migrations sont aussi applicables via le raccourci `npm run db:migrate`
 > (copie + `psql -f` de **tout** le dossier `migrations/` dans l'ordre
-> lexicographique — `0001`→`0004` — dans le conteneur, voir §8 bis).
+> lexicographique — `0001`→`0005` — dans le conteneur, voir §8 bis).
+> **⚠️ Uniquement sur une base VIERGE** : `0001` n'est pas rejouable
+> (`CREATE TABLE` sans `IF NOT EXISTS`) — sur une base déjà migrée, appliquer
+> uniquement les NOUVELLES migrations via `docker cp` + `psql -f` (ci-dessus).
 
 > **Port hôte sur cette machine : `55432`.** Un PostgreSQL natif occupe déjà
 > `5432`, donc le conteneur `endirek-postgres` est remappé sur `55432`
