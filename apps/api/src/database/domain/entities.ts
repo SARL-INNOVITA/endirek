@@ -224,6 +224,9 @@ export interface User {
   coverUrl: string | null;
   bio: string;
   city: string | null;
+  /** Volet Profil Dealplace (CP2.2) : « Ce que je recherche » — texte libre
+   * public (500 caractères max, garanti au service), null = non renseigné. */
+  dealplaceSeeking: string | null;
   /** Position publique approximative (jamais la position exacte). */
   location: GeoPoint | null;
   settings: Record<string, unknown>;

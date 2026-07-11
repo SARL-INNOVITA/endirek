@@ -470,7 +470,8 @@ export class PostgresListingsRepository implements ListingsRepository {
     ownerId: string,
     params: ListOwnerListingsParams,
   ): Promise<PagedResult<Listing>> {
-    // Annonces d'un propriétaire, filtrées par statuts (absent = tous),
+    // Annonces d'un propriétaire, filtrées par statuts (absent = tous) et par
+    // famille (sections Services / Biens du profil — CP2.2, miroir du mock),
     // antéchronologique tie-break id.
     const conditions: string[] = [`l.owner_id = $1`];
     const values: unknown[] = [ownerId];
@@ -478,6 +479,10 @@ export class PostgresListingsRepository implements ListingsRepository {
     if (params.statuses !== undefined) {
       conditions.push(`l.status = ANY($${n++})`);
       values.push(params.statuses);
+    }
+    if (params.family !== undefined) {
+      conditions.push(`l.listing_type = $${n++}`);
+      values.push(params.family);
     }
     const whereSql = `WHERE ${conditions.join(' AND ')}`;
     return this.pagedQuery(whereSql, values, n, params.limit, params.offset);

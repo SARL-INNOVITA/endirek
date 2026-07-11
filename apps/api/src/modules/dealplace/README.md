@@ -1,6 +1,7 @@
 # Module `dealplace` — Taxonomie & annonces (Dealplace)
 
-**Statut : IMPLÉMENTÉ (Lot 2 — CP2.1).** Première fonctionnalité du Lot 2.
+**Statut : IMPLÉMENTÉ (Lot 2 — CP2.1 + volet profil CP2.2).** Première
+fonctionnalité du Lot 2.
 
 Rôle : la **place de marché locale** d'Endirek — taxonomie biens/services
 pilotable par le backoffice + **annonces (listings)** publiées par les
@@ -23,8 +24,8 @@ conversations, deals contractuels, avis/profil Dealplace (CP2.2+), paiement
 | GET | `/api/v1/dealplace/listings/:id` | Détail — `deleted` → 404 ; `hidden` → 404 sauf propriétaire/moderator/super_admin |
 | PATCH | `/api/v1/dealplace/listings/:id` | title/description/value*/category/subcategory/exchangePrefs/externalLinks/tags — PROPRIÉTAIRE uniquement |
 | DELETE | `/api/v1/dealplace/listings/:id` | Soft-delete (`status='deleted'`), PROPRIÉTAIRE uniquement → 204 |
-| GET | `/api/v1/users/me/listings` | Mes annonces `active` + `hidden` (statut jamais `deleted`) — cartes enrichies du champ `status` (le propriétaire distingue ses annonces masquées) |
-| GET | `/api/v1/users/:id/listings` | Annonces `active` d'un profil visible (404 si compte absent/supprimé/suspendu) |
+| GET | `/api/v1/users/me/listings` | Mes annonces `active` + `hidden` (statut jamais `deleted`) — cartes enrichies du champ `status` ; `?family=good\|service` (CP2.2 : sections Services / Biens du profil) |
+| GET | `/api/v1/users/:id/listings` | Annonces `active` d'un profil visible (404 si compte absent/supprimé/suspendu) ; `?family=` (CP2.2) |
 
 Le **backoffice** Dealplace (liste tous statuts + PATCH status, gestion de la
 taxonomie) vit dans le module `admin` (`/api/v1/admin/dealplace/...`) — voir

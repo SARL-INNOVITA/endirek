@@ -7,6 +7,7 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/camera_detail/presentation/camera_detail_screen.dart';
 import '../../features/dealplace/presentation/create_listing_screen.dart';
+import '../../features/dealplace/presentation/dealplace_profil_screen.dart';
 import '../../features/dealplace/presentation/dealplace_screen.dart';
 import '../../features/dealplace/presentation/listing_detail_screen.dart';
 import '../../features/feed/presentation/feed_screen.dart';
@@ -114,12 +115,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             CameraDetailScreen(cameraId: state.pathParameters['id']!),
       ),
-      // Dealplace (CP2.1) : création et détail d'annonce, plein écran au-dessus
-      // du shell. '/dealplace/create' AVANT '/dealplace/:id' pour ne pas être
-      // capturé par le paramètre dynamique.
+      // Dealplace (CP2.1/CP2.2) : création, profil public et détail d'annonce,
+      // plein écran au-dessus du shell. Les routes statiques ('/dealplace/create',
+      // '/dealplace/profil/...') AVANT '/dealplace/:id' pour ne pas être
+      // capturées par le paramètre dynamique.
       GoRoute(
         path: '/dealplace/create',
         builder: (context, state) => const CreateListingScreen(),
+      ),
+      GoRoute(
+        path: '/dealplace/profil/:userId',
+        builder: (context, state) => DealplaceProfilScreen(
+          userId: state.pathParameters['userId']!,
+        ),
       ),
       GoRoute(
         path: '/dealplace/:id',

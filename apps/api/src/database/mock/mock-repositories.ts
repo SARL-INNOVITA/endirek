@@ -186,6 +186,9 @@ export class MockUsersRepository implements UsersRepository {
       coverUrl: input.coverUrl ?? null,
       bio: input.bio ?? '',
       city: input.city ?? null,
+      // « Ce que je recherche » (profil Dealplace — CP2.2) : jamais renseigné
+      // à l'inscription, l'utilisateur le remplit depuis son profil.
+      dealplaceSeeking: null,
       location: input.location ?? null,
       settings: input.settings ?? {},
       role: input.role ?? 'user',
@@ -1856,7 +1859,10 @@ export class MockListingsRepository implements ListingsRepository {
     const items = [...this.db.listings.values()]
       .filter(
         (l) =>
-          l.ownerId === ownerId && (statuses === null || statuses.has(l.status)),
+          l.ownerId === ownerId &&
+          (statuses === null || statuses.has(l.status)) &&
+          // Filtre famille (sections Services / Biens du profil — CP2.2).
+          (params.family === undefined || l.listingType === params.family),
       )
       .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
     return Promise.resolve({

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/api/models/post_author.dart';
 import '../../../core/api/models/post_media.dart';
@@ -151,7 +152,8 @@ class _EnTete extends StatelessWidget {
   }
 }
 
-/// Bloc auteur : avatar + nom + date (dd/MM/yyyy), aligné à droite.
+/// Bloc auteur : avatar + nom + date (dd/MM/yyyy), aligné à droite. Un tap
+/// ouvre le PROFIL DEALPLACE public du vendeur (CP2.2, mockup 05).
 class _Auteur extends StatelessWidget {
   const _Auteur({required this.owner, required this.date});
 
@@ -160,38 +162,45 @@ class _Auteur extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        AvatarRond(
-          initiales: owner.initiales,
-          avatarUrl: owner.avatarUrl,
-          rayon: 24,
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: 120,
-          child: Text(
-            owner.displayName,
-            textAlign: TextAlign.end,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: EndirekColors.encre,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => context.push('/dealplace/profil/${owner.id}'),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            AvatarRond(
+              initiales: owner.initiales,
+              avatarUrl: owner.avatarUrl,
+              rayon: 24,
             ),
-          ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 120,
+              child: Text(
+                owner.displayName,
+                textAlign: TextAlign.end,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: EndirekColors.encre,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _formaterDate(date),
+              style: const TextStyle(
+                color: EndirekColors.encreSecondaire,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 2),
-        Text(
-          _formaterDate(date),
-          style: const TextStyle(
-            color: EndirekColors.encreSecondaire,
-            fontSize: 12.5,
-          ),
-        ),
-      ],
+      ),
     );
   }
 

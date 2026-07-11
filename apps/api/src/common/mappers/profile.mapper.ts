@@ -23,6 +23,8 @@ export interface FullProfile {
   coverUrl: string | null;
   bio: string;
   city: string | null;
+  /** Profil Dealplace (CP2.2) : « Ce que je recherche » (public, nullable). */
+  dealplaceSeeking: string | null;
   role: UserRole;
   status: UserStatus;
   settings: Record<string, unknown>;
@@ -40,6 +42,8 @@ export interface PublicProfile {
   coverUrl: string | null;
   bio: string;
   city: string | null;
+  /** Profil Dealplace (CP2.2) : « Ce que je recherche » (donnée PUBLIQUE). */
+  dealplaceSeeking: string | null;
   followersCount: number;
   followingCount: number;
   postsCount: number;
@@ -56,6 +60,7 @@ export function toFullProfile(user: User, postsCount: number): FullProfile {
     coverUrl: user.coverUrl,
     bio: user.bio,
     city: user.city,
+    dealplaceSeeking: user.dealplaceSeeking,
     role: user.role,
     status: user.status,
     settings: user.settings,
@@ -75,6 +80,7 @@ export function toPublicProfile(user: User, postsCount: number): PublicProfile {
     coverUrl: user.coverUrl,
     bio: user.bio,
     city: user.city,
+    dealplaceSeeking: user.dealplaceSeeking,
     followersCount: user.followersCount,
     followingCount: user.followingCount,
     postsCount,

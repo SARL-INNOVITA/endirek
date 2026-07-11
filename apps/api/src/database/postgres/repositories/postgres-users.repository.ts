@@ -68,6 +68,7 @@ const USER_PATCH_COLUMNS: Record<keyof UpdateUserPatch, string> = {
   coverUrl: 'cover_url',
   bio: 'bio',
   city: 'city',
+  dealplaceSeeking: 'dealplace_seeking',
   location: 'location',
   settings: 'settings',
   role: 'role',

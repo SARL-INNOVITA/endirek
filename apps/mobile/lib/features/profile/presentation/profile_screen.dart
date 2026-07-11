@@ -7,16 +7,22 @@ import '../../../core/auth/auth_controller.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/theme/endirek_theme.dart';
+import '../../dealplace/application/profil_dealplace_providers.dart';
+import '../../dealplace/presentation/profil_dealplace_view.dart';
 import '../../feed/application/posts_liste_controller.dart';
 import 'widgets/carte_publication_compacte.dart';
 
-/// Écran du profil de l'utilisateur COURANT (étapes 3-4).
+/// Écran du profil de l'utilisateur COURANT, en DEUX onglets (mockups 04/05) :
 ///
-/// Couverture (si présente), avatar avec initiales en repli, nom, ville,
-/// bio, stats abonnés/abonnements/publications, boutons « Modifier le
-/// profil » et « Se déconnecter », puis la section « Mes publications »
-/// (posts 'active' + 'hidden', cartes compactes → détail). Tirer vers le
-/// bas pour tout rafraîchir. Accessible via l'avatar du composer du fil.
+/// - « Mes infos » (étapes 3-4) : couverture, avatar, nom, ville, bio, stats
+///   abonnés/abonnements/publications, boutons « Modifier le profil » et
+///   « Se déconnecter », section « Mes publications » ;
+/// - « Profil Dealplace » (CP2.2) : placeholder avis/deals (D59), « Ce que je
+///   recherche » (éditable), mes annonces par famille (Services / Biens,
+///   masquées incluses avec badge).
+///
+/// Tirer vers le bas rafraîchit l'onglet courant. Accessible via l'avatar du
+/// composer du fil.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -48,26 +54,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
     final UserProfile profil = etatAuth.profile;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mon profil')),
-      body: SafeArea(
-        top: false,
-        child: RefreshIndicator(
-          onRefresh: () => Future.wait([
-            ref.read(authControllerProvider.notifier).refreshProfile(),
-            ref.read(mesPublicationsProvider.notifier).rafraichir(),
-          ]),
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _EnTeteProfil(profil: profil),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Mon profil'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Mes infos'),
+              Tab(text: 'Profil Dealplace'),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          top: false,
+          child: TabBarView(
+            children: [
+              _OngletMesInfos(profil: profil),
+              const _OngletProfilDealplace(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Onglet « Mes infos » — contenu historique du profil (étapes 3-4).
+class _OngletMesInfos extends ConsumerWidget {
+  const _OngletMesInfos({required this.profil});
+
+  final UserProfile profil;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return RefreshIndicator(
+      onRefresh: () => Future.wait([
+        ref.read(authControllerProvider.notifier).refreshProfile(),
+        ref.read(mesPublicationsProvider.notifier).rafraichir(),
+      ]),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _EnTeteProfil(profil: profil),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                       Text(
                         profil.displayName,
                         textAlign: TextAlign.center,
@@ -145,8 +181,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
           ),
-        ),
-      ),
     );
   }
 
@@ -174,6 +208,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       // La redirection vers /login est gérée par le routeur.
       await ref.read(authControllerProvider.notifier).logout();
     }
+  }
+}
+
+/// Onglet « Profil Dealplace » (CP2.2) : la vue partagée du volet Dealplace,
+/// en mode « moi » (annonces actives + masquées, « Ce que je recherche »
+/// éditable). Tirer vers le bas recharge le profil et les deux sections.
+class _OngletProfilDealplace extends ConsumerWidget {
+  const _OngletProfilDealplace();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(
+          sectionAnnoncesProvider((userId: null, family: 'service')),
+        );
+        ref.invalidate(
+          sectionAnnoncesProvider((userId: null, family: 'good')),
+        );
+        await ref.read(authControllerProvider.notifier).refreshProfile();
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        child: const ProfilDealplaceView(),
+      ),
+    );
   }
 }
 

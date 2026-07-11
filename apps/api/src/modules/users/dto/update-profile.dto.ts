@@ -64,6 +64,31 @@ export class UpdateProfileDto {
   city?: string | null;
 
   @ApiPropertyOptional({
+    description:
+      'Profil Dealplace (CP2.2) : « Ce que je recherche » — texte libre ' +
+      'PUBLIC affiché sur le volet Dealplace du profil (500 caractères ' +
+      'maximum, null pour effacer)',
+    example:
+      'Je recherche des services utiles et des biens de qualité à La Réunion.',
+    maxLength: 500,
+    nullable: true,
+  })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @ValidateIf(
+    (dto: UpdateProfileDto) =>
+      dto.dealplaceSeeking !== undefined && dto.dealplaceSeeking !== null,
+  )
+  @IsString({
+    message: '« Ce que je recherche » doit être une chaîne de caractères',
+  })
+  @MaxLength(500, {
+    message: '« Ce que je recherche » ne peut pas dépasser 500 caractères',
+  })
+  dealplaceSeeking?: string | null;
+
+  @ApiPropertyOptional({
     description: "URL de la photo de profil (null pour retirer la photo)",
     example: 'https://exemple.re/avatar.jpg',
     nullable: true,

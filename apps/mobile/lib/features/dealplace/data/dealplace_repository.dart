@@ -7,6 +7,7 @@ import '../domain/dealplace_taxonomy.dart';
 import '../domain/listing.dart';
 import '../domain/listing_card.dart';
 import '../domain/listing_filters.dart';
+import '../domain/profil_public.dart';
 
 /// Marqueur « champ absent » pour le PATCH partiel : seul un champ EXPLICITE
 /// est transmis au serveur (les autres restent inchangés).
@@ -55,30 +56,45 @@ class DealplaceRepository {
     return _pageCartes(reponse.data as Map<String, dynamic>);
   }
 
-  /// Mes annonces ('active' + 'hidden') — GET /users/me/listings.
+  /// Mes annonces ('active' + 'hidden', cartes avec `status`) —
+  /// GET /users/me/listings. [family] filtre par famille ('good'/'service',
+  /// sections Services / Biens du profil Dealplace — CP2.2).
   Future<ListingsPage> chargerMesAnnonces({
+    String? family,
     int limit = 20,
     int offset = 0,
   }) async {
     final reponse = await _api.get('/users/me/listings', queryParameters: {
+      'family': ?family,
       'limit': limit,
       'offset': offset,
     });
     return _pageCartes(reponse.data as Map<String, dynamic>);
   }
 
-  /// Annonces 'active' d'un profil (GET /users/:id/listings).
+  /// Annonces 'active' d'un profil (GET /users/:id/listings). [family]
+  /// filtre par famille ('good'/'service' — CP2.2).
   Future<ListingsPage> chargerAnnoncesDeProfil(
     String userId, {
+    String? family,
     int limit = 20,
     int offset = 0,
   }) async {
     final reponse =
         await _api.get('/users/$userId/listings', queryParameters: {
+      'family': ?family,
       'limit': limit,
       'offset': offset,
     });
     return _pageCartes(reponse.data as Map<String, dynamic>);
+  }
+
+  /// Profil PUBLIC d'un utilisateur (GET /users/:id) — en-tête de l'écran
+  /// « Profil Dealplace » d'un tiers (CP2.2). 404 si le compte n'existe pas,
+  /// est supprimé ou suspendu.
+  Future<ProfilPublic> chargerProfilPublic(String userId) async {
+    final reponse = await _api.get('/users/$userId');
+    return ProfilPublic.fromJson(reponse.data as Map<String, dynamic>);
   }
 
   // ─────────────────────────────────────────────────────────────────────────

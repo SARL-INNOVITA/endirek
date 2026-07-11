@@ -126,6 +126,7 @@ export class PostgresSeeder {
         u.coverUrl,
         u.bio,
         u.city,
+        u.dealplaceSeeking,
       ];
       const geo = this.geoValue(u.location, params);
       params.push(
@@ -136,14 +137,14 @@ export class PostgresSeeder {
         u.updatedAt,
         u.deletedAt,
       );
-      // Placeholders : $1..$8, géométrie, puis settings..deletedAt.
+      // Placeholders : $1..$9, géométrie, puis settings..deletedAt.
       const res = await client.query(
         `INSERT INTO users
            (id, email, password_hash, display_name, avatar_url, cover_url,
-            bio, city, location, settings, role, status,
+            bio, city, dealplace_seeking, location, settings, role, status,
             created_at, updated_at, deleted_at)
          VALUES
-           ($1, $2, $3, $4, $5, $6, $7, $8, ${geo},
+           ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${geo},
             $${params.length - 5}::jsonb, $${params.length - 4}, $${params.length - 3},
             $${params.length - 2}, $${params.length - 1}, $${params.length})
          ON CONFLICT (id) DO NOTHING`,

@@ -10,12 +10,12 @@ import {
   AuthenticatedUser,
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
-import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import {
   DealplaceService,
   PagedListingCards,
   PagedOwnerListingCards,
 } from './dealplace.service';
+import { OwnerListingsQueryDto } from './dto/owner-listings-query.dto';
 
 /**
  * Listes d'annonces d'un profil — routes /users/... déclarées ICI (le module
@@ -44,12 +44,13 @@ export class UserListingsController {
   @ApiResponse({ status: 401, description: 'Authentification requise' })
   listMyListings(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() pagination: PaginationQueryDto,
+    @Query() query: OwnerListingsQueryDto,
   ): Promise<PagedOwnerListingCards> {
     return this.dealplaceService.listMine(
       user,
-      pagination.limit,
-      pagination.offset,
+      query.limit,
+      query.offset,
+      query.family,
     );
   }
 
@@ -64,12 +65,13 @@ export class UserListingsController {
   @ApiResponse({ status: 404, description: 'Utilisateur introuvable' })
   listUserListings(
     @Param('id') id: string,
-    @Query() pagination: PaginationQueryDto,
+    @Query() query: OwnerListingsQueryDto,
   ): Promise<PagedListingCards> {
     return this.dealplaceService.listOwnerActive(
       id,
-      pagination.limit,
-      pagination.offset,
+      query.limit,
+      query.offset,
+      query.family,
     );
   }
 }

@@ -40,6 +40,7 @@ class ProfileRepository {
     Object? city = _champAbsent,
     Object? avatarUrl = _champAbsent,
     Object? coverUrl = _champAbsent,
+    Object? dealplaceSeeking = _champAbsent,
   }) async {
     final Map<String, dynamic> donnees = {
       // Champs NOT NULL : envoyés seulement si non nuls.
@@ -56,6 +57,11 @@ class ProfileRepository {
     }
     if (!identical(coverUrl, _champAbsent)) {
       donnees['coverUrl'] = coverUrl;
+    }
+    // « Ce que je recherche » (profil Dealplace — CP2.2) : nullable, null
+    // efface le texte côté serveur.
+    if (!identical(dealplaceSeeking, _champAbsent)) {
+      donnees['dealplaceSeeking'] = dealplaceSeeking;
     }
     final reponse = await _api.patch('/users/me/profile', data: donnees);
     return UserProfile.fromJson(reponse.data as Map<String, dynamic>);

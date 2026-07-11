@@ -80,6 +80,7 @@ export type UpdateUserPatch = Partial<
     | 'coverUrl'
     | 'bio'
     | 'city'
+    | 'dealplaceSeeking'
     | 'location'
     | 'settings'
     | 'role'
@@ -709,9 +710,11 @@ export interface ListPublicListingsParams {
 
 /** Page des annonces d'un propriétaire, filtrée par statuts (profil public :
  * ['active'] ; « mes annonces » : ['active','hidden'] — jamais 'deleted' seul,
- * mais l'appelant reste libre). */
+ * mais l'appelant reste libre). `family` filtre par type d'annonce (sections
+ * Services / Biens du profil Dealplace — CP2.2). */
 export interface ListOwnerListingsParams {
   statuses?: ListingStatus[];
+  family?: ListingFamily;
   limit: number;
   offset: number;
 }

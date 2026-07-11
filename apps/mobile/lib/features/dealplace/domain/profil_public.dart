@@ -1,22 +1,18 @@
-/// PROFIL COMPLET du contrat d'API étape 3 — forme renvoyée par
-/// `POST /auth/register`, `POST /auth/login` (champ `user`), `GET /auth/me`,
-/// `GET /users/me/profile` et `PATCH /users/me/profile`.
+/// PROFIL PUBLIC du contrat d'API (forme renvoyée par `GET /users/:id` pour
+/// un TIERS — jamais d'email, de rôle, de statut ni de réglages).
 ///
-/// Ce modèle correspond à l'utilisateur COURANT (il contient email, rôle,
-/// statut et réglages — des champs que l'API ne renvoie jamais pour autrui).
-class UserProfile {
-  const UserProfile({
+/// Utilisé au CP2.2 comme EN-TÊTE de l'écran « Profil Dealplace » d'un autre
+/// utilisateur : avatar, nom, commune, bio et « Ce que je recherche »
+/// (`dealplaceSeeking`, donnée publique, null si non renseignée).
+class ProfilPublic {
+  const ProfilPublic({
     required this.id,
-    required this.email,
     required this.displayName,
     required this.avatarUrl,
     required this.coverUrl,
     required this.bio,
     required this.city,
     required this.dealplaceSeeking,
-    required this.role,
-    required this.status,
-    required this.settings,
     required this.followersCount,
     required this.followingCount,
     required this.postsCount,
@@ -24,36 +20,28 @@ class UserProfile {
   });
 
   final String id;
-  final String email;
   final String displayName;
   final String? avatarUrl;
   final String? coverUrl;
   final String bio;
   final String? city;
 
-  /// Profil Dealplace (CP2.2) : « Ce que je recherche » — null si non rempli.
+  /// « Ce que je recherche » (profil Dealplace — CP2.2), null si non rempli.
   final String? dealplaceSeeking;
-  final String role;
-  final String status;
-  final Map<String, dynamic> settings;
   final int followersCount;
   final int followingCount;
   final int postsCount;
   final DateTime createdAt;
 
-  factory UserProfile.fromJson(Map<String, dynamic> json) {
-    return UserProfile(
+  factory ProfilPublic.fromJson(Map<String, dynamic> json) {
+    return ProfilPublic(
       id: json['id'] as String,
-      email: (json['email'] as String?) ?? '',
       displayName: (json['displayName'] as String?) ?? '',
       avatarUrl: json['avatarUrl'] as String?,
       coverUrl: json['coverUrl'] as String?,
       bio: (json['bio'] as String?) ?? '',
       city: json['city'] as String?,
       dealplaceSeeking: json['dealplaceSeeking'] as String?,
-      role: (json['role'] as String?) ?? 'user',
-      status: (json['status'] as String?) ?? 'active',
-      settings: (json['settings'] as Map?)?.cast<String, dynamic>() ?? {},
       followersCount: (json['followersCount'] as num?)?.toInt() ?? 0,
       followingCount: (json['followingCount'] as num?)?.toInt() ?? 0,
       postsCount: (json['postsCount'] as num?)?.toInt() ?? 0,
@@ -61,8 +49,8 @@ class UserProfile {
     );
   }
 
-  /// Initiales du nom affiché (repli visuel quand il n'y a pas d'avatar) :
-  /// « Maya Hoarau » → « MH », « Kevin » → « K ».
+  /// Initiales du nom affiché (repli visuel sans avatar) — même règle que
+  /// PostAuthor/UserProfile : « Maya Hoarau » → « MH », « Kevin » → « K ».
   String get initiales {
     final List<String> mots = displayName
         .trim()

@@ -142,6 +142,12 @@ export class UsersService {
       displayName: dto.displayName,
       bio: dto.bio,
       city: dto.city,
+      // « Ce que je recherche » (profil Dealplace — CP2.2) : une chaîne vide
+      // après trim équivaut à un effacement (null), comme un champ vidé.
+      dealplaceSeeking:
+        dto.dealplaceSeeking === undefined
+          ? undefined
+          : dto.dealplaceSeeking || null,
       avatarUrl: dto.avatarUrl,
       coverUrl: dto.coverUrl,
       settings: dto.settings,

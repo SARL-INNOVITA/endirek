@@ -42,6 +42,9 @@ interface UserSpec {
   hasLocation?: boolean;
   /** false : profil sans photo de couverture. */
   hasCover?: boolean;
+  /** Profil Dealplace (CP2.2) : « Ce que je recherche » — renseigné pour
+   * quelques propriétaires d'annonces du seed (démo du volet Dealplace). */
+  dealplaceSeeking?: string;
 }
 
 const USER_SPECS: UserSpec[] = [
@@ -76,6 +79,9 @@ const USER_SPECS: UserSpec[] = [
     displayName: 'Valérie Grondin',
     email: 'valerie.grondin@endirek.invalid',
     bio: 'Maman de deux marmailles, plage de l’Ermitage le dimanche.',
+    dealplaceSeeking:
+      'Je recherche des affaires pour marmailles (vêtements, jeux, vélo) et ' +
+      'des services de garde ponctuelle dans l’Ouest. Ouverte au troc !',
     city: 'Saint-Paul',
     signupDaysAgo: 130,
   },
@@ -137,6 +143,9 @@ const USER_SPECS: UserSpec[] = [
     bio: 'Guide péi dans le cirque de Cilaos. Sentiers, lentilles et vin doux.',
     city: 'Cilaos',
     signupDaysAgo: 60,
+    dealplaceSeeking:
+      'J’échange volontiers une sortie guidée contre un coup de main sur mon ' +
+      'site web ou du matériel de rando en bon état.',
   },
   {
     n: 12,
@@ -154,6 +163,9 @@ const USER_SPECS: UserSpec[] = [
     city: 'Saint-Denis',
     signupDaysAgo: 40,
     hasCover: false,
+    dealplaceSeeking:
+      'Étudiant fauché mais motivé : je recherche du matériel informatique ' +
+      'd’occasion et je propose des cours de soutien en échange.',
   },
   {
     n: 14,
@@ -202,6 +214,7 @@ function buildUser(spec: UserSpec): SeedUser {
         : `https://picsum.photos/seed/endirek-cover-${pad}/400/400`,
     bio: spec.bio,
     city: spec.city,
+    dealplaceSeeking: spec.dealplaceSeeking ?? null,
     // Position publique APPROXIMATIVE (jitter ~1,2 km autour du centre-ville),
     // jamais une adresse exacte — posture vie privée assumée dès le seed.
     location:

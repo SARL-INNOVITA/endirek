@@ -20,6 +20,7 @@ import {
 import {
   Listing,
   ListingCategory,
+  ListingFamily,
   ListingStatus,
   ListingSubcategory,
 } from '../../database/domain/entities';
@@ -333,30 +334,34 @@ export class DealplaceService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /** Annonces 'active' d'un profil visible (GET /users/:id/listings) —
-   * 404 si le compte n'existe pas, est supprimé ou suspendu. */
+   * 404 si le compte n'existe pas, est supprimé ou suspendu. `family`
+   * facultatif : sections Services / Biens du profil Dealplace (CP2.2). */
   async listOwnerActive(
     ownerId: string,
     limit: number,
     offset: number,
+    family?: ListingFamily,
   ): Promise<PagedListingCards> {
     const user = await this.usersRepository.findById(ownerId);
     if (!user || user.status !== 'active') {
       throw new NotFoundException('Utilisateur introuvable');
     }
-    return this.pageOwnerListings(ownerId, ['active'], limit, offset);
+    return this.pageOwnerListings(ownerId, ['active'], limit, offset, family);
   }
 
   /** Mes annonces 'active' + 'hidden' (GET /users/me/listings) — cartes
    * enrichies du STATUT : le propriétaire distingue ses annonces masquées
    * (le repository préserve l'ordre : statut ré-associé par index, comme au
-   * backoffice). */
+   * backoffice). `family` facultatif (sections du profil — CP2.2). */
   async listMine(
     viewer: AuthenticatedUser,
     limit: number,
     offset: number,
+    family?: ListingFamily,
   ): Promise<PagedOwnerListingCards> {
     const page = await this.listingsRepository.listByOwner(viewer.userId, {
       statuses: ['active', 'hidden'],
+      family,
       limit,
       offset,
     });
@@ -377,9 +382,11 @@ export class DealplaceService {
     statuses: ListingStatus[],
     limit: number,
     offset: number,
+    family?: ListingFamily,
   ): Promise<PagedListingCards> {
     const page = await this.listingsRepository.listByOwner(ownerId, {
       statuses,
+      family,
       limit,
       offset,
     });
