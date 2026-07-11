@@ -17,6 +17,7 @@ import {
   CameraStreamType,
   Comment,
   CommentStatus,
+  Conversation,
   ExchangePref,
   GeoPoint,
   Listing,
@@ -29,6 +30,7 @@ import {
   ListingSubcategory,
   ListingTag,
   ListingValueKind,
+  Message,
   ModerationLevel,
   Notification,
   NotificationType,
@@ -737,6 +739,9 @@ export interface AdminListListingsParams {
 
 export interface ListingsRepository {
   findById(id: string): Promise<Listing | null>;
+  /** Chargement PAR LOT (cartes de conversations — évite les N+1) : les ids
+   * inconnus sont ignorés, l'ordre de retour n'est pas garanti. */
+  findByIds(ids: string[]): Promise<Listing[]>;
   findByUrlSlug(urlSlug: string): Promise<Listing | null>;
   /** Crée l'annonce AVEC ses médias et ses tags de façon atomique (équivalent
    * transaction SQL). Vérifie les FK (owner, catégorie, sous-catégorie, tags),
@@ -769,4 +774,78 @@ export interface ListingsRepository {
   listTagsByListingIds(
     listingIds: string[],
   ): Promise<Record<string, string[]>>;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Conversations 1-to-1 (Lot 2 — CP2.3)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Données de création d'une conversation (le service garantit : annonce
+ * visible, initiator ≠ owner, unicité gérée par get-or-create). */
+export interface CreateConversationInput {
+  listingId: string;
+  initiatorId: string;
+  /** Propriétaire de l'annonce au moment de la création (dénormalisé). */
+  ownerId: string;
+}
+
+/** Données de création d'un message (le service garantit : émetteur
+ * participant de la conversation, body 1-2000 après trim). */
+export interface CreateMessageInput {
+  conversationId: string;
+  senderId: string;
+  body: string;
+}
+
+/**
+ * Repository des conversations 1-to-1 et de leurs messages (CP2.3).
+ *
+ * Définition d'un message « NON LU » pour un participant : émis par l'AUTRE
+ * participant ET postérieur à MON `*LastReadAt` (null = tout est non lu).
+ * Les compteurs de non-lus sont calculés À LA LECTURE (parité mock/postgres) ;
+ * seule exception : `lastMessageAt`, horodatage posé par `createMessage` dans
+ * la même transaction que l'INSERT (tri des listes, jamais divergent).
+ */
+export interface ConversationsRepository {
+  findById(id: string): Promise<Conversation | null>;
+  /** Conversation existante d'un demandeur pour une annonce (unicité). */
+  findByListingAndInitiator(
+    listingId: string,
+    initiatorId: string,
+  ): Promise<Conversation | null>;
+  create(input: CreateConversationInput): Promise<Conversation>;
+  /** Conversations où userId est initiateur OU propriétaire, triées par
+   * activité décroissante (lastMessageAt ?? createdAt, tie-break id). */
+  listByParticipant(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Conversation>>;
+  /** Nombre de conversations de userId contenant AU MOINS un message non lu
+   * (badge messagerie du header). */
+  countUnreadConversations(userId: string): Promise<number>;
+  /** Non-lus PAR conversation pour userId : { conversationId → n } (page de
+   * cartes, EN UN APPEL — anti N+1). Les conversations sans non-lu sont
+   * absentes du résultat. */
+  unreadCountsByConversationIds(
+    conversationIds: string[],
+    userId: string,
+  ): Promise<Record<string, number>>;
+  /** Dernier message de plusieurs conversations EN UN APPEL :
+   * { conversationId → Message }. Les conversations sans message sont
+   * absentes du résultat. */
+  lastMessagesByConversationIds(
+    conversationIds: string[],
+  ): Promise<Record<string, Message>>;
+  /** Pose le jalon de lecture du PARTICIPANT userId (initiator OU owner —
+   * l'appelant a déjà vérifié l'appartenance) à l'instant `at`. Idempotent. */
+  markRead(conversationId: string, userId: string, at: Date): Promise<void>;
+  /** Crée un message ET pose conversations.last_message_at = message.createdAt
+   * ATOMIQUEMENT (équivalent transaction SQL). */
+  createMessage(input: CreateMessageInput): Promise<Message>;
+  /** Messages d'une conversation, du PLUS RÉCENT au plus ancien (tie-break id
+   * — le client inverse pour l'affichage), paginés. */
+  listMessages(
+    conversationId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Message>>;
 }

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/map/application/map_controller.dart';
+import '../../features/messages/application/conversations_controller.dart';
+import '../../features/messages/application/messages_unread_controller.dart';
 import '../../features/notifications/application/notifications_controller.dart';
 import '../../features/notifications/application/unread_count_controller.dart';
 import '../auth/auth_controller.dart';
@@ -66,14 +68,16 @@ class RealtimeBridge extends Notifier<void> {
     _actif = true;
 
     _abonnement = _service.evenements.listen(_surEvenement);
-    // Connexion socket + première synchro du badge.
+    // Connexion socket + première synchro des badges (cloche + messagerie).
     unawaited(_service.connecter());
     unawaited(ref.read(unreadCountProvider.notifier).rafraichir());
+    unawaited(ref.read(messagerieNonLuesProvider.notifier).rafraichir());
 
     // Polling de repli : ne fait un GET que si le socket N'EST PAS connecté.
     _pollingTimer = Timer.periodic(_intervallePolling, (_) {
       if (!_service.connecte) {
         unawaited(ref.read(unreadCountProvider.notifier).rafraichir());
+        unawaited(ref.read(messagerieNonLuesProvider.notifier).rafraichir());
       }
     });
   }
@@ -91,6 +95,8 @@ class RealtimeBridge extends Notifier<void> {
     _abonnement = null;
     unawaited(_service.deconnecter());
     ref.read(unreadCountProvider.notifier).reinitialiser();
+    ref.read(messagerieNonLuesProvider.notifier).reinitialiser();
+    ref.read(conversationsControllerProvider.notifier).reinitialiser();
   }
 
   /// Route un événement temps réel vers les contrôleurs concernés.
@@ -109,6 +115,20 @@ class RealtimeBridge extends Notifier<void> {
         final mapEtat = ref.read(mapControllerProvider);
         if (mapEtat.initialise) {
           unawaited(ref.read(mapControllerProvider.notifier).rafraichir());
+        }
+      case MessageRecu(:final unreadConversations):
+        // Badge messagerie : le serveur envoie le compteur ABSOLU. L'écran de
+        // fil concerné écoute lui-même le flux (ajout de la bulle + marquage
+        // lu qui resynchronisera le badge) ; la LISTE, si elle a été chargée,
+        // se rafraîchit pour remonter le fil actif.
+        ref
+            .read(messagerieNonLuesProvider.notifier)
+            .definir(unreadConversations);
+        final conversationsEtat = ref.read(conversationsControllerProvider);
+        if (conversationsEtat.initialise) {
+          unawaited(
+            ref.read(conversationsControllerProvider.notifier).rafraichir(),
+          );
         }
     }
   }

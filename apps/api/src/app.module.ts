@@ -6,6 +6,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CamerasModule } from './modules/cameras/cameras.module';
 import { CommentsModule } from './modules/comments/comments.module';
+import { ConversationsModule } from './modules/conversations/conversations.module';
 import { DealplaceModule } from './modules/dealplace/dealplace.module';
 import { HealthModule } from './modules/health/health.module';
 import { MapModule } from './modules/map/map.module';
@@ -52,6 +53,9 @@ import { UsersModule } from './modules/users/users.module';
  * Lot 2 — CP2.1 : DealplaceModule (taxonomie biens/services + annonces —
  * PREMIÈRE fonctionnalité du Lot 2 ; le backoffice Dealplace vit dans
  * AdminModule qui importe DealplaceModule pour l'assembler).
+ *
+ * Lot 2 — CP2.3 : ConversationsModule (messagerie 1-to-1 liée aux annonces,
+ * temps réel via la gateway du Lot 1 — event 'message.created').
  */
 @Module({
   imports: [
@@ -74,6 +78,7 @@ import { UsersModule } from './modules/users/users.module';
     CamerasModule,
     MapModule,
     DealplaceModule,
+    ConversationsModule,
     HealthModule,
   ],
 })

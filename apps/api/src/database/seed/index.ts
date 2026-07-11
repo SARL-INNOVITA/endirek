@@ -15,9 +15,11 @@
 import {
   Camera,
   Comment,
+  Conversation,
   Follow,
   Listing,
   ListingMedia,
+  Message,
   Notification,
   Post,
   PostMedia,
@@ -72,6 +74,9 @@ export interface SeedData {
   listings: Listing[];
   listingMedia: ListingMedia[];
   listingTagMap: SeedListingTagMap[];
+  // Conversations 1-to-1 (Lot 2 — CP2.3).
+  conversations: Conversation[];
+  messages: Message[];
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -79,6 +84,10 @@ export interface SeedData {
 // ────────────────────────────────────────────────────────────────────────────
 
 import { buildSeedCameras } from './cameras.seed';
+import {
+  buildSeedConversations,
+  buildSeedMessages,
+} from './conversations.seed';
 import {
   buildSeedComments,
   buildSeedNotifications,
@@ -112,7 +121,8 @@ import { buildSeedFollows, buildSeedUsers } from './users.seed';
  * 42 posts sur les 12 communes + 12 médias (posts.seed), 60 commentaires,
  * ~155 réactions, collections + sauvegardes, 4 signalements et
  * 12 notifications (interactions.seed), 12 caméras météo/trafic
- * (cameras.seed), 8 annonces Dealplace + médias + tags (listings.seed).
+ * (cameras.seed), 8 annonces Dealplace + médias + tags (listings.seed),
+ * 2 conversations + 6 messages (conversations.seed).
  * Toutes les références croisées passent par seedUuid — chaque fichier
  * vérifie sa propre cohérence à la construction.
  */
@@ -132,5 +142,7 @@ export function buildSeed(): SeedData {
     listings: buildSeedListings(),
     listingMedia: buildSeedListingMedia(),
     listingTagMap: buildSeedListingTagMap(),
+    conversations: buildSeedConversations(),
+    messages: buildSeedMessages(),
   };
 }

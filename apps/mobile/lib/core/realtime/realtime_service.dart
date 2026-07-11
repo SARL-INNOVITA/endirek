@@ -27,6 +27,22 @@ class CarteAMettreAJour extends RealtimeEvent {
   const CarteAMettreAJour();
 }
 
+/// Un message de conversation vient d'arriver (event socket 'message.created',
+/// CP2.3) : `unreadConversations` est le badge ABSOLU du serveur, `message`
+/// reste un Map brut décodé par la feature messages (le core ne dépend pas de
+/// ses modèles).
+class MessageRecu extends RealtimeEvent {
+  const MessageRecu({
+    required this.conversationId,
+    required this.message,
+    required this.unreadConversations,
+  });
+
+  final String conversationId;
+  final Map<String, dynamic> message;
+  final int unreadConversations;
+}
+
 /// Service temps réel socket.io — canal MINIMAL du Lot 1 (pas de messagerie).
 ///
 /// Connexion au namespace par défaut de l'API avec le jeton d'accès dans
@@ -121,6 +137,7 @@ class RealtimeService {
 
     socket.on('notification.created', _surNotification);
     socket.on('map.updated', _surCarte);
+    socket.on('message.created', _surMessage);
 
     _socket = socket;
     socket.connect();
@@ -173,6 +190,26 @@ class RealtimeService {
   /// recharge ses marqueurs.
   void _surCarte(dynamic data) {
     _emettre(const CarteAMettreAJour());
+  }
+
+  /// Décode 'message.created' (CP2.3) →
+  /// { conversationId, message: MESSAGE, unreadConversations }.
+  void _surMessage(dynamic data) {
+    if (data is! Map) {
+      return;
+    }
+    final dynamic conversationId = data['conversationId'];
+    final dynamic message = data['message'];
+    if (conversationId is! String || message is! Map) {
+      return;
+    }
+    _emettre(
+      MessageRecu(
+        conversationId: conversationId,
+        message: message.cast<String, dynamic>(),
+        unreadConversations: (data['unreadConversations'] as num?)?.toInt() ?? 0,
+      ),
+    );
   }
 
   void _emettre(RealtimeEvent evenement) {

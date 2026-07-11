@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/api/models/post_author.dart';
 import '../../../core/api/models/post_media.dart';
+import '../../../core/auth/auth_controller.dart';
+import '../../../core/auth/auth_state.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/theme/endirek_theme.dart';
 import '../../feed/presentation/widgets/avatar_rond.dart';
@@ -109,7 +111,7 @@ class _Contenu extends StatelessWidget {
             ],
           ),
         ),
-        _BarreProposerDeal(),
+        _BarreProposerDeal(annonce: annonce),
       ],
     );
   }
@@ -521,11 +523,19 @@ class _SectionTags extends StatelessWidget {
   }
 }
 
-/// Barre sticky pleine largeur « Proposer un deal » (bouton bleu — mockup 06).
-/// PLACEHOLDER : les deals sont le checkpoint CP2.4 → snackbar informatif.
-class _BarreProposerDeal extends StatelessWidget {
+/// Barre sticky d'actions (mockup 06 + CP2.3) : « Contacter » le vendeur
+/// (RÉEL — ouvre/reprend le fil lié à l'annonce, masqué sur MES annonces) et
+/// « Proposer un deal » (PLACEHOLDER : les deals sont le CP2.4 → snackbar).
+class _BarreProposerDeal extends ConsumerWidget {
+  const _BarreProposerDeal({required this.annonce});
+
+  final Listing annonce;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AuthState auth = ref.watch(authControllerProvider);
+    final bool estAMoi =
+        auth is AuthSignedIn && auth.profile.id == annonce.ownerId;
     return Material(
       color: Colors.white,
       elevation: 8,
@@ -534,18 +544,35 @@ class _BarreProposerDeal extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          child: FilledButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Proposer un deal sera disponible au prochain lot.',
+          child: Row(
+            children: [
+              if (!estAMoi) ...[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        context.push('/dealplace/${annonce.id}/contact'),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                    label: const Text('Contacter'),
                   ),
                 ),
-              );
-            },
-            icon: const Icon(Icons.handshake_outlined),
-            label: const Text('Proposer un deal'),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Proposer un deal sera disponible au prochain lot.',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.handshake_outlined),
+                  label: const Text('Proposer un deal'),
+                ),
+              ),
+            ],
           ),
         ),
       ),

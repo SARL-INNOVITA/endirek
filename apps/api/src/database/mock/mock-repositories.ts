@@ -27,12 +27,14 @@ import {
   CameraStatus,
   Comment,
   CommentStatus,
+  Conversation,
   Listing,
   ListingCategory,
   ListingMedia,
   ListingStatus,
   ListingSubcategory,
   ListingTag,
+  Message,
   Notification,
   Post,
   PostMedia,
@@ -52,12 +54,15 @@ import {
   AdminListPostsParams,
   CamerasRepository,
   CommentsRepository,
+  ConversationsRepository,
   CreateCameraInput,
   CreateCommentInput,
+  CreateConversationInput,
   CreateListingCategoryInput,
   CreateListingInput,
   CreateListingSubcategoryInput,
   CreateListingTagInput,
+  CreateMessageInput,
   CreateNotificationInput,
   CreatePostInput,
   CreateReportInput,
@@ -1601,6 +1606,19 @@ export class MockListingsRepository implements ListingsRepository {
     return Promise.resolve(clone(this.db.listings.get(id) ?? null));
   }
 
+  findByIds(ids: string[]): Promise<Listing[]> {
+    // Chargement par lot (cartes de conversations — CP2.3) : les ids inconnus
+    // sont ignorés silencieusement — équivalent d'un WHERE id = ANY($1).
+    const listings: Listing[] = [];
+    for (const id of new Set(ids)) {
+      const listing = this.db.listings.get(id);
+      if (listing) {
+        listings.push(clone(listing));
+      }
+    }
+    return Promise.resolve(listings);
+  }
+
   findByUrlSlug(urlSlug: string): Promise<Listing | null> {
     for (const listing of this.db.listings.values()) {
       if (listing.urlSlug === urlSlug) {
@@ -1950,5 +1968,255 @@ export class MockListingsRepository implements ListingsRepository {
       result[listingId].sort((a, b) => a.localeCompare(b));
     }
     return Promise.resolve(result);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Conversations 1-to-1 (Lot 2 — CP2.3)
+// ────────────────────────────────────────────────────────────────────────────
+
+@Injectable()
+export class MockConversationsRepository implements ConversationsRepository {
+  constructor(private readonly db: MockDatabaseService) {}
+
+  findById(id: string): Promise<Conversation | null> {
+    return Promise.resolve(clone(this.db.conversations.get(id) ?? null));
+  }
+
+  findByListingAndInitiator(
+    listingId: string,
+    initiatorId: string,
+  ): Promise<Conversation | null> {
+    for (const conversation of this.db.conversations.values()) {
+      if (
+        conversation.listingId === listingId &&
+        conversation.initiatorId === initiatorId
+      ) {
+        return Promise.resolve(clone(conversation));
+      }
+    }
+    return Promise.resolve(null);
+  }
+
+  async create(input: CreateConversationInput): Promise<Conversation> {
+    // Contraintes structurelles (miroir du SCHÉMA — les règles métier vivent
+    // au service) : FK annonce/participants, participants distincts (CHECK),
+    // unicité (listing, initiateur).
+    if (!this.db.listings.has(input.listingId)) {
+      throw new Error(
+        `Annonce introuvable : ${input.listingId} (FK listings).`,
+      );
+    }
+    if (!this.db.users.has(input.initiatorId)) {
+      throw new Error(`Utilisateur introuvable : ${input.initiatorId}.`);
+    }
+    if (!this.db.users.has(input.ownerId)) {
+      throw new Error(`Utilisateur introuvable : ${input.ownerId}.`);
+    }
+    if (input.initiatorId === input.ownerId) {
+      throw new Error(
+        'Une conversation exige deux participants distincts (CHECK).',
+      );
+    }
+    if (
+      await this.findByListingAndInitiator(input.listingId, input.initiatorId)
+    ) {
+      throw new Error(
+        'Conversation déjà existante pour cette annonce et ce demandeur (contrainte UNIQUE).',
+      );
+    }
+    const now = new Date();
+    const conversation: Conversation = {
+      id: randomUUID(),
+      listingId: input.listingId,
+      initiatorId: input.initiatorId,
+      ownerId: input.ownerId,
+      initiatorLastReadAt: null,
+      ownerLastReadAt: null,
+      lastMessageAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.conversations.set(conversation.id, conversation);
+    return clone(conversation);
+  }
+
+  listByParticipant(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Conversation>> {
+    // Tri par ACTIVITÉ décroissante : lastMessageAt, sinon createdAt
+    // (conversation toute neuve) — tie-break id, ordre STABLE entre pages.
+    const items = [...this.db.conversations.values()]
+      .filter((c) => c.initiatorId === userId || c.ownerId === userId)
+      .sort((a, b) => {
+        const activityA = (a.lastMessageAt ?? a.createdAt).getTime();
+        const activityB = (b.lastMessageAt ?? b.createdAt).getTime();
+        return activityB - activityA || a.id.localeCompare(b.id);
+      });
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((c) => clone(c)),
+      total: items.length,
+    });
+  }
+
+  countUnreadConversations(userId: string): Promise<number> {
+    let count = 0;
+    for (const conversation of this.db.conversations.values()) {
+      if (
+        conversation.initiatorId !== userId &&
+        conversation.ownerId !== userId
+      ) {
+        continue;
+      }
+      if (this.hasUnread(conversation, userId)) {
+        count++;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
+  unreadCountsByConversationIds(
+    conversationIds: string[],
+    userId: string,
+  ): Promise<Record<string, number>> {
+    // Non-lus PAR conversation, EN UN APPEL (page de cartes — anti N+1) ;
+    // les conversations sans non-lu sont ABSENTES du résultat.
+    const wanted = new Set(conversationIds);
+    const result: Record<string, number> = {};
+    for (const message of this.db.messages.values()) {
+      if (!wanted.has(message.conversationId)) {
+        continue;
+      }
+      const conversation = this.db.conversations.get(message.conversationId);
+      if (!conversation || !this.isUnreadFor(conversation, message, userId)) {
+        continue;
+      }
+      result[message.conversationId] =
+        (result[message.conversationId] ?? 0) + 1;
+    }
+    return Promise.resolve(result);
+  }
+
+  lastMessagesByConversationIds(
+    conversationIds: string[],
+  ): Promise<Record<string, Message>> {
+    // Dernier message PAR conversation, EN UN APPEL (tie-break id — miroir
+    // d'un DISTINCT ON (conversation_id) ... ORDER BY created_at DESC, id).
+    const wanted = new Set(conversationIds);
+    const result: Record<string, Message> = {};
+    for (const message of this.db.messages.values()) {
+      if (!wanted.has(message.conversationId)) {
+        continue;
+      }
+      const current = result[message.conversationId];
+      if (
+        !current ||
+        message.createdAt.getTime() > current.createdAt.getTime() ||
+        (message.createdAt.getTime() === current.createdAt.getTime() &&
+          message.id.localeCompare(current.id) < 0)
+      ) {
+        result[message.conversationId] = message;
+      }
+    }
+    for (const key of Object.keys(result)) {
+      result[key] = clone(result[key]);
+    }
+    return Promise.resolve(result);
+  }
+
+  markRead(conversationId: string, userId: string, at: Date): Promise<void> {
+    const conversation = this.db.conversations.get(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation introuvable : ${conversationId}.`);
+    }
+    // L'appelant (service) a déjà vérifié l'appartenance : on pose le jalon
+    // du bon participant.
+    if (conversation.initiatorId === userId) {
+      conversation.initiatorLastReadAt = new Date(at.getTime());
+    } else {
+      conversation.ownerLastReadAt = new Date(at.getTime());
+    }
+    this.db.touch(conversation);
+    return Promise.resolve();
+  }
+
+  createMessage(input: CreateMessageInput): Promise<Message> {
+    const conversation = this.db.conversations.get(input.conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation introuvable : ${input.conversationId}.`);
+    }
+    if (!this.db.users.has(input.senderId)) {
+      throw new Error(`Utilisateur introuvable : ${input.senderId}.`);
+    }
+    const now = new Date();
+    const message: Message = {
+      id: randomUUID(),
+      conversationId: input.conversationId,
+      senderId: input.senderId,
+      body: input.body,
+      createdAt: now,
+    };
+    this.db.messages.set(message.id, message);
+    // last_message_at posé ATOMIQUEMENT avec l'INSERT (équivalent transaction
+    // SQL — décision D63 : seul horodatage dénormalisé à l'écriture).
+    conversation.lastMessageAt = now;
+    this.db.touch(conversation);
+    return Promise.resolve(clone(message));
+  }
+
+  listMessages(
+    conversationId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Message>> {
+    // Du PLUS RÉCENT au plus ancien (le client inverse pour l'affichage),
+    // tie-break id — ordre stable entre pages.
+    const items = [...this.db.messages.values()]
+      .filter((m) => m.conversationId === conversationId)
+      .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((m) => clone(m)),
+      total: items.length,
+    });
+  }
+
+  /** Jalon de lecture du participant userId dans cette conversation. */
+  private lastReadOf(conversation: Conversation, userId: string): Date | null {
+    return conversation.initiatorId === userId
+      ? conversation.initiatorLastReadAt
+      : conversation.ownerLastReadAt;
+  }
+
+  /** Un message est NON LU pour userId s'il vient de l'AUTRE participant et
+   * est postérieur à son jalon de lecture (null = tout est non lu). */
+  private isUnreadFor(
+    conversation: Conversation,
+    message: Message,
+    userId: string,
+  ): boolean {
+    if (message.senderId === userId) {
+      return false;
+    }
+    const lastRead = this.lastReadOf(conversation, userId);
+    return (
+      lastRead === null || message.createdAt.getTime() > lastRead.getTime()
+    );
+  }
+
+  /** Au moins un message non lu pour userId dans cette conversation ? */
+  private hasUnread(conversation: Conversation, userId: string): boolean {
+    for (const message of this.db.messages.values()) {
+      if (
+        message.conversationId === conversation.id &&
+        this.isUnreadFor(conversation, message, userId)
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 }

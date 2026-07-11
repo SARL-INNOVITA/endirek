@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/messages/application/messages_unread_controller.dart';
 import '../../features/notifications/application/unread_count_controller.dart';
 import '../theme/endirek_theme.dart';
 
 /// Coquille de navigation de l'app connectée : header Endirek commun (logo
-/// texte centré + cloche de notifications ACTIVE à droite avec badge de
-/// non-lues) et bottom nav 4 onglets (Accueil, Carte, News, Dealplace).
+/// texte centré + messagerie ACTIVE (CP2.3) et cloche de notifications ACTIVE
+/// à droite, chacune avec son badge) et bottom nav 4 onglets (Accueil, Carte,
+/// News, Dealplace).
 ///
 /// Portée par un StatefulShellRoute.indexedStack : chaque onglet conserve son
 /// état (position de scroll du fil, carte chargée…) en changeant de branche.
@@ -31,11 +33,8 @@ class AppShell extends StatelessWidget {
         ),
         centerTitle: true,
         actions: const [
-          // Messagerie (Lot 2) : icône présente mais INACTIVE.
-          _ActionInactive(
-            icone: Icons.chat_bubble_outline,
-            tooltip: 'Messagerie — bientôt disponible',
-          ),
+          // Messagerie (CP2.3) : ACTIVE, badge = conversations avec non-lus.
+          _IconeMessagerie(),
           // Notifications (étape 5) : ACTIVE, avec badge de non-lues.
           _ClocheNotifications(),
           SizedBox(width: 4),
@@ -100,24 +99,23 @@ class _ClocheNotifications extends ConsumerWidget {
   }
 }
 
-/// Icône d'action du header volontairement INACTIVE (fonctionnalité d'un lot
-/// ultérieur) : grisée, avec tooltip « bientôt » à l'appui long.
-class _ActionInactive extends StatelessWidget {
-  const _ActionInactive({required this.icone, required this.tooltip});
-
-  final IconData icone;
-  final String tooltip;
+/// Messagerie ACTIVE (CP2.3) : ouvre /messages au tap et affiche un badge du
+/// nombre de conversations avec non-lus (messagerieNonLuesProvider — alimenté
+/// par le socket temps réel et le polling de repli, comme la cloche).
+class _IconeMessagerie extends ConsumerWidget {
+  const _IconeMessagerie();
 
   @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      triggerMode: TooltipTriggerMode.tap,
-      child: IconButton(
-        // Inactif : le Tooltip parent capte le tap et affiche « bientôt ».
-        onPressed: null,
-        disabledColor: EndirekColors.encreSecondaire,
-        icon: Icon(icone),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final int nonLues = ref.watch(messagerieNonLuesProvider);
+    return IconButton(
+      tooltip: 'Messagerie',
+      onPressed: () => context.push('/messages'),
+      icon: Badge(
+        isLabelVisible: nonLues > 0,
+        label: Text(nonLues > 99 ? '99+' : '$nonLues'),
+        backgroundColor: const Color(0xFFDC2626),
+        child: const Icon(Icons.chat_bubble_outline),
       ),
     );
   }

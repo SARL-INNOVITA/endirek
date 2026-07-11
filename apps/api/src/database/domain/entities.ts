@@ -414,3 +414,35 @@ export interface Notification {
   readAt: Date | null;
   createdAt: Date;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Conversations 1-to-1 (Lot 2 — CP2.3)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Table `conversations` — messagerie privée 1-to-1 LIÉE À UNE ANNONCE
+ * (CP2.3, décision D63) : une conversation par (listing, initiateur).
+ * `ownerId` = propriétaire de l'annonce (dénormalisé à la création).
+ * Lecture par participant : un message est « non lu » s'il vient de l'AUTRE
+ * participant et est postérieur à MON `*LastReadAt` (null = jamais lu). */
+export interface Conversation {
+  id: string;
+  listingId: string;
+  initiatorId: string;
+  ownerId: string;
+  initiatorLastReadAt: Date | null;
+  ownerLastReadAt: Date | null;
+  /** Posé à CHAQUE message (même transaction) — tri des listes. */
+  lastMessageAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `messages` — messages TEXTE (1-2000 caractères) d'une conversation.
+ * Pas de pièces jointes au CP2.3. */
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  createdAt: Date;
+}

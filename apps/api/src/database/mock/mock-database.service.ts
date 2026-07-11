@@ -20,12 +20,14 @@ import { DatabaseConfig } from '../../config/configuration';
 import {
   Camera,
   Comment,
+  Conversation,
   Follow,
   Listing,
   ListingCategory,
   ListingMedia,
   ListingSubcategory,
   ListingTag,
+  Message,
   Notification,
   Post,
   PostMedia,
@@ -144,6 +146,9 @@ export class MockDatabaseService implements OnModuleInit {
   readonly listingTags = new Map<string, ListingTag>();
   readonly listings = new Map<string, Listing>();
   readonly listingMedia = new Map<string, ListingMedia>();
+  // Conversations 1-to-1 (Lot 2 — CP2.3).
+  readonly conversations = new Map<string, Conversation>();
+  readonly messages = new Map<string, Message>();
   /** Association N-N annonce <-> tag (miroir de listing_tag_map). */
   readonly listingTagMap: SeedListingTagMap[] = [];
 
@@ -348,6 +353,15 @@ export class MockDatabaseService implements OnModuleInit {
       this.listingMedia.set(media.id, { ...media });
     }
     this.listingTagMap.push(...seed.listingTagMap.map((m) => ({ ...m })));
+    // Conversations 1-to-1 (CP2.3) : fils + messages (les jalons de lecture et
+    // lastMessageAt sont déclarés par le seed — pas de compteur à recalculer,
+    // les non-lus sont TOUJOURS calculés à la lecture).
+    for (const conversation of seed.conversations) {
+      this.conversations.set(conversation.id, { ...conversation });
+    }
+    for (const message of seed.messages) {
+      this.messages.set(message.id, { ...message });
+    }
   }
 
   /** Recalcule TOUS les compteurs dénormalisés depuis les données chargées. */
@@ -400,7 +414,9 @@ export class MockDatabaseService implements OnModuleInit {
         `${this.listings.size} annonces Dealplace ` +
         `(${this.listingCategories.size} catégories, ` +
         `${this.listingSubcategories.size} sous-catégories, ` +
-        `${this.listingTags.size} tags)`,
+        `${this.listingTags.size} tags), ` +
+        `${this.conversations.size} conversations ` +
+        `(${this.messages.size} messages)`,
     );
   }
 }

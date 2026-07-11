@@ -126,6 +126,29 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   /**
+   * Pousse un nouveau message de conversation (CP2.3) vers la room privée de
+   * son DESTINATAIRE. Appelé par ConversationsService APRÈS persistance —
+   * comme les notifications, l'émission n'est qu'un confort : le REST
+   * (GET /conversations/:id/messages, polling du badge) reste la source de
+   * vérité.
+   */
+  emitMessageCreated(
+    recipientId: string,
+    payload: {
+      conversationId: string;
+      message: unknown;
+      unreadConversations: number;
+    },
+  ): void {
+    if (!this.server) {
+      return;
+    }
+    this.server
+      .to(this.userRoom(recipientId))
+      .emit('message.created', payload);
+  }
+
+  /**
    * Diffuse un événement LÉGER de rafraîchissement carte (le client recharge
    * ses marqueurs via GET /map/overview). Émis à la room 'map' pour ne
    * déranger que les clients qui affichent la carte.

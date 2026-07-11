@@ -38,6 +38,7 @@ import {
   Comment,
   CommentDepth,
   CommentStatus,
+  Conversation,
   ExchangePref,
   GeoPoint,
   Listing,
@@ -50,6 +51,7 @@ import {
   ListingSubcategory,
   ListingTag,
   ListingValueKind,
+  Message,
   ModerationLevel,
   Notification,
   NotificationType,
@@ -605,4 +607,54 @@ export const SQL_LISTING_COLUMNS = `
  */
 export function geoPointToSql(lngPlaceholder: string, latPlaceholder: string): string {
   return `ST_SetSRID(ST_MakePoint(${lngPlaceholder}, ${latPlaceholder}), 4326)`;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Conversations 1-to-1 (Lot 2 — CP2.3)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Colonnes de `conversations` (alias de table `c`). */
+export const SQL_CONVERSATION_COLUMNS = `
+  c.id,
+  c.listing_id,
+  c.initiator_id,
+  c.owner_id,
+  c.initiator_last_read_at,
+  c.owner_last_read_at,
+  c.last_message_at,
+  c.created_at,
+  c.updated_at
+`.trim();
+
+/** Colonnes de `messages` (alias de table `m`). */
+export const SQL_MESSAGE_COLUMNS = `
+  m.id,
+  m.conversation_id,
+  m.sender_id,
+  m.body,
+  m.created_at
+`.trim();
+
+export function rowToConversation(row: SqlRow): Conversation {
+  return {
+    id: row.id as string,
+    listingId: row.listing_id as string,
+    initiatorId: row.initiator_id as string,
+    ownerId: row.owner_id as string,
+    initiatorLastReadAt: toDateOrNull(row.initiator_last_read_at),
+    ownerLastReadAt: toDateOrNull(row.owner_last_read_at),
+    lastMessageAt: toDateOrNull(row.last_message_at),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+export function rowToMessage(row: SqlRow): Message {
+  return {
+    id: row.id as string,
+    conversationId: row.conversation_id as string,
+    senderId: row.sender_id as string,
+    body: row.body as string,
+    createdAt: toDate(row.created_at),
+  };
 }

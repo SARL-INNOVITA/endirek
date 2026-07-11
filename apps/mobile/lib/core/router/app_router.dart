@@ -12,6 +12,8 @@ import '../../features/dealplace/presentation/dealplace_screen.dart';
 import '../../features/dealplace/presentation/listing_detail_screen.dart';
 import '../../features/feed/presentation/feed_screen.dart';
 import '../../features/map/presentation/map_screen.dart';
+import '../../features/messages/presentation/chat_screen.dart';
+import '../../features/messages/presentation/conversations_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/post_composer/presentation/create_post_screen.dart';
 import '../../features/post_detail/presentation/post_detail_screen.dart';
@@ -129,10 +131,29 @@ final routerProvider = Provider<GoRouter>((ref) {
           userId: state.pathParameters['userId']!,
         ),
       ),
+      // Contacter le vendeur (CP2.3) : fil lié à l'annonce (repris s'il
+      // existe, créé au premier message sinon).
+      GoRoute(
+        path: '/dealplace/:id/contact',
+        builder: (context, state) =>
+            ChatScreen.pourAnnonce(listingId: state.pathParameters['id']!),
+      ),
       GoRoute(
         path: '/dealplace/:id',
         builder: (context, state) =>
             ListingDetailScreen(listingId: state.pathParameters['id']!),
+      ),
+      // Messagerie (CP2.3) : liste des conversations + fil, plein écran.
+      GoRoute(
+        path: '/messages',
+        builder: (context, state) => const ConversationsScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (context, state) =>
+                ChatScreen(conversationId: state.pathParameters['id']!),
+          ),
+        ],
       ),
       GoRoute(
         path: '/notifications',

@@ -34,6 +34,7 @@ import {
   ALL_REPOSITORY_TOKENS,
   CAMERAS_REPOSITORY,
   COMMENTS_REPOSITORY,
+  CONVERSATIONS_REPOSITORY,
   LISTING_TAXONOMY_REPOSITORY,
   LISTINGS_REPOSITORY,
   NOTIFICATIONS_REPOSITORY,
@@ -48,6 +49,7 @@ import { MockDatabaseService } from './mock/mock-database.service';
 import {
   MockCamerasRepository,
   MockCommentsRepository,
+  MockConversationsRepository,
   MockListingsRepository,
   MockListingTaxonomyRepository,
   MockNotificationsRepository,
@@ -62,6 +64,7 @@ import { PostgresDatabaseService } from './postgres/postgres-database.service';
 import { postgresPoolProvider } from './postgres/postgres-pool';
 import { PostgresCamerasRepository } from './postgres/repositories/postgres-cameras.repository';
 import { PostgresCommentsRepository } from './postgres/repositories/postgres-comments.repository';
+import { PostgresConversationsRepository } from './postgres/repositories/postgres-conversations.repository';
 import { PostgresListingsRepository } from './postgres/repositories/postgres-listings.repository';
 import { PostgresListingTaxonomyRepository } from './postgres/repositories/postgres-listing-taxonomy.repository';
 import { PostgresNotificationsRepository } from './postgres/repositories/postgres-notifications.repository';
@@ -98,6 +101,7 @@ const mockProviders: Provider[] = [
   bind(NOTIFICATIONS_REPOSITORY, MockNotificationsRepository),
   bind(LISTING_TAXONOMY_REPOSITORY, MockListingTaxonomyRepository),
   bind(LISTINGS_REPOSITORY, MockListingsRepository),
+  bind(CONVERSATIONS_REPOSITORY, MockConversationsRepository),
 ];
 
 /**
@@ -119,6 +123,7 @@ const postgresProviders: Provider[] = [
   bind(NOTIFICATIONS_REPOSITORY, PostgresNotificationsRepository),
   bind(LISTING_TAXONOMY_REPOSITORY, PostgresListingTaxonomyRepository),
   bind(LISTINGS_REPOSITORY, PostgresListingsRepository),
+  bind(CONVERSATIONS_REPOSITORY, PostgresConversationsRepository),
 ];
 
 /** Sélectionne les providers selon le driver ; échoue tôt et clairement sur un

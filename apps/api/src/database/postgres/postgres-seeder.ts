@@ -76,6 +76,10 @@ export class PostgresSeeder {
       c.listings = await this.insertListings(client, data);
       c.listing_media = await this.insertListingMedia(client, data);
       c.listing_tag_map = await this.insertListingTagMap(client, data);
+      // Conversations 1-to-1 (CP2.3) : fils puis messages (FK listing + users
+      // déjà insérés).
+      c.conversations = await this.insertConversations(client, data);
+      c.messages = await this.insertMessages(client, data);
       // Repositionne la séquence camera_number après le plus grand numéro seedé
       // (miroir de MockDatabaseService.syncCameraSequence()). Idempotent.
       await this.resyncCameraSequence(client);
@@ -90,7 +94,8 @@ export class PostgresSeeder {
         `${counts.cameras} caméras, ${counts.reports} signalements, ` +
         `${counts.notifications} notifications, ` +
         `${counts.listings} annonces, ${counts.listing_media} médias annonce, ` +
-        `${counts.listing_tag_map} tags annonce.`,
+        `${counts.listing_tag_map} tags annonce, ` +
+        `${counts.conversations} conversations, ${counts.messages} messages.`,
     );
     return counts;
   }
@@ -513,6 +518,53 @@ export class PostgresSeeder {
          VALUES ($1, $2)
          ON CONFLICT (listing_id, tag_slug) DO NOTHING`,
         [t.listingId, t.tagSlug],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertConversations(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const c of data.conversations) {
+      const res = await client.query(
+        `INSERT INTO conversations
+           (id, listing_id, initiator_id, owner_id,
+            initiator_last_read_at, owner_last_read_at, last_message_at,
+            created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          c.id,
+          c.listingId,
+          c.initiatorId,
+          c.ownerId,
+          c.initiatorLastReadAt,
+          c.ownerLastReadAt,
+          c.lastMessageAt,
+          c.createdAt,
+          c.updatedAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertMessages(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const m of data.messages) {
+      const res = await client.query(
+        `INSERT INTO messages (id, conversation_id, sender_id, body, created_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO NOTHING`,
+        [m.id, m.conversationId, m.senderId, m.body, m.createdAt],
       );
       inserted += res.rowCount ?? 0;
     }

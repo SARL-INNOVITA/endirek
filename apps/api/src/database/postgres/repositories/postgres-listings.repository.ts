@@ -53,6 +53,20 @@ export class PostgresListingsRepository implements ListingsRepository {
     return rows.length > 0 ? rowToListing(rows[0]) : null;
   }
 
+  async findByIds(ids: string[]): Promise<Listing[]> {
+    // Chargement PAR LOT (cartes de conversations — CP2.3) : ids inconnus
+    // ignorés, ordre non garanti (mock : WHERE id = ANY, mêmes règles).
+    if (ids.length === 0) {
+      return [];
+    }
+    const { rows } = await query(
+      this.pool,
+      `SELECT ${SQL_LISTING_COLUMNS} FROM listings l WHERE l.id = ANY($1)`,
+      [[...new Set(ids)]],
+    );
+    return rows.map(rowToListing);
+  }
+
   async findByUrlSlug(urlSlug: string): Promise<Listing | null> {
     // url_slug est UNIQUE : au plus une ligne.
     const { rows } = await query(
