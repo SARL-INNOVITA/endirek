@@ -110,3 +110,30 @@ _Dernière mise à jour : Lot 2 — CP2.1 (Dealplace : taxonomie + listings) (20
 - **D56.** **Niveau de modération par catégorie** (`moderation_level`) : `standard` (normale) ; `sensitive` (autorisée mais **marquée** pour la modération — les annonces en héritent) ; **`forbidden` → création d'annonce REFUSÉE par le service (400)**. La bascule du niveau est éditable depuis le backoffice.
 - **D57.** **Paiement et deals HORS périmètre CP2.1.** Le paiement est **hors application** (jamais dans le périmètre applicatif) ; les deals contractuels sont le **CP2.4**. Le bouton mobile **« Proposer un deal »** du détail d'annonce est un **PLACEHOLDER** (snackbar « Disponible au prochain lot »). **Pas de signalement d'annonce côté utilisateur** au CP2.1 (la modération passe par le backoffice : masquer/republier une annonce). Visibilité d'une annonce miroir des posts : `active` (tous) / `hidden` (404 sauf propriétaire + moderator/super_admin) / `deleted` (soft-delete, 404 pour tous). `PATCH /admin/dealplace/listings/:id/status` ne pose que `active`/`hidden` — une annonce `deleted` n'est **jamais** restaurée.
 - **D58.** **Port hôte PostgreSQL = 55432 sur cette machine de dev.** Un **PostgreSQL natif** occupe déjà `5432` : le conteneur Docker `endirek-postgres` est **remappé sur le port hôte `55432`** (`DATABASE_URL=postgresql://endirek:endirek@127.0.0.1:55432/endirek`, déjà dans `apps/api/.env` local). C'est une spécificité de la machine (voir [AI_RUNBOOK.md](AI_RUNBOOK.md) §8 bis, remède « remapper le conteneur ») ; `docker exec endirek-postgres psql -U endirek -d endirek` reste indépendant de ce remappage.
+
+## Lot 2 — Arbitrages post-revue CP2.1 & périmètre CP2.2 (2026-07-11)
+
+> Décisions prises par le product owner à l'issue de la revue qualité complète
+> du CP2.1 (2026-07-11, consignée dans [AI_HANDOFF.md](AI_HANDOFF.md) §3).
+
+- **D59.** **Les avis détaillés sont REPORTÉS au CP2.4.** Le mockup 05 (Profil
+  Dealplace) lie les avis aux deals (« 6 deals réalisés », « Deals conclus »,
+  avis mentionnant un deal) or les deals n'arrivent qu'au CP2.4 : les avis
+  (note globale /5 + critères **Honnêteté et fiabilité / Conformité à la
+  description / Amabilité et courtoisie** + commentaire) seront construits
+  AVEC les deals. Le **CP2.2 = volet « Profil Dealplace » SANS avis** :
+  en-tête, annonces du profil par famille (Services / Biens), champ « Ce que
+  je recherche » (extension du profil `users`, pas de duplication). Les blocs
+  avis / « X deals réalisés » / « Deals conclus » du mockup restent des
+  **PLACEHOLDERS VISIBLES** au CP2.2 (« disponible au prochain lot »), comme
+  le bouton « Proposer un deal » du CP2.1.
+- **D60.** **Une catégorie ou sous-catégorie INACTIVE n'accepte plus de
+  nouvelle annonce** : création et changement de catégorie refusés (400
+  « Catégorie/Sous-catégorie inconnue ou inactive ») — aligné sur les types de
+  posts du Lot 1 et sur les tags. Les annonces EXISTANTES d'une entrée
+  désactivée restent affichées (libellé résolu par l'assembleur) et leurs
+  autres champs restent éditables.
+- **D61.** **Les cartes de `GET /users/me/listings` portent le champ `status`**
+  (comme la liste backoffice) : le propriétaire distingue ses annonces
+  masquées par la modération. La forme LISTING_CARD de base (annuaire, profil
+  public) reste SANS statut.

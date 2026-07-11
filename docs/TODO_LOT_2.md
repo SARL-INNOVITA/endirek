@@ -45,10 +45,15 @@ applicatif).
       rayon) ; **signalement d'annonce côté utilisateur** (non exposé au CP2.1,
       la modération passe par le backoffice).
 
-### 1.3 Profil Dealplace — ⏳ CP2.2
-- [ ] Volet Dealplace du profil utilisateur : historique d'échanges,
-      **avis détaillés** (note + critères + commentaire), fiabilité.
-- [ ] Réutiliser le profil `users` du Lot 1 (extension, pas de duplication).
+### 1.3 Profil Dealplace — ⏳ CP2.2 (périmètre arbitré le 2026-07-11, D59)
+- [ ] Volet « Profil Dealplace » du profil utilisateur (mockup 05) : en-tête,
+      annonces du profil par famille (**Services** / **Biens** — réutilise
+      `GET /users/:id/listings`), champ **« Ce que je recherche »** (extension
+      du profil `users` du Lot 1, pas de duplication).
+- [ ] **SANS avis au CP2.2** : les avis détaillés sont **reportés au CP2.4**
+      (liés aux deals — décision D59). Les blocs avis / « X deals réalisés » /
+      « Deals conclus » du mockup = **placeholders visibles** (« disponible au
+      prochain lot »), comme « Proposer un deal ».
 
 ### 1.4 Conversations 1-to-1 temps réel — ⏳ CP2.3
 - [ ] Messagerie privée liée à un listing/deal, **temps réel via WebSocket**.
@@ -69,6 +74,11 @@ applicatif).
 - [ ] **Annulation / litige** : flux d'annulation amiable + ouverture de
       litige (l'arbitrage **litige IA** est prévu architecturalement mais
       reste hors périmètre — voir [MOCKED_SERVICES.md](MOCKED_SERVICES.md) §2).
+- [ ] **Avis détaillés** (reportés du CP2.2 — décision D59) : note globale /5
+      + critères **Honnêteté et fiabilité / Conformité à la description /
+      Amabilité et courtoisie** + commentaire, liés à un **deal conclu**
+      (mockup 05) ; alimente la note globale et le compteur « X deals
+      réalisés » du profil Dealplace.
 
 ---
 

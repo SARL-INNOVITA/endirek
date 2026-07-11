@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : Lot 2 — CP2.1 livré (Dealplace : taxonomie biens/services + listings, parité mock+postgres) (2026-07-10)._
+_Dernière mise à jour : Lot 2 — CP2.1 livré, **revu et poussé** (revue qualité complète + arbitrages D59-D61, périmètre CP2.2 figé) (2026-07-11)._
 
 ---
 
@@ -60,9 +60,9 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 | # | Checkpoint | Statut |
 |---|---|---|
 | **2.1** | **Dealplace : taxonomie biens/services (tables de référence pilotables) + listings (annonces) — annuaire public filtré, CRUD propriétaire, backoffice annonces + taxonomie, parité mock+postgres** | ✅ **implémenté** (validation product owner à venir) |
-| 2.2 | Profil Dealplace + avis détaillés (note + critères) | ⏳ à venir |
+| 2.2 | Profil Dealplace — volet profil **SANS avis** (annonces par famille, « Ce que je recherche », placeholders avis/deals — périmètre arbitré le 2026-07-11, D59) | ⏳ à venir |
 | 2.3 | Conversations 1-to-1 temps réel (gateway WebSocket du Lot 1) | ⏳ à venir |
-| 2.4 | Deals contractuels (machine à états, éléments validables, litiges) — le bouton « Proposer un deal » du mobile est aujourd'hui un **placeholder** | ⏳ à venir |
+| 2.4 | Deals contractuels (machine à états, éléments validables, litiges) **+ avis détaillés** (note + critères, liés à un deal conclu — reportés du CP2.2, D59) — le bouton « Proposer un deal » du mobile est aujourd'hui un **placeholder** | ⏳ à venir |
 | 2.5 | Modération avancée Dealplace / consolidation | ⏳ à venir |
 
 > **CP2.1 (2026-07-10) — première fonctionnalité produit du Lot 2.** La
@@ -75,9 +75,9 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 > deals, avis/profil Dealplace, paiement (hors app). Voir §4 (module
 > `dealplace`) et [AI_DECISIONS.md](AI_DECISIONS.md) D51-D58.
 
-**Dernier commit connu : `3f1c1a1`** — `fix: déduplique le filtre tags de l'annuaire Dealplace (parité mock/postgres)`.
-Branche : `main`. Historique récent : `85d4b95` (Lot 1.5 — driver PostgreSQL) → `9aa7755` (doc hash Lot 1.5) → `0cce389` (CP2.1 — Dealplace taxonomie + listings) → `eb97b7c` (doc hash CP2.1) → `3f1c1a1` (fix parité filtre tags, issu de la revue).
-> ✅ **Revue qualité complète CP2.1 exécutée le 2026-07-11** (l'avertissement « revue à relancer » du 2026-07-10 est levé) : relecture intégrale du diff (migrations, contrat + 2 implémentations de repositories, service, DTOs, assembleur, admin, mobile), builds/tests (`api:build`, `admin:build`, `flutter analyze`, `flutter test` — tous verts), boot des DEUX drivers et sondes croisées (taxonomie, annuaire, filtres, détail, backoffice : résultats identiques). **1 finding de parité corrigé** (`3f1c1a1`) : le filtre `?tags=` avec doublons divergeait entre mock et postgres. **2 points mineurs relevés, en attente d'arbitrage product owner avant correction** (aucun n'est atteignable depuis les écrans livrés) : (a) la création/édition d'annonce accepte une catégorie/sous-catégorie INACTIVE (`resolveTaxonomy` ne vérifie pas `isActive`, contrairement aux tags et au précédent posts « type inactif refusé ») ; (b) la description Swagger de `GET /users/me/listings` promet un `status` dans chaque carte alors que `LISTING_CARD` ne le porte pas (seule la variante admin l'ajoute) — à trancher au CP2.2 (écran « mes annonces »).
+**Dernier commit connu : `043582d`** — `fix: applique les arbitrages post-revue CP2.1 (D60 taxonomie inactive, D61 statut owner)`.
+Branche : `main`. Historique récent : `0cce389` (CP2.1 — Dealplace taxonomie + listings) → `eb97b7c` (doc hash CP2.1) → `3f1c1a1` (fix parité filtre tags, issu de la revue) → `9398de6` (doc revue + précision DB_DRIVER) → `043582d` (arbitrages D60/D61).
+> ✅ **Revue qualité complète CP2.1 exécutée le 2026-07-11** (l'avertissement « revue à relancer » du 2026-07-10 est levé) : relecture intégrale du diff (migrations, contrat + 2 implémentations de repositories, service, DTOs, assembleur, admin, mobile), builds/tests (`api:build`, `admin:build`, `flutter analyze`, `flutter test` — tous verts), boot des DEUX drivers et sondes croisées (taxonomie, annuaire, filtres, détail, backoffice : résultats identiques). **1 finding de parité corrigé** (`3f1c1a1`) : le filtre `?tags=` avec doublons divergeait entre mock et postgres. **2 points mineurs relevés puis ARBITRÉS et CORRIGÉS le jour même** (décisions D60/D61) : (a) une catégorie/sous-catégorie INACTIVE refuse désormais toute nouvelle annonce (400 « inconnue ou inactive », les annonces existantes restent affichées et éditables) ; (b) les cartes de `GET /users/me/listings` portent désormais le champ `status` (le propriétaire distingue ses annonces masquées). Vérifiés par sondes runtime (création/édition refusées sur inactif, édition hors taxonomie toujours OK, statut présent).
 
 ---
 
@@ -94,7 +94,7 @@ Fonctionnelle. Modules livrés : `health`, `database` (mock/postgres), `auth`, `
 - **Notifications** : `GET /notifications` (+ `total`/`unreadCount`), `/unread-count`, `PATCH /read-all`, `/:id/read` (uniquement les siennes) ; types `comment`/`reply`/`reaction`/`report_handled` créés via un point d'entrée unique (persistance + émission socket).
 - **Checkpoint 6 admin** : `GET|PATCH /admin/post-types` (types actifs/inactifs, `showsOnMap`, durée carte, activation, ordre), `PATCH /admin/comments/:id/status`, `POST /admin/notifications/system`, filtres admin `role`, `mapVisible`, `targetType` et alias `pending` → `open`.
 - **Temps réel** : gateway **socket.io** (namespace par défaut, auth handshake JWT), events `notification.created` (room `user:<id>`) et `map.updated` (room `map`), CORS aligné sur l'API via `RealtimeIoAdapter`.
-- **Dealplace (Lot 2 — CP2.1)** : `GET /dealplace/taxonomy` (catégories actives + sous-catégories + tags, pour le formulaire mobile) ; annuaire public `GET /dealplace/listings` (annonces `active`, filtres `family/category/subcategory/city/valueMin/valueMax/tags/search`, pagination) ; `POST /dealplace/listings` (règles métier : valeur fixe/fourchette cohérente, **photo obligatoire pour un bien**, commune du référentiel, catégorie+sous-catégorie cohérentes, **catégorie « forbidden » refusée 400**, médias issus de `/media/upload`) ; `GET /dealplace/listings/:id`, `GET /dealplace/listings/slug/:slug`, `PATCH|DELETE /dealplace/listings/:id` (propriétaire, soft-delete) ; listes de profil `GET /users/me/listings` (active+hidden) et `GET /users/:id/listings` (active). **Backoffice** : `GET|POST|PATCH /admin/dealplace/categories|subcategories|tags` (taxonomie pilotable, slug immuable) ; `GET /admin/dealplace/listings` (tous statuts + recherche), `GET /admin/dealplace/listings/:id`, `PATCH /admin/dealplace/listings/:id/status` (masquer/republier — `deleted` non restaurable). Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, partagée avec le backoffice, comme `FeedPostAssembler`).
+- **Dealplace (Lot 2 — CP2.1)** : `GET /dealplace/taxonomy` (catégories actives + sous-catégories + tags, pour le formulaire mobile) ; annuaire public `GET /dealplace/listings` (annonces `active`, filtres `family/category/subcategory/city/valueMin/valueMax/tags/search`, pagination) ; `POST /dealplace/listings` (règles métier : valeur fixe/fourchette cohérente, **photo obligatoire pour un bien**, commune du référentiel, catégorie+sous-catégorie cohérentes, **catégorie « forbidden » refusée 400**, médias issus de `/media/upload`) ; `GET /dealplace/listings/:id`, `GET /dealplace/listings/slug/:slug`, `PATCH|DELETE /dealplace/listings/:id` (propriétaire, soft-delete) ; listes de profil `GET /users/me/listings` (active+hidden, cartes enrichies du `status` — D61) et `GET /users/:id/listings` (active) ; catégorie/sous-catégorie **inactive** refusée à la création et au changement de catégorie (400 — D60). **Backoffice** : `GET|POST|PATCH /admin/dealplace/categories|subcategories|tags` (taxonomie pilotable, slug immuable) ; `GET /admin/dealplace/listings` (tous statuts + recherche), `GET /admin/dealplace/listings/:id`, `PATCH /admin/dealplace/listings/:id/status` (masquer/republier — `deleted` non restaurable). Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, partagée avec le backoffice, comme `FeedPostAssembler`).
 
 ### Mobile — `apps/mobile` (Flutter 3.44, Riverpod, go_router, dio)
 Fonctionnel et stabilisé. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News = placeholder propre**, la **Carte** et **désormais le Dealplace (CP2.1)** sont réels. Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types actifs depuis `GET /posts/types`, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**, et l'**onglet Dealplace** (`features/dealplace`) : annuaire (grille de cartes, recherche + filtres, états loading/vide/erreur, pull-to-refresh, pagination, FAB), **création d'annonce** (`/dealplace/create` — photo obligatoire pour un bien, upload via `/media/upload`), **détail** (`/dealplace/:id`, fidèle au mockup 06). Le bouton **« Proposer un deal »** du détail est un **PLACEHOLDER** (deals = CP2.4) : il affiche un snackbar « Disponible au prochain lot ». Les notifications `system` affichent `payload.title` ou `payload.message`. Temps réel via **socket.io** (`socket_io_client`) : notifications poussées en direct + `map.updated`, avec **fallback polling ~45 s**. Header : icône messagerie **inactive** (conversations = CP2.3), cloche **active**. Les libellés Material sont localisés en français via `flutter_localizations`.
@@ -191,11 +191,15 @@ annuaire public filtré, CRUD propriétaire, listes de profil, backoffice annonc
 + taxonomie, onglet Dealplace mobile réel. **Parité mock+postgres** maintenue
 (2 nouveaux repositories). Builds/tests passés.
 
-**Prochaine étape recommandée : attendre la validation du product owner du CP2.1,
-puis démarrer le CP2.2** (profil Dealplace + avis détaillés). Ne pas anticiper les
-checkpoints suivants avant le feu vert : conversations (CP2.3), deals contractuels
-(CP2.4 — le bouton « Proposer un deal » reste un placeholder d'ici là), modération
-avancée (CP2.5). **Paiement = hors app** (jamais dans le périmètre applicatif).
+**Prochaine étape recommandée : démarrer le CP2.2** — volet « Profil Dealplace »
+**sans avis** (périmètre arbitré le 2026-07-11, décision D59) : en-tête profil,
+annonces par famille (Services / Biens), champ « Ce que je recherche » (extension
+du profil `users`), placeholders visibles pour les blocs avis / deals du mockup 05.
+Les **avis détaillés sont reportés au CP2.4** (liés aux deals). Ne pas anticiper
+les checkpoints suivants avant le feu vert : conversations (CP2.3), deals
+contractuels (CP2.4 — le bouton « Proposer un deal » reste un placeholder d'ici
+là), modération avancée (CP2.5). **Paiement = hors app** (jamais dans le
+périmètre applicatif).
 Côté base, le chantier de **performance** (compteurs calculés à la lecture →
 triggers/colonnes maintenues à grande échelle) reste ouvert mais non requis.
 
