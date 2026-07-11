@@ -13,6 +13,7 @@ import {
 } from '../../common/mappers/profile.mapper';
 import {
   COMMENTS_REPOSITORY,
+  DEALS_REPOSITORY,
   LISTINGS_REPOSITORY,
   NOTIFICATIONS_REPOSITORY,
   POSTS_REPOSITORY,
@@ -23,6 +24,9 @@ import {
 } from '../../database/database.tokens';
 import {
   Comment,
+  Deal,
+  DealNote,
+  DealReview,
   Listing,
   Notification,
   Post,
@@ -32,6 +36,7 @@ import {
 } from '../../database/domain/entities';
 import {
   CommentsRepository,
+  DealsRepository,
   ListingsRepository,
   NotificationsRepository,
   PageParams,
@@ -83,6 +88,11 @@ export interface AccountExport {
   /** Annonces Dealplace de l'utilisateur, TOUS statuts (y compris masquées et
    * soft-supprimées — tout ce qui est stocké le concernant). Ajouté au CP2.2. */
   listings: Listing[];
+  /** Deals où l'utilisateur est partie, TOUS statuts, avec SES notes de suivi
+   * et les avis le concernant (émis ET reçus). Ajouté au CP2.4. */
+  deals: Deal[];
+  dealNotes: DealNote[];
+  dealReviews: DealReview[];
   comments: Comment[];
   reactions: Reaction[];
   follows: {
@@ -126,6 +136,8 @@ export class UsersService {
     private readonly reportsRepository: ReportsRepository,
     @Inject(LISTINGS_REPOSITORY)
     private readonly listingsRepository: ListingsRepository,
+    @Inject(DEALS_REPOSITORY)
+    private readonly dealsRepository: DealsRepository,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -298,6 +310,26 @@ export class UsersService {
       });
     }
 
+    // Deals (CP2.4) : deals où je suis partie + MES notes + les avis me
+    // concernant (émis et reçus). L'export est rare : la boucle par deal est
+    // assumée (volumes faibles par utilisateur).
+    const dealsPage = await this.dealsRepository.listByParticipant(userId, {
+      limit: EXPORT_PAGE_LIMIT,
+      offset: 0,
+    });
+    const dealNotes: DealNote[] = [];
+    const dealReviews: DealReview[] = [];
+    for (const deal of dealsPage.items) {
+      const notes = await this.dealsRepository.listNotes(deal.id);
+      dealNotes.push(...notes.filter((n) => n.authorId === userId));
+      const reviews = await this.dealsRepository.listReviewsByDeal(deal.id);
+      dealReviews.push(
+        ...reviews.filter(
+          (r) => r.reviewerId === userId || r.revieweeId === userId,
+        ),
+      );
+    }
+
     // Le hash du mot de passe ne sort JAMAIS du serveur, même pour son
     // propriétaire (aucune valeur d'usage, risque en cas de fuite du fichier).
     const { passwordHash: _passwordHashJamaisExporte, ...account } = user;
@@ -310,6 +342,9 @@ export class UsersService {
       account: { ...account, postsCount },
       posts,
       listings: listingsPage.items,
+      deals: dealsPage.items,
+      dealNotes,
+      dealReviews,
       comments,
       reactions,
       follows: {

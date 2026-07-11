@@ -21,6 +21,12 @@ import {
   Camera,
   Comment,
   Conversation,
+  Deal,
+  DealAdjustment,
+  DealItem,
+  DealItemStep,
+  DealNote,
+  DealReview,
   Follow,
   Listing,
   ListingCategory,
@@ -149,11 +155,21 @@ export class MockDatabaseService implements OnModuleInit {
   // Conversations 1-to-1 (Lot 2 — CP2.3).
   readonly conversations = new Map<string, Conversation>();
   readonly messages = new Map<string, Message>();
+  // Deals contractuels + avis (Lot 2 — CP2.4).
+  readonly deals = new Map<string, Deal>();
+  readonly dealItems = new Map<string, DealItem>();
+  readonly dealItemSteps = new Map<string, DealItemStep>();
+  readonly dealAdjustments = new Map<string, DealAdjustment>();
+  readonly dealNotes = new Map<string, DealNote>();
+  readonly dealReviews = new Map<string, DealReview>();
   /** Association N-N annonce <-> tag (miroir de listing_tag_map). */
   readonly listingTagMap: SeedListingTagMap[] = [];
 
   /** Séquence en mémoire — équivalent de `camera_number ... AS IDENTITY`. */
   private cameraNumberSequence = 1;
+
+  /** Séquence en mémoire — équivalent de `deals_deal_number_seq` (CP2.4). */
+  private dealNumberSequence = 1;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -167,6 +183,7 @@ export class MockDatabaseService implements OnModuleInit {
 
     this.recomputeAllCounters();
     this.syncCameraSequence();
+    this.syncDealNumberSequence();
     this.logBootSummary();
   }
 
@@ -182,6 +199,11 @@ export class MockDatabaseService implements OnModuleInit {
   /** Prochain numéro de caméra (auto-incrément, affiché « #23 »). */
   nextCameraNumber(): number {
     return this.cameraNumberSequence++;
+  }
+
+  /** Prochain numéro de deal (auto-incrément, affiché « Deal 345 »). */
+  nextDealNumber(): number {
+    return this.dealNumberSequence++;
   }
 
   /**
@@ -362,6 +384,29 @@ export class MockDatabaseService implements OnModuleInit {
     for (const message of seed.messages) {
       this.messages.set(message.id, { ...message });
     }
+    // Deals contractuels + avis (CP2.4) : les badges/stepper/notes globales
+    // sont TOUJOURS dérivés à la lecture — le seed ne déclare que les données.
+    for (const deal of seed.deals) {
+      this.deals.set(deal.id, { ...deal });
+    }
+    for (const item of seed.dealItems) {
+      this.dealItems.set(item.id, { ...item });
+    }
+    for (const step of seed.dealItemSteps) {
+      this.dealItemSteps.set(step.id, { ...step });
+    }
+    for (const adjustment of seed.dealAdjustments) {
+      this.dealAdjustments.set(adjustment.id, {
+        ...adjustment,
+        payload: structuredClone(adjustment.payload),
+      });
+    }
+    for (const note of seed.dealNotes) {
+      this.dealNotes.set(note.id, { ...note });
+    }
+    for (const review of seed.dealReviews) {
+      this.dealReviews.set(review.id, { ...review });
+    }
   }
 
   /** Recalcule TOUS les compteurs dénormalisés depuis les données chargées. */
@@ -387,6 +432,18 @@ export class MockDatabaseService implements OnModuleInit {
       }
     }
     this.cameraNumberSequence = max + 1;
+  }
+
+  /** Positionne la séquence de numéro de deal APRÈS le plus grand numéro
+   * seedé (miroir de syncCameraSequence — CP2.4). */
+  private syncDealNumberSequence(): void {
+    let max = 0;
+    for (const deal of this.deals.values()) {
+      if (deal.dealNumber > max) {
+        max = deal.dealNumber;
+      }
+    }
+    this.dealNumberSequence = max + 1;
   }
 
   private logBootSummary(): void {
@@ -416,7 +473,8 @@ export class MockDatabaseService implements OnModuleInit {
         `${this.listingSubcategories.size} sous-catégories, ` +
         `${this.listingTags.size} tags), ` +
         `${this.conversations.size} conversations ` +
-        `(${this.messages.size} messages)`,
+        `(${this.messages.size} messages), ` +
+        `${this.deals.size} deals (${this.dealReviews.size} avis)`,
     );
   }
 }

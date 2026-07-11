@@ -9,6 +9,8 @@ import '../../../core/auth/auth_controller.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/realtime/realtime_service.dart';
 import '../../../core/theme/endirek_theme.dart';
+import '../../deals/application/deal_providers.dart';
+import '../../deals/domain/deal_models.dart';
 import '../application/messages_unread_controller.dart';
 import '../data/messages_repository.dart';
 import '../domain/conversation.dart';
@@ -198,6 +200,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final String monId = auth is AuthSignedIn ? auth.profile.id : '';
     final ConversationCard? fil = _conversation;
 
+    // Deal OUVERT lié au fil (bandeau + action « Proposer un deal » sinon).
+    final dealOuvert =
+        fil == null ? null : ref.watch(dealDeConversationProvider(fil.id));
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -205,11 +211,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          // Proposer un deal depuis le fil (CP2.4) — pour les DEUX parties
+          // (le propriétaire de l'annonce propose ici, pas depuis le détail).
+          if (fil != null &&
+              fil.listing.estActive &&
+              dealOuvert?.hasValue == true &&
+              dealOuvert?.value == null)
+            IconButton(
+              tooltip: 'Proposer un deal',
+              onPressed: () => context.push(
+                '/dealplace/${fil.listing.id}/proposer'
+                '?recipient=${fil.otherParticipant.id}',
+              ),
+              icon: const Icon(Icons.handshake_outlined),
+            ),
+        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
             if (fil != null) _EnTeteAnnonce(listing: fil.listing),
+            if (dealOuvert?.value != null)
+              _BandeauDeal(deal: dealOuvert!.value!),
             Expanded(child: _corps(monId)),
             _BarreSaisie(
               controleur: _saisie,
@@ -445,6 +469,49 @@ class _BarreSaisie extends StatelessWidget {
                   : const Icon(Icons.send),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bandeau du deal OUVERT lié au fil (CP2.4) : « Deal N — statut », tap →
+/// page du deal.
+class _BandeauDeal extends StatelessWidget {
+  const _BandeauDeal({required this.deal});
+
+  final DealCard deal;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFE0EDFA),
+      child: InkWell(
+        onTap: () => context.push('/deals/${deal.id}'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.handshake_outlined,
+                  size: 17, color: EndirekColors.bleu),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Deal ${deal.dealNumber} — '
+                  '${deal.status == 'proposed' ? 'proposition en attente' : 'en cours'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: EndirekColors.bleu,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  size: 18, color: EndirekColors.bleu),
+            ],
+          ),
         ),
       ),
     );

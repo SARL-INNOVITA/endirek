@@ -43,6 +43,14 @@ class MessageRecu extends RealtimeEvent {
   final int unreadConversations;
 }
 
+/// Un deal a évolué côté partenaire (event socket 'deal.updated', CP2.4) :
+/// la page du deal, si elle est ouverte, se recharge.
+class DealMisAJour extends RealtimeEvent {
+  const DealMisAJour({required this.dealId});
+
+  final String dealId;
+}
+
 /// Service temps réel socket.io — canal MINIMAL du Lot 1 (pas de messagerie).
 ///
 /// Connexion au namespace par défaut de l'API avec le jeton d'accès dans
@@ -138,6 +146,7 @@ class RealtimeService {
     socket.on('notification.created', _surNotification);
     socket.on('map.updated', _surCarte);
     socket.on('message.created', _surMessage);
+    socket.on('deal.updated', _surDeal);
 
     _socket = socket;
     socket.connect();
@@ -210,6 +219,17 @@ class RealtimeService {
         unreadConversations: (data['unreadConversations'] as num?)?.toInt() ?? 0,
       ),
     );
+  }
+
+  /// Décode 'deal.updated' (CP2.4) → { dealId }.
+  void _surDeal(dynamic data) {
+    if (data is! Map) {
+      return;
+    }
+    final dynamic dealId = data['dealId'];
+    if (dealId is String && dealId.isNotEmpty) {
+      _emettre(DealMisAJour(dealId: dealId));
+    }
   }
 
   void _emettre(RealtimeEvent evenement) {

@@ -37,6 +37,13 @@ class AppNotification {
     return valeur is String && valeur.isNotEmpty ? valeur : null;
   }
 
+  /// Identifiant du deal concerné (type 'deal' — CP2.4) : cible de
+  /// navigation au tap vers /deals/:id.
+  String? get dealId {
+    final dynamic valeur = payload['dealId'];
+    return valeur is String && valeur.isNotEmpty ? valeur : null;
+  }
+
   factory AppNotification.fromJson(Map<String, dynamic> json) {
     return AppNotification(
       id: json['id'] as String,

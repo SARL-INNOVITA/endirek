@@ -39,6 +39,16 @@ import {
   CommentDepth,
   CommentStatus,
   Conversation,
+  Deal,
+  DealAdjustment,
+  DealAdjustmentKind,
+  DealAdjustmentStatus,
+  DealItem,
+  DealItemKind,
+  DealItemStep,
+  DealNote,
+  DealReview,
+  DealStatus,
   ExchangePref,
   GeoPoint,
   Listing,
@@ -655,6 +665,139 @@ export function rowToMessage(row: SqlRow): Message {
     conversationId: row.conversation_id as string,
     senderId: row.sender_id as string,
     body: row.body as string,
+    createdAt: toDate(row.created_at),
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Deals contractuels + avis (Lot 2 — CP2.4)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Colonnes de `deals` (alias de table `d`). */
+export const SQL_DEAL_COLUMNS = `
+  d.id,
+  d.deal_number,
+  d.listing_id,
+  d.conversation_id,
+  d.proposer_id,
+  d.recipient_id,
+  d.status,
+  d.due_date,
+  d.cancellation_requested_by,
+  d.disputed_by,
+  d.dispute_reason,
+  d.accepted_at,
+  d.completed_at,
+  d.closed_at,
+  d.created_at,
+  d.updated_at
+`.trim();
+
+/** Colonnes de `deal_items` (alias de table `i`). */
+export const SQL_DEAL_ITEM_COLUMNS = `
+  i.id,
+  i.deal_id,
+  i.provider_id,
+  i.kind,
+  i.title,
+  i.description,
+  i.value,
+  i.position,
+  i.created_at
+`.trim();
+
+/** Colonnes de `deal_item_steps` (alias de table `s`). */
+export const SQL_DEAL_STEP_COLUMNS = `
+  s.id,
+  s.item_id,
+  s.label,
+  s.position,
+  s.honored_at,
+  s.validated_at
+`.trim();
+
+export function rowToDeal(row: SqlRow): Deal {
+  return {
+    id: row.id as string,
+    dealNumber: Number(row.deal_number),
+    listingId: row.listing_id as string,
+    conversationId: (row.conversation_id as string | null) ?? null,
+    proposerId: row.proposer_id as string,
+    recipientId: row.recipient_id as string,
+    status: row.status as DealStatus,
+    dueDate: toDateOrNull(row.due_date),
+    cancellationRequestedBy:
+      (row.cancellation_requested_by as string | null) ?? null,
+    disputedBy: (row.disputed_by as string | null) ?? null,
+    disputeReason: (row.dispute_reason as string | null) ?? null,
+    acceptedAt: toDateOrNull(row.accepted_at),
+    completedAt: toDateOrNull(row.completed_at),
+    closedAt: toDateOrNull(row.closed_at),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+export function rowToDealItem(row: SqlRow): DealItem {
+  return {
+    id: row.id as string,
+    dealId: row.deal_id as string,
+    providerId: row.provider_id as string,
+    kind: row.kind as DealItemKind,
+    title: row.title as string,
+    description: (row.description as string) ?? '',
+    value: Number(row.value),
+    position: Number(row.position),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+export function rowToDealItemStep(row: SqlRow): DealItemStep {
+  return {
+    id: row.id as string,
+    itemId: row.item_id as string,
+    label: row.label as string,
+    position: Number(row.position),
+    honoredAt: toDateOrNull(row.honored_at),
+    validatedAt: toDateOrNull(row.validated_at),
+  };
+}
+
+export function rowToDealAdjustment(row: SqlRow): DealAdjustment {
+  return {
+    id: row.id as string,
+    dealId: row.deal_id as string,
+    proposedBy: row.proposed_by as string,
+    kind: row.kind as DealAdjustmentKind,
+    itemId: (row.item_id as string | null) ?? null,
+    payload: toJsonObject(row.payload),
+    description: row.description as string,
+    status: row.status as DealAdjustmentStatus,
+    decidedAt: toDateOrNull(row.decided_at),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+export function rowToDealNote(row: SqlRow): DealNote {
+  return {
+    id: row.id as string,
+    dealId: row.deal_id as string,
+    authorId: row.author_id as string,
+    body: row.body as string,
+    createdAt: toDate(row.created_at),
+  };
+}
+
+export function rowToDealReview(row: SqlRow): DealReview {
+  return {
+    id: row.id as string,
+    dealId: row.deal_id as string,
+    reviewerId: row.reviewer_id as string,
+    revieweeId: row.reviewee_id as string,
+    ratingHonesty: Number(row.rating_honesty),
+    ratingConformity: Number(row.rating_conformity),
+    ratingKindness: Number(row.rating_kindness),
+    comment: (row.comment as string | null) ?? null,
     createdAt: toDate(row.created_at),
   };
 }

@@ -16,6 +16,12 @@ import {
   Camera,
   Comment,
   Conversation,
+  Deal,
+  DealAdjustment,
+  DealItem,
+  DealItemStep,
+  DealNote,
+  DealReview,
   Follow,
   Listing,
   ListingMedia,
@@ -77,6 +83,13 @@ export interface SeedData {
   // Conversations 1-to-1 (Lot 2 — CP2.3).
   conversations: Conversation[];
   messages: Message[];
+  // Deals contractuels + avis (Lot 2 — CP2.4).
+  deals: Deal[];
+  dealItems: DealItem[];
+  dealItemSteps: DealItemStep[];
+  dealAdjustments: DealAdjustment[];
+  dealNotes: DealNote[];
+  dealReviews: DealReview[];
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -88,6 +101,14 @@ import {
   buildSeedConversations,
   buildSeedMessages,
 } from './conversations.seed';
+import {
+  buildSeedDealAdjustments,
+  buildSeedDealItems,
+  buildSeedDealItemSteps,
+  buildSeedDealNotes,
+  buildSeedDealReviews,
+  buildSeedDeals,
+} from './deals.seed';
 import {
   buildSeedComments,
   buildSeedNotifications,
@@ -122,7 +143,8 @@ import { buildSeedFollows, buildSeedUsers } from './users.seed';
  * ~155 réactions, collections + sauvegardes, 4 signalements et
  * 12 notifications (interactions.seed), 12 caméras météo/trafic
  * (cameras.seed), 8 annonces Dealplace + médias + tags (listings.seed),
- * 2 conversations + 6 messages (conversations.seed).
+ * 2 conversations + 6 messages (conversations.seed), 2 deals (1 actif,
+ * 1 conclu avec avis croisés — deals.seed).
  * Toutes les références croisées passent par seedUuid — chaque fichier
  * vérifie sa propre cohérence à la construction.
  */
@@ -144,5 +166,11 @@ export function buildSeed(): SeedData {
     listingTagMap: buildSeedListingTagMap(),
     conversations: buildSeedConversations(),
     messages: buildSeedMessages(),
+    deals: buildSeedDeals(),
+    dealItems: buildSeedDealItems(),
+    dealItemSteps: buildSeedDealItemSteps(),
+    dealAdjustments: buildSeedDealAdjustments(),
+    dealNotes: buildSeedDealNotes(),
+    dealReviews: buildSeedDealReviews(),
   };
 }

@@ -80,9 +80,18 @@ export class PostgresSeeder {
       // déjà insérés).
       c.conversations = await this.insertConversations(client, data);
       c.messages = await this.insertMessages(client, data);
+      // Deals contractuels + avis (CP2.4) : dans l'ordre des FK.
+      c.deals = await this.insertDeals(client, data);
+      c.deal_items = await this.insertDealItems(client, data);
+      c.deal_item_steps = await this.insertDealItemSteps(client, data);
+      c.deal_adjustments = await this.insertDealAdjustments(client, data);
+      c.deal_notes = await this.insertDealNotes(client, data);
+      c.deal_reviews = await this.insertDealReviews(client, data);
       // Repositionne la séquence camera_number après le plus grand numéro seedé
       // (miroir de MockDatabaseService.syncCameraSequence()). Idempotent.
       await this.resyncCameraSequence(client);
+      // Idem pour la séquence des numéros de deal (CP2.4).
+      await this.resyncDealNumberSequence(client);
       return c;
     });
 
@@ -95,7 +104,8 @@ export class PostgresSeeder {
         `${counts.notifications} notifications, ` +
         `${counts.listings} annonces, ${counts.listing_media} médias annonce, ` +
         `${counts.listing_tag_map} tags annonce, ` +
-        `${counts.conversations} conversations, ${counts.messages} messages.`,
+        `${counts.conversations} conversations, ${counts.messages} messages, ` +
+        `${counts.deals} deals (${counts.deal_reviews} avis).`,
     );
     return counts;
   }
@@ -569,6 +579,180 @@ export class PostgresSeeder {
       inserted += res.rowCount ?? 0;
     }
     return inserted;
+  }
+
+  private async insertDeals(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const d of data.deals) {
+      const res = await client.query(
+        `INSERT INTO deals
+           (id, deal_number, listing_id, conversation_id, proposer_id,
+            recipient_id, status, due_date, cancellation_requested_by,
+            disputed_by, dispute_reason, accepted_at, completed_at, closed_at,
+            created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                 $15, $16)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          d.id,
+          d.dealNumber,
+          d.listingId,
+          d.conversationId,
+          d.proposerId,
+          d.recipientId,
+          d.status,
+          d.dueDate,
+          d.cancellationRequestedBy,
+          d.disputedBy,
+          d.disputeReason,
+          d.acceptedAt,
+          d.completedAt,
+          d.closedAt,
+          d.createdAt,
+          d.updatedAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertDealItems(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const i of data.dealItems) {
+      const res = await client.query(
+        `INSERT INTO deal_items
+           (id, deal_id, provider_id, kind, title, description, value,
+            position, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          i.id,
+          i.dealId,
+          i.providerId,
+          i.kind,
+          i.title,
+          i.description,
+          i.value,
+          i.position,
+          i.createdAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertDealItemSteps(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const s of data.dealItemSteps) {
+      const res = await client.query(
+        `INSERT INTO deal_item_steps
+           (id, item_id, label, position, honored_at, validated_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO NOTHING`,
+        [s.id, s.itemId, s.label, s.position, s.honoredAt, s.validatedAt],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertDealAdjustments(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const a of data.dealAdjustments) {
+      const res = await client.query(
+        `INSERT INTO deal_adjustments
+           (id, deal_id, proposed_by, kind, item_id, payload, description,
+            status, decided_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          a.id,
+          a.dealId,
+          a.proposedBy,
+          a.kind,
+          a.itemId,
+          JSON.stringify(a.payload),
+          a.description,
+          a.status,
+          a.decidedAt,
+          a.createdAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertDealNotes(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const n of data.dealNotes) {
+      const res = await client.query(
+        `INSERT INTO deal_notes (id, deal_id, author_id, body, created_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO NOTHING`,
+        [n.id, n.dealId, n.authorId, n.body, n.createdAt],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertDealReviews(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const r of data.dealReviews) {
+      const res = await client.query(
+        `INSERT INTO deal_reviews
+           (id, deal_id, reviewer_id, reviewee_id, rating_honesty,
+            rating_conformity, rating_kindness, comment, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          r.id,
+          r.dealId,
+          r.reviewerId,
+          r.revieweeId,
+          r.ratingHonesty,
+          r.ratingConformity,
+          r.ratingKindness,
+          r.comment,
+          r.createdAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  /** Repositionne la séquence des numéros de deal après le max présent en
+   * base (miroir de MockDatabaseService.syncDealNumberSequence()). */
+  private async resyncDealNumberSequence(client: PoolClient): Promise<void> {
+    await client.query(
+      `SELECT setval(
+         'deals_deal_number_seq',
+         GREATEST((SELECT COALESCE(MAX(deal_number), 0) FROM deals), 1),
+         (SELECT COUNT(*) > 0 FROM deals)
+       )`,
+    );
   }
 
   /** Repositionne la séquence de camera_number après le max présent en base

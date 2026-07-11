@@ -10,6 +10,9 @@ import '../../features/dealplace/presentation/create_listing_screen.dart';
 import '../../features/dealplace/presentation/dealplace_profil_screen.dart';
 import '../../features/dealplace/presentation/dealplace_screen.dart';
 import '../../features/dealplace/presentation/listing_detail_screen.dart';
+import '../../features/deals/presentation/deal_screen.dart';
+import '../../features/deals/presentation/deals_screen.dart';
+import '../../features/deals/presentation/propose_deal_screen.dart';
 import '../../features/feed/presentation/feed_screen.dart';
 import '../../features/map/presentation/map_screen.dart';
 import '../../features/messages/presentation/chat_screen.dart';
@@ -138,10 +141,31 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             ChatScreen.pourAnnonce(listingId: state.pathParameters['id']!),
       ),
+      // Proposer un deal (CP2.4) — ?recipient= quand le propriétaire propose
+      // depuis une conversation.
+      GoRoute(
+        path: '/dealplace/:id/proposer',
+        builder: (context, state) => ProposeDealScreen(
+          listingId: state.pathParameters['id']!,
+          recipientId: state.uri.queryParameters['recipient'],
+        ),
+      ),
       GoRoute(
         path: '/dealplace/:id',
         builder: (context, state) =>
             ListingDetailScreen(listingId: state.pathParameters['id']!),
+      ),
+      // Deals contractuels (CP2.4) : liste + page de deal, plein écran.
+      GoRoute(
+        path: '/deals',
+        builder: (context, state) => const DealsScreen(),
+        routes: [
+          GoRoute(
+            path: ':id',
+            builder: (context, state) =>
+                DealScreen(dealId: state.pathParameters['id']!),
+          ),
+        ],
       ),
       // Messagerie (CP2.3) : liste des conversations + fil, plein écran.
       GoRoute(

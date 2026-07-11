@@ -28,6 +28,12 @@ import {
   Comment,
   CommentStatus,
   Conversation,
+  Deal,
+  DealAdjustment,
+  DealItem,
+  DealItemStep,
+  DealNote,
+  DealReview,
   Listing,
   ListingCategory,
   ListingMedia,
@@ -58,6 +64,10 @@ import {
   CreateCameraInput,
   CreateCommentInput,
   CreateConversationInput,
+  CreateDealAdjustmentInput,
+  CreateDealInput,
+  CreateDealItemSpec,
+  CreateDealReviewInput,
   CreateListingCategoryInput,
   CreateListingInput,
   CreateListingSubcategoryInput,
@@ -67,9 +77,12 @@ import {
   CreatePostInput,
   CreateReportInput,
   CreateUserInput,
+  DealReviewAggregates,
+  DealsRepository,
   HandleReportInput,
   ListAuthorPostsParams,
   ListCamerasParams,
+  ListDealsParams,
   ListFeedParams,
   ListingsRepository,
   ListingTaxonomyRepository,
@@ -87,6 +100,8 @@ import {
   ReportsRepository,
   SavedRepository,
   UpdateCameraPatch,
+  UpdateDealItemPatch,
+  UpdateDealPatch,
   UpdateListingCategoryPatch,
   UpdateListingPatch,
   UpdateListingSubcategoryPatch,
@@ -2218,5 +2233,525 @@ export class MockConversationsRepository implements ConversationsRepository {
       }
     }
     return false;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Deals contractuels + avis (Lot 2 — CP2.4)
+// ────────────────────────────────────────────────────────────────────────────
+
+@Injectable()
+export class MockDealsRepository implements DealsRepository {
+  constructor(private readonly db: MockDatabaseService) {}
+
+  findById(id: string): Promise<Deal | null> {
+    return Promise.resolve(clone(this.db.deals.get(id) ?? null));
+  }
+
+  create(input: CreateDealInput): Promise<Deal> {
+    // Contraintes structurelles (miroir du SCHÉMA — la machine à états et les
+    // règles métier vivent au SERVICE) : FK annonce/participants/conversation,
+    // parties distinctes (CHECK).
+    if (!this.db.listings.has(input.listingId)) {
+      throw new Error(
+        `Annonce introuvable : ${input.listingId} (FK listings).`,
+      );
+    }
+    for (const userId of [input.proposerId, input.recipientId]) {
+      if (!this.db.users.has(userId)) {
+        throw new Error(`Utilisateur introuvable : ${userId}.`);
+      }
+    }
+    if (input.proposerId === input.recipientId) {
+      throw new Error('Un deal exige deux parties distinctes (CHECK).');
+    }
+    if (
+      input.conversationId !== null &&
+      !this.db.conversations.has(input.conversationId)
+    ) {
+      throw new Error(
+        `Conversation introuvable : ${input.conversationId} (FK conversations).`,
+      );
+    }
+    const now = new Date();
+    const deal: Deal = {
+      id: randomUUID(),
+      dealNumber: this.db.nextDealNumber(),
+      listingId: input.listingId,
+      conversationId: input.conversationId,
+      proposerId: input.proposerId,
+      recipientId: input.recipientId,
+      status: 'proposed',
+      dueDate: input.dueDate ?? null,
+      cancellationRequestedBy: null,
+      disputedBy: null,
+      disputeReason: null,
+      acceptedAt: null,
+      completedAt: null,
+      closedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.deals.set(deal.id, deal);
+    // Éléments + sous-éléments créés ATOMIQUEMENT avec le deal.
+    input.items.forEach((spec, index) => {
+      this.insertItem(deal.id, spec, index, now);
+    });
+    return Promise.resolve(clone(deal));
+  }
+
+  update(id: string, patch: UpdateDealPatch): Promise<Deal> {
+    const deal = this.db.deals.get(id);
+    if (!deal) {
+      throw new Error(`Deal introuvable : ${id}.`);
+    }
+    applyPatch(deal, patch);
+    this.db.touch(deal);
+    return Promise.resolve(clone(deal));
+  }
+
+  listByParticipant(
+    userId: string,
+    params: ListDealsParams,
+  ): Promise<PagedResult<Deal>> {
+    // Du plus récemment ACTIF au plus ancien (updatedAt DESC, tie-break id).
+    let items = [...this.db.deals.values()].filter(
+      (d) => d.proposerId === userId || d.recipientId === userId,
+    );
+    if (params.status !== undefined) {
+      items = items.filter((d) => d.status === params.status);
+    }
+    items.sort(
+      (a, b) =>
+        b.updatedAt.getTime() - a.updatedAt.getTime() ||
+        a.id.localeCompare(b.id),
+    );
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((d) => clone(d)),
+      total: items.length,
+    });
+  }
+
+  findOpenBetween(
+    listingId: string,
+    userA: string,
+    userB: string,
+  ): Promise<Deal | null> {
+    // Deal OUVERT (proposed|active) entre les deux, quel que soit le sens —
+    // le plus récent d'abord (au plus un par la règle métier du service).
+    const candidates = [...this.db.deals.values()]
+      .filter(
+        (d) =>
+          d.listingId === listingId &&
+          (d.status === 'proposed' || d.status === 'active') &&
+          ((d.proposerId === userA && d.recipientId === userB) ||
+            (d.proposerId === userB && d.recipientId === userA)),
+      )
+      .sort(
+        (a, b) =>
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          a.id.localeCompare(b.id),
+      );
+    return Promise.resolve(candidates.length > 0 ? clone(candidates[0]) : null);
+  }
+
+  findOpenByConversation(conversationId: string): Promise<Deal | null> {
+    const candidates = [...this.db.deals.values()]
+      .filter(
+        (d) =>
+          d.conversationId === conversationId &&
+          (d.status === 'proposed' || d.status === 'active'),
+      )
+      .sort(
+        (a, b) =>
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          a.id.localeCompare(b.id),
+      );
+    return Promise.resolve(candidates.length > 0 ? clone(candidates[0]) : null);
+  }
+
+  countCompletedByParticipant(userId: string): Promise<number> {
+    let count = 0;
+    for (const deal of this.db.deals.values()) {
+      if (
+        deal.status === 'completed' &&
+        (deal.proposerId === userId || deal.recipientId === userId)
+      ) {
+        count++;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
+  listCompletedByParticipant(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Deal>> {
+    const items = [...this.db.deals.values()]
+      .filter(
+        (d) =>
+          d.status === 'completed' &&
+          (d.proposerId === userId || d.recipientId === userId),
+      )
+      .sort(
+        (a, b) =>
+          (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0) ||
+          a.id.localeCompare(b.id),
+      );
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((d) => clone(d)),
+      total: items.length,
+    });
+  }
+
+  // ── Éléments & sous-éléments ───────────────────────────────────────────────
+
+  listItems(dealId: string): Promise<DealItem[]> {
+    return Promise.resolve(
+      [...this.db.dealItems.values()]
+        .filter((i) => i.dealId === dealId)
+        .sort(this.byItemOrder)
+        .map((i) => clone(i)),
+    );
+  }
+
+  listItemsByDealIds(
+    dealIds: string[],
+  ): Promise<Record<string, DealItem[]>> {
+    const wanted = new Set(dealIds);
+    const result: Record<string, DealItem[]> = {};
+    for (const item of this.db.dealItems.values()) {
+      if (!wanted.has(item.dealId)) {
+        continue;
+      }
+      (result[item.dealId] ??= []).push(clone(item));
+    }
+    for (const dealId of Object.keys(result)) {
+      result[dealId].sort(this.byItemOrder);
+    }
+    return Promise.resolve(result);
+  }
+
+  findItemById(itemId: string): Promise<DealItem | null> {
+    return Promise.resolve(clone(this.db.dealItems.get(itemId) ?? null));
+  }
+
+  listSteps(itemIds: string[]): Promise<DealItemStep[]> {
+    const wanted = new Set(itemIds);
+    return Promise.resolve(
+      [...this.db.dealItemSteps.values()]
+        .filter((s) => wanted.has(s.itemId))
+        .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+        .map((s) => clone(s)),
+    );
+  }
+
+  findStepById(stepId: string): Promise<DealItemStep | null> {
+    return Promise.resolve(clone(this.db.dealItemSteps.get(stepId) ?? null));
+  }
+
+  replaceItems(dealId: string, items: CreateDealItemSpec[]): Promise<void> {
+    if (!this.db.deals.has(dealId)) {
+      throw new Error(`Deal introuvable : ${dealId}.`);
+    }
+    // Purge éléments + sous-éléments (équivalent DELETE CASCADE) puis
+    // réinsertion — atomique.
+    for (const [id, item] of [...this.db.dealItems.entries()]) {
+      if (item.dealId === dealId) {
+        this.db.dealItems.delete(id);
+        for (const [stepId, step] of [...this.db.dealItemSteps.entries()]) {
+          if (step.itemId === id) {
+            this.db.dealItemSteps.delete(stepId);
+          }
+        }
+      }
+    }
+    const now = new Date();
+    items.forEach((spec, index) => this.insertItem(dealId, spec, index, now));
+    return Promise.resolve();
+  }
+
+  addItem(dealId: string, spec: CreateDealItemSpec): Promise<DealItem> {
+    if (!this.db.deals.has(dealId)) {
+      throw new Error(`Deal introuvable : ${dealId}.`);
+    }
+    // Position : après le dernier élément existant.
+    let maxPosition = -1;
+    for (const item of this.db.dealItems.values()) {
+      if (item.dealId === dealId && item.position > maxPosition) {
+        maxPosition = item.position;
+      }
+    }
+    const created = this.insertItem(
+      dealId,
+      { ...spec, position: spec.position ?? maxPosition + 1 },
+      maxPosition + 1,
+      new Date(),
+    );
+    return Promise.resolve(clone(created));
+  }
+
+  updateItem(itemId: string, patch: UpdateDealItemPatch): Promise<DealItem> {
+    const item = this.db.dealItems.get(itemId);
+    if (!item) {
+      throw new Error(`Élément introuvable : ${itemId}.`);
+    }
+    applyPatch(item, patch);
+    return Promise.resolve(clone(item));
+  }
+
+  removeItem(itemId: string): Promise<void> {
+    if (!this.db.dealItems.delete(itemId)) {
+      throw new Error(`Élément introuvable : ${itemId}.`);
+    }
+    for (const [stepId, step] of [...this.db.dealItemSteps.entries()]) {
+      if (step.itemId === itemId) {
+        this.db.dealItemSteps.delete(stepId);
+      }
+    }
+    return Promise.resolve();
+  }
+
+  honorStep(stepId: string, at: Date): Promise<DealItemStep> {
+    const step = this.db.dealItemSteps.get(stepId);
+    if (!step) {
+      throw new Error(`Sous-élément introuvable : ${stepId}.`);
+    }
+    // Idempotent : déjà honoré = inchangé.
+    if (step.honoredAt === null) {
+      step.honoredAt = new Date(at.getTime());
+    }
+    return Promise.resolve(clone(step));
+  }
+
+  validateStep(stepId: string, at: Date): Promise<DealItemStep> {
+    const step = this.db.dealItemSteps.get(stepId);
+    if (!step) {
+      throw new Error(`Sous-élément introuvable : ${stepId}.`);
+    }
+    // Le service garantit « honoré d'abord » ; on reproduit le CHECK SQL.
+    if (step.honoredAt === null) {
+      throw new Error(
+        'Un sous-élément doit être honoré avant validation (CHECK).',
+      );
+    }
+    if (step.validatedAt === null) {
+      step.validatedAt = new Date(at.getTime());
+    }
+    return Promise.resolve(clone(step));
+  }
+
+  // ── Ajustements ────────────────────────────────────────────────────────────
+
+  createAdjustment(
+    input: CreateDealAdjustmentInput,
+  ): Promise<DealAdjustment> {
+    if (!this.db.deals.has(input.dealId)) {
+      throw new Error(`Deal introuvable : ${input.dealId}.`);
+    }
+    const adjustment: DealAdjustment = {
+      id: randomUUID(),
+      dealId: input.dealId,
+      proposedBy: input.proposedBy,
+      kind: input.kind,
+      itemId: input.itemId ?? null,
+      payload: structuredClone(input.payload),
+      description: input.description,
+      status: 'pending',
+      decidedAt: null,
+      createdAt: new Date(),
+    };
+    this.db.dealAdjustments.set(adjustment.id, adjustment);
+    return Promise.resolve(clone(adjustment));
+  }
+
+  findAdjustmentById(id: string): Promise<DealAdjustment | null> {
+    return Promise.resolve(clone(this.db.dealAdjustments.get(id) ?? null));
+  }
+
+  listAdjustments(dealId: string): Promise<DealAdjustment[]> {
+    return Promise.resolve(
+      [...this.db.dealAdjustments.values()]
+        .filter((a) => a.dealId === dealId)
+        .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id))
+        .map((a) => clone(a)),
+    );
+  }
+
+  decideAdjustment(
+    id: string,
+    status: 'accepted' | 'rejected',
+    at: Date,
+  ): Promise<DealAdjustment> {
+    const adjustment = this.db.dealAdjustments.get(id);
+    if (!adjustment) {
+      throw new Error(`Ajustement introuvable : ${id}.`);
+    }
+    adjustment.status = status;
+    adjustment.decidedAt = new Date(at.getTime());
+    return Promise.resolve(clone(adjustment));
+  }
+
+  // ── Notes de suivi ─────────────────────────────────────────────────────────
+
+  createNote(input: {
+    dealId: string;
+    authorId: string;
+    body: string;
+  }): Promise<DealNote> {
+    if (!this.db.deals.has(input.dealId)) {
+      throw new Error(`Deal introuvable : ${input.dealId}.`);
+    }
+    const note: DealNote = {
+      id: randomUUID(),
+      dealId: input.dealId,
+      authorId: input.authorId,
+      body: input.body,
+      createdAt: new Date(),
+    };
+    this.db.dealNotes.set(note.id, note);
+    return Promise.resolve(clone(note));
+  }
+
+  listNotes(dealId: string): Promise<DealNote[]> {
+    return Promise.resolve(
+      [...this.db.dealNotes.values()]
+        .filter((n) => n.dealId === dealId)
+        .sort((a, b) => byCreatedAtAsc(a, b) || a.id.localeCompare(b.id))
+        .map((n) => clone(n)),
+    );
+  }
+
+  // ── Avis ───────────────────────────────────────────────────────────────────
+
+  createReview(input: CreateDealReviewInput): Promise<DealReview> {
+    if (!this.db.deals.has(input.dealId)) {
+      throw new Error(`Deal introuvable : ${input.dealId}.`);
+    }
+    for (const review of this.db.dealReviews.values()) {
+      if (
+        review.dealId === input.dealId &&
+        review.reviewerId === input.reviewerId
+      ) {
+        throw new Error(
+          'Avis déjà déposé pour ce deal par cet évaluateur (contrainte UNIQUE).',
+        );
+      }
+    }
+    if (input.reviewerId === input.revieweeId) {
+      throw new Error('Un avis exige deux parties distinctes (CHECK).');
+    }
+    const review: DealReview = {
+      id: randomUUID(),
+      dealId: input.dealId,
+      reviewerId: input.reviewerId,
+      revieweeId: input.revieweeId,
+      ratingHonesty: input.ratingHonesty,
+      ratingConformity: input.ratingConformity,
+      ratingKindness: input.ratingKindness,
+      comment: input.comment ?? null,
+      createdAt: new Date(),
+    };
+    this.db.dealReviews.set(review.id, review);
+    return Promise.resolve(clone(review));
+  }
+
+  listReviewsByDeal(dealId: string): Promise<DealReview[]> {
+    return Promise.resolve(
+      [...this.db.dealReviews.values()]
+        .filter((r) => r.dealId === dealId)
+        .sort((a, b) => byCreatedAtAsc(a, b) || a.id.localeCompare(b.id))
+        .map((r) => clone(r)),
+    );
+  }
+
+  listReviewsForUser(
+    revieweeId: string,
+    params: PageParams,
+  ): Promise<PagedResult<DealReview>> {
+    const items = [...this.db.dealReviews.values()]
+      .filter((r) => r.revieweeId === revieweeId)
+      .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((r) => clone(r)),
+      total: items.length,
+    });
+  }
+
+  reviewAggregates(revieweeId: string): Promise<DealReviewAggregates> {
+    // Moyennes ARRONDIES à 2 décimales (parité stricte avec le ROUND(...,2)
+    // du driver postgres).
+    const received = [...this.db.dealReviews.values()].filter(
+      (r) => r.revieweeId === revieweeId,
+    );
+    if (received.length === 0) {
+      return Promise.resolve({
+        count: 0,
+        avgHonesty: null,
+        avgConformity: null,
+        avgKindness: null,
+      });
+    }
+    const avg = (pick: (r: DealReview) => number): number =>
+      Math.round(
+        (received.reduce((sum, r) => sum + pick(r), 0) / received.length) *
+          100,
+      ) / 100;
+    return Promise.resolve({
+      count: received.length,
+      avgHonesty: avg((r) => r.ratingHonesty),
+      avgConformity: avg((r) => r.ratingConformity),
+      avgKindness: avg((r) => r.ratingKindness),
+    });
+  }
+
+  // ── Aides privées ──────────────────────────────────────────────────────────
+
+  /** Tri de référence des éléments : position ASC, puis createdAt, puis id. */
+  private readonly byItemOrder = (a: DealItem, b: DealItem): number =>
+    a.position - b.position ||
+    byCreatedAtAsc(a, b) ||
+    a.id.localeCompare(b.id);
+
+  /** Insère un élément + ses sous-éléments (le service garantit steps ≥ 1). */
+  private insertItem(
+    dealId: string,
+    spec: CreateDealItemSpec,
+    fallbackPosition: number,
+    now: Date,
+  ): DealItem {
+    if (!this.db.users.has(spec.providerId)) {
+      throw new Error(`Utilisateur introuvable : ${spec.providerId}.`);
+    }
+    const item: DealItem = {
+      id: randomUUID(),
+      dealId,
+      providerId: spec.providerId,
+      kind: spec.kind,
+      title: spec.title,
+      description: spec.description ?? '',
+      value: spec.value,
+      position: spec.position ?? fallbackPosition,
+      createdAt: now,
+    };
+    this.db.dealItems.set(item.id, item);
+    spec.steps.forEach((label, index) => {
+      const step: DealItemStep = {
+        id: randomUUID(),
+        itemId: item.id,
+        label,
+        position: index,
+        honoredAt: null,
+        validatedAt: null,
+      };
+      this.db.dealItemSteps.set(step.id, step);
+    });
+    return item;
   }
 }

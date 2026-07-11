@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/deals/application/deal_providers.dart';
 import '../../features/map/application/map_controller.dart';
 import '../../features/messages/application/conversations_controller.dart';
 import '../../features/messages/application/messages_unread_controller.dart';
@@ -130,6 +131,11 @@ class RealtimeBridge extends Notifier<void> {
             ref.read(conversationsControllerProvider.notifier).rafraichir(),
           );
         }
+      case DealMisAJour(:final dealId):
+        // La page du deal, si elle est ouverte (provider vivant), se recharge
+        // — invalider un provider autoDispose non écouté est sans effet.
+        ref.invalidate(dealProvider(dealId));
+        ref.invalidate(mesDealsProvider);
     }
   }
 }

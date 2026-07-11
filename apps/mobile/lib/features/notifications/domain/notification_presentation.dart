@@ -29,6 +29,7 @@ class NotificationPresentation {
 /// - reply          → « X a répondu à votre commentaire »
 /// - reaction       → « X a réagi à votre publication » (+ emoji si présent)
 /// - report_handled → « Votre signalement a été traité »
+/// - deal (CP2.4)   → titre du jalon (payload.title)
 /// - system / autre → titre/message du payload, puis « Notification système »
 String libelleNotification(AppNotification notif) {
   final String auteur = _auteur(notif);
@@ -48,6 +49,8 @@ NotificationPresentation presentationNotification(AppNotification notif) {
     'reply' => (Icons.reply_outlined, EndirekColors.bleu),
     'reaction' => (Icons.favorite_border, const Color(0xFFE0245E)),
     'report_handled' => (Icons.gavel_outlined, const Color(0xFF16A34A)),
+    // Jalons de deal (CP2.4) : proposition, acceptation, conclusion, avis…
+    'deal' => (Icons.handshake_outlined, EndirekColors.bleu),
     _ => (Icons.notifications_none, EndirekColors.encreSecondaire),
   };
   return NotificationPresentation(

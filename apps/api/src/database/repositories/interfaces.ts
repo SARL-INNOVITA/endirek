@@ -18,6 +18,15 @@ import {
   Comment,
   CommentStatus,
   Conversation,
+  Deal,
+  DealAdjustment,
+  DealAdjustmentKind,
+  DealItem,
+  DealItemKind,
+  DealItemStep,
+  DealNote,
+  DealReview,
+  DealStatus,
   ExchangePref,
   GeoPoint,
   Listing,
@@ -848,4 +857,191 @@ export interface ConversationsRepository {
     conversationId: string,
     params: PageParams,
   ): Promise<PagedResult<Message>>;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Deals contractuels + avis (Lot 2 — CP2.4, décision D64)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Élément fourni à la création d'un deal (ou par un ajustement 'add').
+ * `steps` = libellés des sous-éléments ; le SERVICE garantit qu'au moins un
+ * step existe (step automatique portant le titre si la liste est vide). */
+export interface CreateDealItemSpec {
+  providerId: string;
+  kind: DealItemKind;
+  title: string;
+  description?: string;
+  value: number;
+  position?: number;
+  steps: string[];
+}
+
+/** Données de création d'un deal (items + steps créés ATOMIQUEMENT). Les
+ * règles métier (annonce visible, parties distinctes, un seul deal ouvert par
+ * paire/annonce, providerId ∈ {proposer, recipient}) vivent au SERVICE. */
+export interface CreateDealInput {
+  listingId: string;
+  conversationId: string | null;
+  proposerId: string;
+  recipientId: string;
+  dueDate?: Date | null;
+  items: CreateDealItemSpec[];
+}
+
+/** Champs modifiables d'un deal (le SERVICE décide des transitions — le
+ * repository applique sans revalider la machine à états). */
+export interface UpdateDealPatch {
+  status?: DealStatus;
+  dueDate?: Date | null;
+  conversationId?: string | null;
+  cancellationRequestedBy?: string | null;
+  disputedBy?: string | null;
+  disputeReason?: string | null;
+  acceptedAt?: Date | null;
+  completedAt?: Date | null;
+  closedAt?: Date | null;
+}
+
+/** Filtres de MES deals (liste mobile). */
+export interface ListDealsParams {
+  status?: DealStatus;
+  limit: number;
+  offset: number;
+}
+
+/** Champs modifiables d'un élément (ajustement 'modify' accepté). */
+export interface UpdateDealItemPatch {
+  kind?: DealItemKind;
+  title?: string;
+  description?: string;
+  value?: number;
+}
+
+/** Données de création d'un ajustement. */
+export interface CreateDealAdjustmentInput {
+  dealId: string;
+  proposedBy: string;
+  kind: DealAdjustmentKind;
+  itemId?: string | null;
+  payload: Record<string, unknown>;
+  description: string;
+}
+
+/** Données de création d'un avis (deal CONCLU — vérifié au service). */
+export interface CreateDealReviewInput {
+  dealId: string;
+  reviewerId: string;
+  revieweeId: string;
+  ratingHonesty: number;
+  ratingConformity: number;
+  ratingKindness: number;
+  comment?: string | null;
+}
+
+/** Moyennes d'avis d'un utilisateur — calculées À LA LECTURE (null si aucun
+ * avis reçu). */
+export interface DealReviewAggregates {
+  count: number;
+  avgHonesty: number | null;
+  avgConformity: number | null;
+  avgKindness: number | null;
+}
+
+/**
+ * Repository des deals contractuels, de leurs éléments/sous-éléments,
+ * ajustements, notes et avis (CP2.4).
+ *
+ * Le repository ne connaît PAS la machine à états : il applique les patchs
+ * décidés par le service (contrat identique aux autres agrégats). Toutes les
+ * écritures multi-tables (deal+items+steps, remplacement d'items) sont
+ * ATOMIQUES (équivalent transaction SQL). Aucun agrégat stocké : badges
+ * d'éléments, stepper et note globale d'avis sont DÉRIVÉS à la lecture.
+ */
+export interface DealsRepository {
+  findById(id: string): Promise<Deal | null>;
+  /** Crée le deal AVEC ses éléments et sous-éléments (atomique). */
+  create(input: CreateDealInput): Promise<Deal>;
+  update(id: string, patch: UpdateDealPatch): Promise<Deal>;
+  /** Deals où userId est proposeur OU destinataire, du plus récemment ACTIF
+   * au plus ancien (updatedAt DESC, tie-break id). */
+  listByParticipant(
+    userId: string,
+    params: ListDealsParams,
+  ): Promise<PagedResult<Deal>>;
+  /** Deal OUVERT (proposed|active) entre deux utilisateurs sur une annonce,
+   * quel que soit le sens — unicité métier « un seul deal ouvert à la fois ». */
+  findOpenBetween(
+    listingId: string,
+    userA: string,
+    userB: string,
+  ): Promise<Deal | null>;
+  /** Deal le plus récent NON clos (proposed|active) lié à une conversation
+   * (bandeau du fil de discussion). */
+  findOpenByConversation(conversationId: string): Promise<Deal | null>;
+  /** Nombre de deals CONCLUS d'un utilisateur (« X deals réalisés »). */
+  countCompletedByParticipant(userId: string): Promise<number>;
+  /** Deals CONCLUS d'un utilisateur, du plus récent au plus ancien
+   * (section « Deals conclus » du profil Dealplace). */
+  listCompletedByParticipant(
+    userId: string,
+    params: PageParams,
+  ): Promise<PagedResult<Deal>>;
+
+  // ── Éléments & sous-éléments ─────────────────────────────────────────────
+  /** Éléments d'un deal, triés par position ASC (tie-break createdAt, id). */
+  listItems(dealId: string): Promise<DealItem[]>;
+  /** Éléments de PLUSIEURS deals en un appel (cartes/profil — anti N+1) :
+   * { dealId → items[] }, mêmes tris. */
+  listItemsByDealIds(dealIds: string[]): Promise<Record<string, DealItem[]>>;
+  findItemById(itemId: string): Promise<DealItem | null>;
+  /** Sous-éléments de plusieurs éléments en un appel, position ASC. */
+  listSteps(itemIds: string[]): Promise<DealItemStep[]>;
+  findStepById(stepId: string): Promise<DealItemStep | null>;
+  /** Remplace INTÉGRALEMENT les éléments d'un deal (édition en 'proposed') —
+   * purge puis réinsère, atomique. */
+  replaceItems(dealId: string, items: CreateDealItemSpec[]): Promise<void>;
+  /** Ajoute un élément (+ steps) à un deal (ajustement 'add' accepté). */
+  addItem(dealId: string, spec: CreateDealItemSpec): Promise<DealItem>;
+  updateItem(itemId: string, patch: UpdateDealItemPatch): Promise<DealItem>;
+  /** Supprime un élément et ses sous-éléments (ajustement 'remove' accepté). */
+  removeItem(itemId: string): Promise<void>;
+  /** Pose honored_at (fournisseur) — idempotent (déjà honoré = inchangé). */
+  honorStep(stepId: string, at: Date): Promise<DealItemStep>;
+  /** Pose validated_at (contrepartie) — le service garantit « honoré
+   * d'abord ». Idempotent. */
+  validateStep(stepId: string, at: Date): Promise<DealItemStep>;
+
+  // ── Ajustements ──────────────────────────────────────────────────────────
+  createAdjustment(input: CreateDealAdjustmentInput): Promise<DealAdjustment>;
+  findAdjustmentById(id: string): Promise<DealAdjustment | null>;
+  /** Ajustements d'un deal, du plus récent au plus ancien. */
+  listAdjustments(dealId: string): Promise<DealAdjustment[]>;
+  /** Pose la décision (accepted/rejected) + decidedAt — l'APPLICATION du
+   * payload est orchestrée par le service via addItem/updateItem/removeItem. */
+  decideAdjustment(
+    id: string,
+    status: 'accepted' | 'rejected',
+    at: Date,
+  ): Promise<DealAdjustment>;
+
+  // ── Notes de suivi ───────────────────────────────────────────────────────
+  createNote(input: {
+    dealId: string;
+    authorId: string;
+    body: string;
+  }): Promise<DealNote>;
+  /** Notes d'un deal, CHRONOLOGIQUES (timeline « Suivi du deal »). */
+  listNotes(dealId: string): Promise<DealNote[]>;
+
+  // ── Avis ─────────────────────────────────────────────────────────────────
+  createReview(input: CreateDealReviewInput): Promise<DealReview>;
+  /** Les avis d'un deal (0 à 2 — un par partie). */
+  listReviewsByDeal(dealId: string): Promise<DealReview[]>;
+  /** Avis REÇUS par un utilisateur, du plus récent au plus ancien. */
+  listReviewsForUser(
+    revieweeId: string,
+    params: PageParams,
+  ): Promise<PagedResult<DealReview>>;
+  /** Moyennes des avis reçus — calculées à la lecture. */
+  reviewAggregates(revieweeId: string): Promise<DealReviewAggregates>;
 }

@@ -149,6 +149,19 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   /**
+   * Pousse un événement LÉGER de rafraîchissement d'un deal (CP2.4) vers la
+   * room privée d'un participant : le client qui affiche la page du deal la
+   * recharge via GET /deals/:id. Émis APRÈS persistance, jamais une source
+   * de vérité.
+   */
+  emitDealUpdated(userId: string, payload: { dealId: string }): void {
+    if (!this.server) {
+      return;
+    }
+    this.server.to(this.userRoom(userId)).emit('deal.updated', payload);
+  }
+
+  /**
    * Diffuse un événement LÉGER de rafraîchissement carte (le client recharge
    * ses marqueurs via GET /map/overview). Émis à la room 'map' pour ne
    * déranger que les clients qui affichent la carte.

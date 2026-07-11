@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_controller.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/theme/endirek_theme.dart';
+import '../../deals/application/deal_providers.dart';
+import '../../deals/domain/deal_models.dart';
+import '../../deals/presentation/widgets/etoiles_avis.dart';
 import '../../profile/data/profile_repository.dart';
 import '../application/profil_dealplace_providers.dart';
 import 'widgets/tuile_annonce_profil.dart';
@@ -46,7 +50,7 @@ class ProfilDealplaceView extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _BlocAvisPlaceholder(),
+        _BlocStatsDeals(userId: userId, estMoi: _estMoi),
         const SizedBox(height: 16),
         _BlocCeQueJeRecherche(estMoi: _estMoi, seekingPublic: seekingPublic),
         const SizedBox(height: 24),
@@ -68,31 +72,38 @@ class ProfilDealplaceView extends ConsumerWidget {
               : 'Aucun bien proposé pour le moment.',
         ),
         const SizedBox(height: 24),
-        const _BlocDealsPlaceholder(),
+        _BlocDealsConclus(userId: userId, estMoi: _estMoi),
       ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Bloc DealPlace : deals réalisés + avis — PLACEHOLDER (CP2.4, D59)
+// 1. Bloc DealPlace : deals réalisés + note globale + critères — RÉEL (CP2.4)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Structure du bloc « DealPlace » du mockup 05 (deals réalisés, note globale,
-/// critères Honnêteté et fiabilité / Conformité à la description / Amabilité
-/// et courtoisie), grisée avec la mention « prochain lot » : les avis sont
-/// construits AVEC les deals (CP2.4).
-class _BlocAvisPlaceholder extends StatelessWidget {
-  const _BlocAvisPlaceholder();
+/// Bloc « DealPlace » du mockup 05, ACTIVÉ au CP2.4 : « X deals réalisés »,
+/// note globale, barres des 3 critères (moyennes des avis reçus), dernier
+/// avis. Sur MON profil : bouton « Mes deals ».
+class _BlocStatsDeals extends ConsumerWidget {
+  const _BlocStatsDeals({required this.userId, required this.estMoi});
 
-  static const List<String> _criteres = [
-    'Honnêteté et fiabilité',
-    'Conformité à la description',
-    'Amabilité et courtoisie',
+  final String? userId;
+  final bool estMoi;
+
+  static const List<(String, double? Function(DealProfile))> _criteres = [
+    ('Honnêteté et fiabilité', _avgHonesty),
+    ('Conformité à la description', _avgConformity),
+    ('Amabilité et courtoisie', _avgKindness),
   ];
 
+  static double? _avgHonesty(DealProfile p) => p.avgHonesty;
+  static double? _avgConformity(DealProfile p) => p.avgConformity;
+  static double? _avgKindness(DealProfile p) => p.avgKindness;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profil = ref.watch(dealProfilProvider(estMoi ? null : userId));
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -114,55 +125,46 @@ class _BlocAvisPlaceholder extends StatelessWidget {
                     ),
                   ),
                 ),
-                _PastilleBientot(),
-                const SizedBox(width: 8),
+                if (profil.hasValue)
+                  Text(
+                    '${profil.value!.dealsCompleted} deal${profil.value!.dealsCompleted > 1 ? 's' : ''} réalisé${profil.value!.dealsCompleted > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: EndirekColors.encreSecondaire,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                const SizedBox(width: 6),
                 const _BoutonCommentCaMarche(),
               ],
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Deals réalisés, note globale et avis détaillés arrivent au '
-              'prochain lot, avec les deals.',
-              style: TextStyle(
-                color: EndirekColors.encreSecondaire,
-                fontSize: 13,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 12),
-            for (final critere in _criteres) ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        critere,
-                        style: const TextStyle(
-                          color: EndirekColors.encreSecondaire,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    // Barre de note vide (structure du mockup, sans donnée).
-                    Container(
-                      width: 90,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: EndirekColors.bordure,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      '— /5',
-                      style: TextStyle(
-                        color: EndirekColors.encreSecondaire,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 10),
+            switch (profil) {
+              AsyncData(:final value) => _stats(context, value),
+              AsyncError() => const Text(
+                  'Stats indisponibles pour le moment.',
+                  style: TextStyle(
+                    color: EndirekColors.encreSecondaire,
+                    fontSize: 13,
+                  ),
                 ),
+              _ => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    ),
+                  ),
+                ),
+            },
+            if (estMoi) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => context.push('/deals'),
+                icon: const Icon(Icons.handshake_outlined, size: 18),
+                label: const Text('Mes deals'),
               ),
             ],
           ],
@@ -170,28 +172,144 @@ class _BlocAvisPlaceholder extends StatelessWidget {
       ),
     );
   }
+
+  Widget _stats(BuildContext context, DealProfile profil) {
+    if (profil.reviewsCount == 0) {
+      return const Text(
+        'Pas encore d’avis — ils apparaîtront après les premiers deals '
+        'conclus.',
+        style: TextStyle(
+          color: EndirekColors.encreSecondaire,
+          fontSize: 13,
+          height: 1.4,
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Note globale',
+              style: TextStyle(
+                color: EndirekColors.encre,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            EtoilesLecture(note: profil.overall ?? 0),
+            const SizedBox(width: 6),
+            Text(
+              'par ${profil.reviewsCount} utilisateur${profil.reviewsCount > 1 ? 's' : ''}',
+              style: const TextStyle(
+                color: EndirekColors.encreSecondaire,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final (libelle, valeur) in _criteres)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 7),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    libelle,
+                    style: const TextStyle(
+                      color: EndirekColors.encreSecondaire,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 90,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: (valeur(profil) ?? 0) / 5,
+                      minHeight: 6,
+                      backgroundColor: EndirekColors.bordure,
+                      color: EndirekColors.bleu,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 44,
+                  child: Text(
+                    '${(valeur(profil) ?? 0).toStringAsFixed(1).replaceAll('.', ',')}/5',
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      color: EndirekColors.encre,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (profil.latestReviews.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          _DernierAvis(avis: profil.latestReviews.first),
+        ],
+      ],
+    );
+  }
 }
 
-/// Pastille « Bientôt » des blocs placeholder.
-class _PastilleBientot extends StatelessWidget {
-  const _PastilleBientot();
+/// Carte du dernier avis reçu (mockup 05).
+class _DernierAvis extends StatelessWidget {
+  const _DernierAvis({required this.avis});
+
+  final DealReview avis;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: EndirekColors.surface,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: EndirekColors.bordure),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: const Text(
-        'Bientôt',
-        style: TextStyle(
-          color: EndirekColors.encreSecondaire,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  avis.reviewer.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: EndirekColors.encre,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              EtoilesLecture(note: avis.overall),
+            ],
+          ),
+          if (avis.comment != null && avis.comment!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              avis.comment!,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: EndirekColors.encre,
+                fontSize: 12.5,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -531,60 +649,106 @@ class _SectionAnnonces extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. « Deals conclus » — PLACEHOLDER (CP2.4)
+// 4. « Deals conclus » — RÉEL (CP2.4, mockup 05)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BlocDealsPlaceholder extends StatelessWidget {
-  const _BlocDealsPlaceholder();
+/// Historique des échanges conclus : « offert ⇄ en échange de » + date.
+class _BlocDealsConclus extends ConsumerWidget {
+  const _BlocDealsConclus({required this.userId, required this.estMoi});
+
+  final String? userId;
+  final bool estMoi;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profil = ref.watch(dealProfilProvider(estMoi ? null : userId));
+    final conclus = profil.value?.concludedDeals ?? const [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Deals conclus',
-                style: TextStyle(
-                  color: EndirekColors.encre,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            _PastilleBientot(),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.swap_horiz,
-                  color: EndirekColors.encreSecondaire,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'L’historique des échanges conclus (« j’ai '
-                    'offert » / « en échange de ») arrive au prochain lot, '
-                    'avec les deals.',
-                    style: const TextStyle(
-                      color: EndirekColors.encreSecondaire,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        Text(
+          profil.hasValue ? 'Deals conclus (${conclus.length})' : 'Deals conclus',
+          style: const TextStyle(
+            color: EndirekColors.encre,
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
           ),
         ),
+        const SizedBox(height: 12),
+        if (profil.hasValue && conclus.isEmpty)
+          Text(
+            estMoi
+                ? 'Aucun deal conclu pour le moment — proposez un deal depuis '
+                    'une annonce !'
+                : 'Aucun deal conclu pour le moment.',
+            style: const TextStyle(
+              color: EndirekColors.encreSecondaire,
+              fontSize: 13.5,
+            ),
+          ),
+        for (final deal in conclus)
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          deal.offeredByUser,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: const TextStyle(
+                            color: EndirekColors.encre,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(Icons.swap_horiz,
+                            size: 18, color: EndirekColors.bleu),
+                      ),
+                      Expanded(
+                        child: Text(
+                          deal.receivedByUser,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: EndirekColors.encre,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (deal.completedAt != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Conclu le ${_date(deal.completedAt!)}',
+                      style: const TextStyle(
+                        color: EndirekColors.encreSecondaire,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  static String _date(DateTime d) {
+    final l = d.toLocal();
+    String deux(int n) => n.toString().padLeft(2, '0');
+    return '${deux(l.day)}/${deux(l.month)}/${l.year}';
   }
 }

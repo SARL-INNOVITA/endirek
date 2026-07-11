@@ -8,6 +8,7 @@ import { CamerasModule } from './modules/cameras/cameras.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { DealplaceModule } from './modules/dealplace/dealplace.module';
+import { DealsModule } from './modules/deals/deals.module';
 import { HealthModule } from './modules/health/health.module';
 import { MapModule } from './modules/map/map.module';
 import { MediaModule } from './modules/media/media.module';
@@ -56,6 +57,10 @@ import { UsersModule } from './modules/users/users.module';
  *
  * Lot 2 — CP2.3 : ConversationsModule (messagerie 1-to-1 liée aux annonces,
  * temps réel via la gateway du Lot 1 — event 'message.created').
+ *
+ * Lot 2 — CP2.4 : DealsModule (deals contractuels — machine à états,
+ * éléments validables, ajustements, litiges — + avis détaillés et stats du
+ * profil Dealplace).
  */
 @Module({
   imports: [
@@ -79,6 +84,7 @@ import { UsersModule } from './modules/users/users.module';
     MapModule,
     DealplaceModule,
     ConversationsModule,
+    DealsModule,
     HealthModule,
   ],
 })

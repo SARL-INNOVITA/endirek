@@ -33,6 +33,9 @@ export const LISTINGS_REPOSITORY = Symbol('LISTINGS_REPOSITORY');
 // Conversations 1-to-1 (Lot 2 — CP2.3).
 export const CONVERSATIONS_REPOSITORY = Symbol('CONVERSATIONS_REPOSITORY');
 
+// Deals contractuels + avis (Lot 2 — CP2.4).
+export const DEALS_REPOSITORY = Symbol('DEALS_REPOSITORY');
+
 /** Liste complète des tokens de repositories — source unique de vérité,
  * réellement utilisée par DatabaseModule pour ses `exports` (tout nouveau
  * token ajouté ici est automatiquement exposé au code métier). */
@@ -49,4 +52,5 @@ export const ALL_REPOSITORY_TOKENS: symbol[] = [
   LISTING_TAXONOMY_REPOSITORY,
   LISTINGS_REPOSITORY,
   CONVERSATIONS_REPOSITORY,
+  DEALS_REPOSITORY,
 ];

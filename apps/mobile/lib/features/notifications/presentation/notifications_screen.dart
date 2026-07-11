@@ -95,13 +95,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  /// Tap : marque lue puis navigue vers le post si un postId est présent.
+  /// Tap : marque lue puis navigue vers le post ou le deal du payload.
   Future<void> _ouvrir(AppNotification notif) async {
     await ref
         .read(notificationsControllerProvider.notifier)
         .marquerLue(notif.id);
+    if (!mounted) {
+      return;
+    }
+    final String? dealId = notif.dealId;
+    if (dealId != null) {
+      context.push('/deals/$dealId');
+      return;
+    }
     final String? postId = notif.postId;
-    if (postId != null && mounted) {
+    if (postId != null) {
       context.push('/post/$postId');
     }
   }

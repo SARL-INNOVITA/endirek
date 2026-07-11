@@ -523,9 +523,10 @@ class _SectionTags extends StatelessWidget {
   }
 }
 
-/// Barre sticky d'actions (mockup 06 + CP2.3) : « Contacter » le vendeur
-/// (RÉEL — ouvre/reprend le fil lié à l'annonce, masqué sur MES annonces) et
-/// « Proposer un deal » (PLACEHOLDER : les deals sont le CP2.4 → snackbar).
+/// Barre sticky d'actions (mockups 06/07) : « Contacter » (CP2.3 — fil lié à
+/// l'annonce) et « Proposer un deal » (CP2.4 — RÉEL : écran de composition).
+/// Masquée sur MES annonces (contacter/dealer avec soi-même n'a pas de sens ;
+/// le propriétaire propose un deal depuis ses conversations).
 class _BarreProposerDeal extends ConsumerWidget {
   const _BarreProposerDeal({required this.annonce});
 
@@ -536,6 +537,9 @@ class _BarreProposerDeal extends ConsumerWidget {
     final AuthState auth = ref.watch(authControllerProvider);
     final bool estAMoi =
         auth is AuthSignedIn && auth.profile.id == annonce.ownerId;
+    if (estAMoi) {
+      return const SizedBox.shrink();
+    }
     return Material(
       color: Colors.white,
       elevation: 8,
@@ -546,28 +550,19 @@ class _BarreProposerDeal extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Row(
             children: [
-              if (!estAMoi) ...[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () =>
-                        context.push('/dealplace/${annonce.id}/contact'),
-                    icon: const Icon(Icons.chat_bubble_outline, size: 20),
-                    label: const Text('Contacter'),
-                  ),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      context.push('/dealplace/${annonce.id}/contact'),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                  label: const Text('Contacter'),
                 ),
-                const SizedBox(width: 10),
-              ],
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Proposer un deal sera disponible au prochain lot.',
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: () =>
+                      context.push('/dealplace/${annonce.id}/proposer'),
                   icon: const Icon(Icons.handshake_outlined),
                   label: const Text('Proposer un deal'),
                 ),

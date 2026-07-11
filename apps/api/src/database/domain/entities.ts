@@ -81,13 +81,17 @@ export type CameraCategory = 'weather' | 'traffic';
 /** Statut d'une caméra. */
 export type CameraStatus = 'active' | 'inactive' | 'error' | 'hidden';
 
-/** Types de notification documentés (TEXT côté SQL, codes pilotés côté app). */
+/** Types de notification documentés (TEXT côté SQL, codes pilotés côté app).
+ * 'deal' (CP2.4) : jalons d'un deal (proposition reçue, acceptation, refus,
+ * annulation, litige, conclusion, avis reçu) — payload { dealId, event,
+ * title, message }. */
 export type NotificationType =
   | 'comment'
   | 'reply'
   | 'reaction'
   | 'report_handled'
-  | 'system';
+  | 'system'
+  | 'deal';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Dealplace (Lot 2 — CP2.1) : taxonomie biens/services + annonces (listings)
@@ -444,5 +448,141 @@ export interface Message {
   conversationId: string;
   senderId: string;
   body: string;
+  createdAt: Date;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Deals contractuels + avis (Lot 2 — CP2.4, décision D64)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Statut d'un deal — machine à états D64 :
+ * proposed → active (accepté) | declined | cancelled (retiré avant accord) ;
+ * active → completed (AUTOMATIQUE : tout validé) | cancelled (annulation
+ * amiable en deux temps) | disputed (unilatéral, terminal au CP2.4). */
+export type DealStatus =
+  | 'proposed'
+  | 'active'
+  | 'completed'
+  | 'declined'
+  | 'cancelled'
+  | 'disputed';
+
+/** Nature d'un élément de deal (mockup 07 : Service / Paiement / bien). */
+export type DealItemKind = 'service' | 'good' | 'money';
+
+/** Nature d'un ajustement en cours de deal. */
+export type DealAdjustmentKind = 'add' | 'modify' | 'remove';
+
+/** Cycle de vie d'un ajustement (décision de la CONTREPARTIE). */
+export type DealAdjustmentStatus = 'pending' | 'accepted' | 'rejected';
+
+/** Table `deals` — contrat d'échange lié à une annonce. Le stepper 5 étapes
+ * du mockup 07 est DÉRIVÉ (status + état des sous-éléments), jamais stocké. */
+export interface Deal {
+  id: string;
+  /** Numéro lisible « Deal 345 » (séquence). */
+  dealNumber: number;
+  listingId: string;
+  /** Fil de conversation lié (créé avec le deal si absent — D63/D64). */
+  conversationId: string | null;
+  proposerId: string;
+  recipientId: string;
+  status: DealStatus;
+  /** Échéance indicative (« Non définie » possible). */
+  dueDate: Date | null;
+  /** Annulation amiable en deux temps : qui l'a demandée (null = personne). */
+  cancellationRequestedBy: string | null;
+  disputedBy: string | null;
+  disputeReason: string | null;
+  acceptedAt: Date | null;
+  completedAt: Date | null;
+  /** Clôture d'un état terminal non conclu (declined/cancelled/disputed). */
+  closedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `deal_items` — élément fourni par UNE des deux parties. Son badge
+ * (À fournir / Validation partielle / En attente de validation / Honoré) est
+ * DÉRIVÉ de ses sous-éléments. */
+export interface DealItem {
+  id: string;
+  dealId: string;
+  /** Le FOURNISSEUR (proposerId ou recipientId du deal). */
+  providerId: string;
+  kind: DealItemKind;
+  title: string;
+  description: string;
+  /** Valeur estimée en euros entiers (≥ 0). */
+  value: number;
+  position: number;
+  createdAt: Date;
+}
+
+/** Table `deal_item_steps` — sous-élément validable : le FOURNISSEUR pose
+ * honoredAt, la CONTREPARTIE pose validatedAt (jamais sans honoredAt). */
+export interface DealItemStep {
+  id: string;
+  itemId: string;
+  label: string;
+  position: number;
+  honoredAt: Date | null;
+  validatedAt: Date | null;
+}
+
+/** Payload d'un ajustement 'add' : élément complet à créer. */
+export interface DealAdjustmentAddPayload {
+  providerId: string;
+  kind: DealItemKind;
+  title: string;
+  description?: string;
+  value: number;
+  steps?: string[];
+}
+
+/** Payload d'un ajustement 'modify' : champs modifiés de l'élément visé. */
+export interface DealAdjustmentModifyPayload {
+  kind?: DealItemKind;
+  title?: string;
+  description?: string;
+  value?: number;
+}
+
+/** Table `deal_adjustments` — négociation en cours de deal (phase 'active'),
+ * appliquée TRANSACTIONNELLEMENT à l'acceptation par la contrepartie. */
+export interface DealAdjustment {
+  id: string;
+  dealId: string;
+  proposedBy: string;
+  kind: DealAdjustmentKind;
+  /** Élément visé (modify/remove) — null pour add ou élément disparu. */
+  itemId: string | null;
+  payload: Record<string, unknown>;
+  description: string;
+  status: DealAdjustmentStatus;
+  decidedAt: Date | null;
+  createdAt: Date;
+}
+
+/** Table `deal_notes` — timeline « Suivi du deal » (notes utilisateur). */
+export interface DealNote {
+  id: string;
+  dealId: string;
+  authorId: string;
+  body: string;
+  createdAt: Date;
+}
+
+/** Table `deal_reviews` — avis détaillé (D59/D64) sur un deal CONCLU :
+ * 3 critères 1-5 (mockup 05), note globale = moyenne à la lecture. */
+export interface DealReview {
+  id: string;
+  dealId: string;
+  reviewerId: string;
+  revieweeId: string;
+  ratingHonesty: number;
+  ratingConformity: number;
+  ratingKindness: number;
+  comment: string | null;
   createdAt: Date;
 }
