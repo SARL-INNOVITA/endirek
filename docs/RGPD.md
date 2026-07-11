@@ -22,8 +22,9 @@ Contenu de l'export (`format: 'endirek-export'`, `version: 1`,
 
 | Bloc | Contenu |
 |---|---|
-| `account` | Le compte complet — email, nom affiché, bio, ville, position, photos, settings, rôle, statut, dates — **sauf le hash du mot de passe**, qui ne sort jamais du serveur (aucune valeur d'usage pour l'utilisateur, risque en cas de fuite du fichier) |
+| `account` | Le compte complet — email, nom affiché, bio, ville, « Ce que je recherche » (profil Dealplace — CP2.2), position, photos, settings, rôle, statut, dates — **sauf le hash du mot de passe**, qui ne sort jamais du serveur (aucune valeur d'usage pour l'utilisateur, risque en cas de fuite du fichier) |
 | `posts` | Toutes les publications de l'utilisateur |
+| `listings` | Toutes ses annonces Dealplace, **tous statuts** (actives, masquées, soft-supprimées) — ajouté au CP2.2 |
 | `comments` | Tous ses commentaires |
 | `reactions` | Toutes ses réactions |
 | `follows` | Abonnements émis et reçus — les tiers y sont réduits à une **référence minimale** (id + nom affiché) : l'export d'un utilisateur n'embarque pas les données personnelles des autres |

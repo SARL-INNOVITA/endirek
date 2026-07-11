@@ -13,6 +13,7 @@ import {
 } from '../../common/mappers/profile.mapper';
 import {
   COMMENTS_REPOSITORY,
+  LISTINGS_REPOSITORY,
   NOTIFICATIONS_REPOSITORY,
   POSTS_REPOSITORY,
   REACTIONS_REPOSITORY,
@@ -22,6 +23,7 @@ import {
 } from '../../database/database.tokens';
 import {
   Comment,
+  Listing,
   Notification,
   Post,
   Reaction,
@@ -30,6 +32,7 @@ import {
 } from '../../database/domain/entities';
 import {
   CommentsRepository,
+  ListingsRepository,
   NotificationsRepository,
   PageParams,
   PostsRepository,
@@ -77,6 +80,9 @@ export interface AccountExport {
   /** Le compte lui-même — TOUT sauf le hash du mot de passe. */
   account: Omit<User, 'passwordHash'> & { postsCount: number };
   posts: Post[];
+  /** Annonces Dealplace de l'utilisateur, TOUS statuts (y compris masquées et
+   * soft-supprimées — tout ce qui est stocké le concernant). Ajouté au CP2.2. */
+  listings: Listing[];
   comments: Comment[];
   reactions: Reaction[];
   follows: {
@@ -118,6 +124,8 @@ export class UsersService {
     private readonly notificationsRepository: NotificationsRepository,
     @Inject(REPORTS_REPOSITORY)
     private readonly reportsRepository: ReportsRepository,
+    @Inject(LISTINGS_REPOSITORY)
+    private readonly listingsRepository: ListingsRepository,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -234,6 +242,7 @@ export class UsersService {
     const [
       postsCount,
       posts,
+      listingsPage,
       comments,
       reactions,
       following,
@@ -244,6 +253,13 @@ export class UsersService {
     ] = await Promise.all([
       this.postsCount(userId),
       this.postsRepository.listByAuthor(userId),
+      // Annonces Dealplace : TOUS statuts (statuses absent = pas de filtre) —
+      // l'export RGPD couvre tout ce qui est stocké, masqué et soft-supprimé
+      // compris.
+      this.listingsRepository.listByOwner(userId, {
+        limit: EXPORT_PAGE_LIMIT,
+        offset: 0,
+      }),
       this.commentsRepository.listByAuthor(userId),
       this.reactionsRepository.listByUser(userId),
       this.usersRepository.listFollowing(userId, {
@@ -293,6 +309,7 @@ export class UsersService {
       exportedAt: new Date().toISOString(),
       account: { ...account, postsCount },
       posts,
+      listings: listingsPage.items,
       comments,
       reactions,
       follows: {
