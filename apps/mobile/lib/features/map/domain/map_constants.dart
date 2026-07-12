@@ -24,14 +24,20 @@ abstract final class MapConstants {
   static const double zoomMin = 8.5;
   static const double zoomMax = 18;
 
-  /// Emprise de La Réunion (miroir de REUNION_BBOX côté API). La caméra de la
-  /// carte est contrainte à cette zone : impossible de dériver loin de l'île.
+  /// Emprise de La Réunion (miroir de REUNION_BBOX côté API). Le CENTRE de la
+  /// carte est contraint à cette zone : impossible de dériver loin de l'île.
   static final LatLngBounds empriseReunion = LatLngBounds(
     const LatLng(-21.6, 55.0),
     const LatLng(-20.7, 56.0),
   );
 
-  /// Contrainte de caméra flutter_map : la vue ne peut pas sortir de l'emprise.
+  /// Contrainte de caméra flutter_map : le CENTRE de la vue reste dans
+  /// l'emprise de l'île (`containCenter`). On n'utilise PAS `contain` (bords
+  /// de la vue dans l'emprise) : `contain` renvoie `null` — et fait planter
+  /// l'assertion interne de flutter_map — dès que la vue est plus grande que
+  /// l'emprise dans une dimension, ce qui arrive sur un écran de téléphone en
+  /// portrait (haut/étroit) à ces niveaux de zoom. `containCenter` est robuste
+  /// sur tous les formats d'écran et suffit à ancrer la carte sur La Réunion.
   static final CameraConstraint contrainteCamera =
-      CameraConstraint.contain(bounds: empriseReunion);
+      CameraConstraint.containCenter(bounds: empriseReunion);
 }

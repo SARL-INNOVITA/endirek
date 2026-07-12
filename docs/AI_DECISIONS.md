@@ -3,7 +3,7 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : Lot 2 — CP2.5 (modération avancée Dealplace) (2026-07-12)._
+_Dernière mise à jour : correctif carte (contrainte de caméra) + Lot 2 — CP2.5 (modération avancée Dealplace) (2026-07-13)._
 
 ---
 
@@ -281,3 +281,24 @@ _Dernière mise à jour : Lot 2 — CP2.5 (modération avancée Dealplace) (2026
   (REST = source de vérité, la modération est rare). PAS de notification à
   l'auteur du contenu masqué (cohérent avec posts/commentaires/annonces).
   Mobile : bulle placeholder italique stylée d'après `status`.
+
+## Correctif — Contrainte de caméra de la carte (2026-07-13)
+
+- **D68.** **La caméra de la carte mobile est bornée par
+  `CameraConstraint.containCenter` (le CENTRE de la vue reste dans l'emprise
+  de La Réunion), PAS par `CameraConstraint.contain`.** Raison : `contain`
+  (garder les BORDS de la vue dans l'emprise) exige que l'emprise de l'île
+  soit plus grande que la vue dans les deux dimensions ; sur un écran de
+  téléphone en PORTRAIT (haut et étroit), la hauteur de la vue dépasse celle
+  de l'île à ces niveaux de zoom → `contain.constrain()` renvoie `null` →
+  l'assertion interne de `flutter_map` (`constrain(newCamera) == newCamera`)
+  échoue à chaque changement d'options → écran rouge sur l'onglet Carte
+  (constaté sur émulateur Pixel 3a, `flutter_map` 8.3.1). `containCenter` ne
+  renvoie jamais `null` (il clampe seulement le centre), est robuste sur tous
+  les formats d'écran, et suffit à l'intention produit (impossible de dériver
+  loin de l'île). Effet visible mineur : au zoom minimum, un peu d'océan
+  apparaît autour de l'île. Constante : `MapConstants.contrainteCamera`
+  (`apps/mobile/lib/features/map/domain/map_constants.dart`) ; test de
+  non-régression : `apps/mobile/test/map_camera_constraint_test.dart`
+  (reproduit le crash en portrait — échoue avec `contain`, passe avec
+  `containCenter`). Complète D34/D35 (carte `flutter_map` + tuiles OSM).
