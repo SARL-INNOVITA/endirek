@@ -78,6 +78,55 @@ void main() {
     expect(deal.myReviewSubmitted, isFalse);
   });
 
+  // Deal minimal réutilisable pour les cas d'arbitrage (CP2.5).
+  Map<String, dynamic> dealMinimal() => {
+        'id': 'd2',
+        'dealNumber': 12,
+        'status': 'active',
+        'stage': 'in_progress',
+        'listing': {
+          'id': 'l1',
+          'title': 'Panier péi',
+          'urlSlug': 'panier',
+          'status': 'active',
+        },
+        'conversationId': null,
+        'proposerId': 'u4',
+        'recipientId': 'u11',
+        'otherParticipant': auteur('Kévin Dijoux'),
+        'items': const [],
+        'adjustments': const [],
+        'notes': const [],
+        'reviews': const [],
+        'myReviewSubmitted': false,
+        'createdAt': '2026-07-10T08:00:00.000Z',
+      };
+
+  test('Deal.fromJson : litige tranché par la modération (CP2.5)', () {
+    final deal = Deal.fromJson({
+      ...dealMinimal(),
+      'status': 'cancelled',
+      'disputedBy': 'u4',
+      'disputeReason': 'Le bien remis ne correspond pas à l’annonce.',
+      'disputeResolution': 'cancelled',
+      'disputeResolutionNote': 'Deal annulé après examen des échanges.',
+      'disputeResolvedAt': '2026-07-12T09:30:00.000Z',
+    });
+    expect(deal.disputeResolution, 'cancelled');
+    expect(deal.disputeResolutionNote, contains('après examen'));
+    expect(
+      deal.disputeResolvedAt,
+      DateTime.parse('2026-07-12T09:30:00.000Z'),
+    );
+  });
+
+  test('Deal.fromJson : sans arbitrage → champs de résolution null', () {
+    final deal = Deal.fromJson(dealMinimal());
+    expect(deal.disputeResolution, isNull);
+    expect(deal.disputeResolutionNote, isNull);
+    expect(deal.disputeResolvedAt, isNull);
+  });
+
   test('DealProfile.fromJson : stats + deals conclus (mockup 05)', () {
     final profil = DealProfile.fromJson({
       'dealsCompleted': 6,

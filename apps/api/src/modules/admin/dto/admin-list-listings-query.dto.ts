@@ -1,6 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 /** Familles d'annonce (miroir de ListingFamily). */
 const FAMILIES = ['good', 'service'] as const;
@@ -28,6 +37,26 @@ export class AdminListListingsQueryDto {
   @IsString({ message: 'category doit être une chaîne' })
   @MaxLength(120)
   category?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Filtre modération (CP2.5) : true = seulement les annonces de ' +
+      'catégorie sensible (« sensitive »/« forbidden »), false = seulement ' +
+      'les catégories standard',
+    type: Boolean,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
+  )
+  @IsBoolean({
+    message: 'Le parametre flaggedOnly doit etre true ou false',
+  })
+  flaggedOnly?: boolean;
 
   @ApiPropertyOptional({
     description: 'Recherche insensible à la casse (titre, description, nom du propriétaire)',

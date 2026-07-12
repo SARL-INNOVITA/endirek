@@ -525,6 +525,20 @@ export class DealplaceService {
   }
 
   /**
+   * Charge une annonce VISIBLE par le viewer (miroir exact de
+   * PostsService.loadVisiblePost) : null ou 'deleted' → 404 ; 'hidden' → 404
+   * sauf propriétaire et rôles moderator/super_admin. Utilisé par le module
+   * moderation (CP2.5 — D65 : signalement d'annonce).
+   */
+  async loadVisibleListing(
+    viewer: AuthenticatedUser,
+    id: string,
+  ): Promise<Listing> {
+    const listing = await this.listingsRepository.findById(id);
+    return this.assertVisible(listing, viewer);
+  }
+
+  /**
    * Règles de visibilité (miroir des posts) : null ou 'deleted' → 404 ;
    * 'hidden' → 404 sauf propriétaire et rôles moderator/super_admin.
    */

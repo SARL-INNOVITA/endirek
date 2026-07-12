@@ -169,6 +169,26 @@ class DealplaceRepository {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Signalements (CP2.5)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Signale une annonce (POST /dealplace/listings/:id/report → 201
+  /// { id, status: 'open' }) — miroir de PostsRepository.signalerPost. Un même
+  /// utilisateur ne peut signaler la même cible qu'une fois — le 409 « Vous
+  /// avez déjà signalé ce contenu » remonte en ApiException (comme le 400
+  /// « Vous ne pouvez pas signaler votre propre annonce »).
+  Future<void> signalerAnnonce(
+    String listingId, {
+    required String reasonCode,
+    String? message,
+  }) async {
+    await _api.post('/dealplace/listings/$listingId/report', data: {
+      'reasonCode': reasonCode,
+      'message': ?message,
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   static ListingsPage _pageCartes(Map<String, dynamic> data) {
     return (

@@ -7,11 +7,13 @@ import { AuthenticatedUser } from '../../common/decorators/current-user.decorato
 import { PostAuthor, toPostAuthor } from '../../common/mappers/post.mapper';
 import {
   COMMENTS_REPOSITORY,
+  LISTINGS_REPOSITORY,
   POSTS_REPOSITORY,
   REPORTS_REPOSITORY,
 } from '../../database/database.tokens';
 import {
   CommentStatus,
+  ListingStatus,
   PostStatus,
   Report,
   ReportReasonCode,
@@ -20,6 +22,7 @@ import {
 } from '../../database/domain/entities';
 import {
   CommentsRepository,
+  ListingsRepository,
   PostsRepository,
   ReportsRepository,
 } from '../../database/repositories/interfaces';
@@ -52,9 +55,23 @@ export interface ReportCommentTarget {
   postId: string;
 }
 
+/** Extrait d'une ANNONCE Dealplace signalée (CP2.5 — D65). */
+export interface ReportListingTarget {
+  id: string;
+  title: string;
+  /** Description tronquée à 140 caractères. */
+  body: string;
+  status: ListingStatus;
+  urlSlug: string;
+}
+
 /** Extrait de la cible d'un signalement — null si la cible est introuvable
  * (ou de type 'user' : le signalement de profils n'ouvre qu'au Lot 2+). */
-export type ReportTargetView = ReportPostTarget | ReportCommentTarget | null;
+export type ReportTargetView =
+  | ReportPostTarget
+  | ReportCommentTarget
+  | ReportListingTarget
+  | null;
 
 /** Signalement de la file de modération — forme du contrat, complétée des
  * champs de traitement (handledBy/handledAt/resolutionNote) pour que le
@@ -102,6 +119,8 @@ export class AdminReportsService {
     private readonly postsRepository: PostsRepository,
     @Inject(COMMENTS_REPOSITORY)
     private readonly commentsRepository: CommentsRepository,
+    @Inject(LISTINGS_REPOSITORY)
+    private readonly listingsRepository: ListingsRepository,
     private readonly notificationsService: NotificationsService,
     private readonly assembler: FeedPostAssembler,
   ) {}
@@ -221,6 +240,21 @@ export class AdminReportsService {
         body: excerpt(comment.body),
         status: comment.status,
         postId: comment.postId,
+      };
+    }
+    if (report.targetType === 'listing') {
+      // Annonce Dealplace (CP2.5 — D65) : le masquage se fait via l'action
+      // séparée PATCH /admin/dealplace/listings/:id/status.
+      const listing = await this.listingsRepository.findById(report.targetId);
+      if (!listing) {
+        return null;
+      }
+      return {
+        id: listing.id,
+        title: listing.title,
+        body: excerpt(listing.description),
+        status: listing.status,
+        urlSlug: listing.urlSlug,
       };
     }
     // Cible 'user' : le signalement de profils n'ouvre qu'au Lot 2+.

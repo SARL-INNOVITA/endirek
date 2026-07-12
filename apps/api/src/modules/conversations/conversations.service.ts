@@ -15,6 +15,7 @@ import {
   Conversation,
   Listing,
   Message,
+  MessageStatus,
 } from '../../database/domain/entities';
 import {
   ConversationsRepository,
@@ -38,14 +39,21 @@ export interface ConversationListingRef {
   coverThumbnailUrl: string | null;
 }
 
-/** Forme MESSAGE du contrat (liste, envoi, event temps réel). */
+/** Forme MESSAGE du contrat (liste, envoi, event temps réel). Un message
+ * masqué par la modération (CP2.5 — D67) sort avec status 'hidden' et un
+ * corps REMPLACÉ (« Message masqué par la modération. ») : le contenu réel
+ * n'atteint jamais les participants. */
 export interface MessageView {
   id: string;
   conversationId: string;
   senderId: string;
   body: string;
+  status: MessageStatus;
   createdAt: Date;
 }
+
+/** Corps substitué aux messages masqués pour les participants (D67). */
+export const HIDDEN_MESSAGE_BODY = 'Message masqué par la modération.';
 
 /** Forme CONVERSATION du contrat — carte de la liste ET en-tête du fil. */
 export interface ConversationView {
@@ -404,11 +412,16 @@ export class ConversationsService {
   }
 
   private toMessageView(message: Message): MessageView {
+    // D67 : le corps d'un message masqué est REMPLACÉ côté serveur — le
+    // contenu modéré n'atteint jamais les participants (le backoffice, lui,
+    // lit le corps réel via le repository).
+    const hidden = message.status === 'hidden';
     return {
       id: message.id,
       conversationId: message.conversationId,
       senderId: message.senderId,
-      body: message.body,
+      body: hidden ? HIDDEN_MESSAGE_BODY : message.body,
+      status: message.status,
       createdAt: message.createdAt,
     };
   }

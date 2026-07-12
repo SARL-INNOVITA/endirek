@@ -172,7 +172,7 @@ export type ReportStatus = 'open' | 'reviewed' | 'action_taken' | 'dismissed'
 /** Décisions posables au traitement (le retour à 'open' n'existe pas). */
 export type ReportDecision = 'reviewed' | 'action_taken' | 'dismissed'
 
-export type ReportTargetType = 'post' | 'comment' | 'user'
+export type ReportTargetType = 'post' | 'comment' | 'user' | 'listing'
 
 /** Signalement lié affiché dans le détail backoffice d'une publication. */
 export interface AdminPostReport {
@@ -207,6 +207,16 @@ export interface ReportCommentTarget {
   postId: string
 }
 
+/** Extrait d'une ANNONCE Dealplace signalée (CP2.5 — description déjà
+ * tronquée à 140 par l'API). */
+export interface ReportListingTarget {
+  id: string
+  title: string
+  body: string
+  status: ListingStatus
+  urlSlug: string
+}
+
 export type CommentStatus = 'active' | 'hidden' | 'deleted'
 
 export interface AdminCommentView {
@@ -224,8 +234,9 @@ export interface AdminCommentView {
 
 /**
  * Signalement de la file de modération. `target` se discrimine par
- * `targetType` ('post' → ReportPostTarget, 'comment' → ReportCommentTarget) ;
- * null si la cible est introuvable ou de type 'user' (Lot 2+).
+ * `targetType` ('post' → ReportPostTarget, 'comment' → ReportCommentTarget,
+ * 'listing' → ReportListingTarget, CP2.5) ; null si la cible est introuvable
+ * ou de type 'user' (Lot 2+).
  */
 export interface AdminReport {
   id: string
@@ -239,7 +250,7 @@ export interface AdminReport {
   handledAt: string | null
   resolutionNote: string | null
   reporter: PostAuthor
-  target: ReportPostTarget | ReportCommentTarget | null
+  target: ReportPostTarget | ReportCommentTarget | ReportListingTarget | null
 }
 
 /** Page de la liste backoffice des publications (GET /admin/posts). */
@@ -854,9 +865,23 @@ export interface AdminListingCard {
   urlSlug: string
   createdAt: string
   status: ListingStatus
+  /** Nombre de signalements OUVERTS sur l'annonce (CP2.5). */
+  openReportsCount: number
 }
 
-/** Forme LISTING complète (GET /admin/dealplace/listings/:id — détail). */
+/** Signalement lié affiché dans le détail backoffice d'une annonce (CP2.5 —
+ * même forme que AdminPostReport côté publications). */
+export interface AdminListingReport {
+  id: string
+  reasonCode: ReportReasonCode
+  message: string
+  status: ReportStatus
+  createdAt: string
+  reporter: PostAuthor
+}
+
+/** Forme LISTING complète (GET /admin/dealplace/listings/:id — détail),
+ * enrichie des signalements liés (CP2.5). */
 export interface AdminListingDetail {
   id: string
   ownerId: string
@@ -878,6 +903,10 @@ export interface AdminListingDetail {
   tags: ListingTagRef[]
   urlSlug: string
   status: ListingStatus
+  /** Nombre de signalements OUVERTS (CP2.5). */
+  openReportsCount: number
+  /** Signalements liés, antéchronologiques (CP2.5). */
+  reports: AdminListingReport[]
   createdAt: string
   updatedAt: string
 }
@@ -894,6 +923,9 @@ export interface AdminListListingsParams {
   family?: ListingFamily
   category?: string
   search?: string
+  /** true = catégories sensibles/interdites uniquement, false = standard
+   * uniquement, absent = toutes (CP2.5). */
+  flaggedOnly?: boolean
   limit: number
   offset: number
 }
@@ -995,6 +1027,9 @@ export function adminListListings(
   if (params.family) query.set('family', params.family)
   if (params.category) query.set('category', params.category)
   if (params.search) query.set('search', params.search)
+  if (params.flaggedOnly !== undefined) {
+    query.set('flaggedOnly', String(params.flaggedOnly))
+  }
   query.set('limit', String(params.limit))
   query.set('offset', String(params.offset))
   return request<PagedAdminListings>(
@@ -1120,5 +1155,290 @@ export function adminUpdateListingTag(
   return request<AdminListingTag>(
     `/admin/dealplace/tags/${encodeURIComponent(slug)}`,
     { method: 'PATCH', body: payload },
+  )
+}
+
+// ─── Types du contrat d'API (CP2.5 — modération avancée Dealplace) ───────────
+
+/** Statut d'un deal (machine à états D64). */
+export type DealStatus =
+  | 'proposed'
+  | 'active'
+  | 'completed'
+  | 'declined'
+  | 'cancelled'
+  | 'disputed'
+
+/** Étape du stepper 5 positions — DÉRIVÉE côté serveur, jamais stockée. */
+export type DealStage =
+  | 'discussion'
+  | 'agreement'
+  | 'in_progress'
+  | 'validations'
+  | 'concluded'
+  | 'closed'
+
+/** Issue d'un arbitrage de litige (D66). */
+export type DisputeResolution = 'cancelled' | 'completed' | 'resumed'
+
+/** Référence légère de l'annonce d'un deal ou d'une conversation. */
+export interface DealListingRef {
+  id: string
+  title: string
+  urlSlug: string
+  status: string
+}
+
+/** Carte DEAL du backoffice — les DEUX parties nommées (forme non
+ * viewer-centrique, contrairement au mobile). */
+export interface AdminDealCard {
+  id: string
+  dealNumber: number
+  status: DealStatus
+  stage: DealStage
+  listing: DealListingRef
+  proposer: PostAuthor
+  recipient: PostAuthor
+  /** Résumés « ce que fournit chaque partie » (premiers titres). */
+  proposerOfferSummary: string
+  recipientOfferSummary: string
+  disputedBy: string | null
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+}
+
+/** Page de la liste backoffice des deals (GET /admin/dealplace/deals). */
+export interface PagedAdminDeals {
+  items: AdminDealCard[]
+  total: number
+}
+
+/** Sous-élément validable d'un élément de deal. */
+export interface AdminDealStep {
+  id: string
+  label: string
+  position: number
+  honoredAt: string | null
+  validatedAt: string | null
+}
+
+/** Élément de deal (badge d'état DÉRIVÉ des sous-éléments). */
+export interface AdminDealItem {
+  id: string
+  providerId: string
+  kind: 'service' | 'good' | 'money'
+  title: string
+  description: string
+  value: number
+  position: number
+  badge: 'to_provide' | 'partial' | 'awaiting_validation' | 'honored'
+  steps: AdminDealStep[]
+}
+
+/** Ajustement proposé en cours de deal. */
+export interface AdminDealAdjustment {
+  id: string
+  proposedBy: string
+  kind: 'add' | 'modify' | 'remove'
+  itemId: string | null
+  payload: Record<string, unknown>
+  description: string
+  status: 'pending' | 'accepted' | 'rejected'
+  decidedAt: string | null
+  createdAt: string
+}
+
+/** Note de la timeline « Suivi du deal ». */
+export interface AdminDealNote {
+  id: string
+  author: PostAuthor
+  body: string
+  createdAt: string
+}
+
+/** Avis déposé sur un deal conclu (note globale = moyenne des 3 critères). */
+export interface AdminDealReview {
+  id: string
+  reviewer: PostAuthor
+  revieweeId: string
+  ratingHonesty: number
+  ratingConformity: number
+  ratingKindness: number
+  overall: number
+  comment: string | null
+  createdAt: string
+}
+
+/** Page DEAL complète du backoffice (GET /admin/dealplace/deals/:id) —
+ * litige et arbitrage inclus (l'identité du modérateur n'est visible
+ * QU'ici, jamais côté parties). */
+export interface AdminDeal {
+  id: string
+  dealNumber: number
+  status: DealStatus
+  stage: DealStage
+  listing: DealListingRef
+  conversationId: string | null
+  proposer: PostAuthor
+  recipient: PostAuthor
+  dueDate: string | null
+  cancellationRequestedBy: string | null
+  disputedBy: string | null
+  disputeReason: string | null
+  disputeResolvedBy: string | null
+  disputeResolvedAt: string | null
+  disputeResolution: DisputeResolution | null
+  disputeResolutionNote: string | null
+  items: AdminDealItem[]
+  adjustments: AdminDealAdjustment[]
+  notes: AdminDealNote[]
+  reviews: AdminDealReview[]
+  acceptedAt: string | null
+  completedAt: string | null
+  closedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Paramètres de GET /admin/dealplace/deals — mêmes noms que la query. */
+export interface AdminListDealsParams {
+  /** 'disputed' = la file « litiges à arbitrer ». */
+  status?: DealStatus
+  /** Nom d'une partie ou titre d'annonce ; saisie entièrement numérique =
+   * numéro exact du deal. */
+  search?: string
+  limit: number
+  offset: number
+}
+
+/** Statut de modération d'un message (D67 — pas de 'deleted'). */
+export type MessageStatus = 'active' | 'hidden'
+
+/** Message vu du BACKOFFICE : corps RÉEL, y compris masqué (les
+ * participants, eux, reçoivent un corps remplacé). */
+export interface AdminMessage {
+  id: string
+  conversationId: string
+  senderId: string
+  body: string
+  status: MessageStatus
+  createdAt: string
+}
+
+/** Carte CONVERSATION du backoffice — les DEUX participants nommés. */
+export interface AdminConversationCard {
+  id: string
+  listing: DealListingRef
+  initiator: PostAuthor
+  owner: PostAuthor
+  lastMessage: AdminMessage | null
+  lastMessageAt: string | null
+  createdAt: string
+}
+
+/** Page de la liste backoffice des conversations. */
+export interface PagedAdminConversations {
+  items: AdminConversationCard[]
+  total: number
+}
+
+/** Page de messages d'un fil (du plus récent au plus ancien). */
+export interface PagedAdminMessages {
+  items: AdminMessage[]
+  total: number
+}
+
+// ─── Administration des deals & conversations Dealplace (CP2.5) ──────────────
+
+/**
+ * GET /admin/dealplace/deals?status=&search=&limit=&offset= — tous les deals
+ * (ADMIN_DEAL_CARD), antéchronologique. ?status=disputed = litiges à arbitrer.
+ */
+export function adminListDeals(
+  params: AdminListDealsParams,
+  signal?: AbortSignal,
+): Promise<PagedAdminDeals> {
+  const query = new URLSearchParams()
+  if (params.status) query.set('status', params.status)
+  if (params.search) query.set('search', params.search)
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedAdminDeals>(
+    `/admin/dealplace/deals?${query.toString()}`,
+    { signal },
+  )
+}
+
+/** GET /admin/dealplace/deals/:id — page ADMIN_DEAL complète (404 si
+ * l'identifiant n'existe pas). */
+export function adminGetDeal(
+  id: string,
+  signal?: AbortSignal,
+): Promise<AdminDeal> {
+  return request<AdminDeal>(
+    `/admin/dealplace/deals/${encodeURIComponent(id)}`,
+    { signal },
+  )
+}
+
+/** POST /admin/dealplace/deals/:id/resolve-dispute — tranche un litige
+ * (D66). Note 10-1000 OBLIGATOIRE, montrée aux deux parties. 409 si le deal
+ * n'est pas « disputed », 403 si l'arbitre est partie prenante. */
+export function adminResolveDispute(
+  id: string,
+  outcome: DisputeResolution,
+  note: string,
+): Promise<AdminDeal> {
+  return request<AdminDeal>(
+    `/admin/dealplace/deals/${encodeURIComponent(id)}/resolve-dispute`,
+    { method: 'POST', body: { outcome, note } },
+  )
+}
+
+/**
+ * GET /admin/dealplace/conversations?search=&limit=&offset= — toutes les
+ * conversations (les DEUX participants), triées par activité décroissante.
+ */
+export function adminListConversations(
+  params: { search?: string; limit: number; offset: number },
+  signal?: AbortSignal,
+): Promise<PagedAdminConversations> {
+  const query = new URLSearchParams()
+  if (params.search) query.set('search', params.search)
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedAdminConversations>(
+    `/admin/dealplace/conversations?${query.toString()}`,
+    { signal },
+  )
+}
+
+/** GET /admin/dealplace/conversations/:id/messages — fil en CLAIR (y compris
+ * messages masqués), du plus récent au plus ancien. 404 si fil inconnu. */
+export function adminListConversationMessages(
+  conversationId: string,
+  params: { limit: number; offset: number },
+  signal?: AbortSignal,
+): Promise<PagedAdminMessages> {
+  const query = new URLSearchParams()
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedAdminMessages>(
+    `/admin/dealplace/conversations/${encodeURIComponent(conversationId)}/messages?${query.toString()}`,
+    { signal },
+  )
+}
+
+/** PATCH /admin/dealplace/messages/:id/status — masque ('hidden', corps
+ * remplacé pour les participants) ou réactive ('active'). Idempotent,
+ * 404 si le message n'existe pas. */
+export function adminSetMessageStatus(
+  id: string,
+  status: MessageStatus,
+): Promise<AdminMessage> {
+  return request<AdminMessage>(
+    `/admin/dealplace/messages/${encodeURIComponent(id)}/status`,
+    { method: 'PATCH', body: { status } },
   )
 }

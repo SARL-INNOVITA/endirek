@@ -71,9 +71,10 @@ module `posts` — source unique avec le feed public), enrichi de
   paginée antéchronologique ; chaque signalement embarque `reporter`
   (forme AUTEUR) et `target`, un **extrait de la cible** (corps ≤ 140
   caractères) : pour un post `{id, title, body, typeSlug, status,
-  urlSlug}`, pour un commentaire `{id, body, status, postId}`, `null` si
-  la cible est introuvable (ou de type `user` — Lot 2+). `status=pending`
-  est accepté comme alias de `open`.
+  urlSlug}`, pour un commentaire `{id, body, status, postId}`, pour une
+  **annonce Dealplace** (CP2.5 — D65) `{id, title, body, status, urlSlug}`,
+  `null` si la cible est introuvable (ou de type `user` — Lot 3+).
+  `status=pending` est accepté comme alias de `open`.
 - `PATCH /api/v1/admin/reports/:id` `{status, resolutionNote?}` — pose la
   décision (`reviewed`, `action_taken` ou `dismissed`) avec `handledBy` =
   admin courant et `handledAt` = now. Le contenu visé n'est **pas**
@@ -112,13 +113,17 @@ est importé pour cet assembler).
 
 ### Annonces — `admin-listings`
 
-- `GET /api/v1/admin/dealplace/listings?status=&family=&category=&search=&limit=&offset=` —
+- `GET /api/v1/admin/dealplace/listings?status=&family=&category=&flaggedOnly=&search=&limit=&offset=` —
   liste paginée `{ items, total }`, **tous statuts** (`active`, `hidden`,
   `deleted` — audit), antéchronologique (tie-break id) ; chaque élément est un
-  `LISTING_CARD` enrichi de `status`. `search` cherche dans le titre, la
-  description et le nom du propriétaire (insensible à la casse).
+  `LISTING_CARD` enrichi de `status` et, depuis le CP2.5, de
+  `openReportsCount` (signalements ouverts — pattern des posts). `search`
+  cherche dans le titre, la description et le nom du propriétaire (insensible
+  à la casse) ; `flaggedOnly` filtre par niveau de modération de la catégorie
+  (true = sensitive/forbidden, false = standard).
 - `GET /api/v1/admin/dealplace/listings/:id` — `LISTING` complet quel que soit
-  le statut ; 404 uniquement si l'identifiant n'existe pas.
+  le statut, + `status`, `openReportsCount` et `reports` (signalements liés —
+  CP2.5) ; 404 uniquement si l'identifiant n'existe pas.
 - `PATCH /api/v1/admin/dealplace/listings/:id/status` `{status}` — masquer
   (`hidden`) ou republier (`active`). Règles miroir des posts : `deleted`
   refusé → 400 (la suppression appartient au propriétaire ou au flux RGPD) ;
@@ -146,4 +151,47 @@ Les GET renvoient **actifs ET inactifs**. Aucune suppression (désactivation via
   `PATCH /api/v1/admin/dealplace/tags/:slug` (labelFr, isActive).
 - Création avec un slug déjà pris → 409 ; PATCH d'un slug inconnu → 404.
 
-Anticipation : backoffice avancé et analytics (TODO Lot 2+).
+## Fait au Lot 2 — CP2.5 — modération avancée Dealplace (D65-D67)
+
+Mêmes protections (guard JWT global + `RolesGuard` + rôles). Trois volets :
+
+### Deals & litiges — `admin-deals` (délègue à `DealsService`)
+
+Pattern « service métier hôte » (comme les caméras) : la machine à états des
+deals reste dans le module `deals`.
+
+- `GET /api/v1/admin/dealplace/deals?status=&search=&limit=&offset=` — tous
+  les deals (ADMIN_DEAL_CARD : les DEUX parties nommées, résumés d'offre par
+  partie), antéchronologique. `?status=disputed` = la file « litiges à
+  arbitrer » ; `search` = nom d'une partie, titre d'annonce, ou numéro exact
+  du deal (saisie numérique).
+- `GET /api/v1/admin/dealplace/deals/:id` — page ADMIN_DEAL complète (litige
+  et arbitrage inclus, identité du modérateur visible ICI seulement).
+- `POST /api/v1/admin/dealplace/deals/:id/resolve-dispute`
+  `{ outcome: cancelled|completed|resumed, note }` — tranche le litige (D66) :
+  note 10-1000 OBLIGATOIRE montrée aux deux parties ; 409 si le deal n'est
+  pas `disputed`, 403 si l'arbitre est partie prenante (conflit d'intérêts).
+  Notifie les deux parties (type 'deal', event `dispute_resolved`) + event
+  socket `deal.updated`.
+
+### Conversations & messages — `admin-conversations` (D67)
+
+- `GET /api/v1/admin/dealplace/conversations?search=&limit=&offset=` — toutes
+  les conversations (les DEUX participants nommés, dernier message en CLAIR),
+  triées par activité ; `search` = participant ou titre d'annonce.
+- `GET /api/v1/admin/dealplace/conversations/:id/messages` — fil complet,
+  corps RÉELS (y compris masqués) : la modération doit lire pour statuer.
+- `PATCH /api/v1/admin/dealplace/messages/:id/status` `{status:
+  active|hidden}` — masquage doux réversible ; le message reste dans le fil,
+  son corps est remplacé pour les participants (« Message masqué par la
+  modération. »). Pas de suppression (D63), pas d'event socket de modération
+  (le fil se resynchronise à la réouverture).
+
+### Signalements d'annonces (D65)
+
+La file `admin-reports` accepte `?targetType=listing` et sert l'extrait
+d'annonce ; l'action sur la cible reste le PATCH statut d'annonce existant
+(séparation décision/action). Voir aussi `openReportsCount` sur les listes
+`admin-listings` ci-dessus.
+
+Anticipation : backoffice avancé et analytics (TODO Lot 3+).

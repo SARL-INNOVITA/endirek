@@ -8,10 +8,9 @@ pilotable par le backoffice + **annonces (listings)** publiées par les
 utilisateurs, chaque annonce portant une **valeur obligatoire** (socle des
 futurs deals contractuels — CP2.4).
 
-Périmètre STRICT du checkpoint : taxonomie publique, CRUD d'annonces, annuaire
-filtré, listes de profil. **Hors périmètre** (checkpoints ultérieurs) :
-conversations, deals contractuels, avis/profil Dealplace (CP2.2+), paiement
-(hors app). Le bouton « Proposer un deal » du mobile reste un **placeholder**.
+Périmètre : taxonomie publique, CRUD d'annonces, annuaire filtré, listes de
+profil. Les conversations (CP2.3), les deals (CP2.4) et la modération avancée
+(CP2.5) vivent dans leurs modules respectifs ; le **paiement reste hors app**.
 
 ## Endpoints (authentifiés — guard JWT global)
 
@@ -28,8 +27,14 @@ conversations, deals contractuels, avis/profil Dealplace (CP2.2+), paiement
 | GET | `/api/v1/users/:id/listings` | Annonces `active` d'un profil visible (404 si compte absent/supprimé/suspendu) ; `?family=` (CP2.2) |
 
 Le **backoffice** Dealplace (liste tous statuts + PATCH status, gestion de la
-taxonomie) vit dans le module `admin` (`/api/v1/admin/dealplace/...`) — voir
-`../admin/README.md`.
+taxonomie, deals/litiges et conversations — CP2.5) vit dans le module `admin`
+(`/api/v1/admin/dealplace/...`) — voir `../admin/README.md`.
+
+**Signalement d'annonce (CP2.5 — D65)** : `POST
+/api/v1/dealplace/listings/:id/report` vit dans le module `moderation`
+(contrôleur ancré sous ce préfixe, aucune collision de route) ; ce module
+expose `DealplaceService.loadVisibleListing` pour la vérification de
+visibilité (miroir de `PostsService.loadVisiblePost`).
 
 ## Règles métier clés (au SERVICE)
 

@@ -43,6 +43,7 @@ import {
   DealAdjustment,
   DealAdjustmentKind,
   DealAdjustmentStatus,
+  DealDisputeResolution,
   DealItem,
   DealItemKind,
   DealItemStep,
@@ -62,6 +63,7 @@ import {
   ListingTag,
   ListingValueKind,
   Message,
+  MessageStatus,
   ModerationLevel,
   Notification,
   NotificationType,
@@ -642,6 +644,7 @@ export const SQL_MESSAGE_COLUMNS = `
   m.conversation_id,
   m.sender_id,
   m.body,
+  m.status,
   m.created_at
 `.trim();
 
@@ -665,6 +668,7 @@ export function rowToMessage(row: SqlRow): Message {
     conversationId: row.conversation_id as string,
     senderId: row.sender_id as string,
     body: row.body as string,
+    status: row.status as MessageStatus,
     createdAt: toDate(row.created_at),
   };
 }
@@ -686,6 +690,10 @@ export const SQL_DEAL_COLUMNS = `
   d.cancellation_requested_by,
   d.disputed_by,
   d.dispute_reason,
+  d.dispute_resolved_by,
+  d.dispute_resolved_at,
+  d.dispute_resolution,
+  d.dispute_resolution_note,
   d.accepted_at,
   d.completed_at,
   d.closed_at,
@@ -730,6 +738,12 @@ export function rowToDeal(row: SqlRow): Deal {
       (row.cancellation_requested_by as string | null) ?? null,
     disputedBy: (row.disputed_by as string | null) ?? null,
     disputeReason: (row.dispute_reason as string | null) ?? null,
+    disputeResolvedBy: (row.dispute_resolved_by as string | null) ?? null,
+    disputeResolvedAt: toDateOrNull(row.dispute_resolved_at),
+    disputeResolution:
+      (row.dispute_resolution as DealDisputeResolution | null) ?? null,
+    disputeResolutionNote:
+      (row.dispute_resolution_note as string | null) ?? null,
     acceptedAt: toDateOrNull(row.accepted_at),
     completedAt: toDateOrNull(row.completed_at),
     closedAt: toDateOrNull(row.closed_at),

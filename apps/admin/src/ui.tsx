@@ -10,9 +10,12 @@ import { listPostTypes } from './api'
 import type {
   CameraCategory,
   CameraStatus,
+  DealStatus,
+  DisputeResolution,
   ListingFamily,
   ListingStatus,
   ListingValueKind,
+  MessageStatus,
   ModerationLevel,
   PostStatus,
   PostType,
@@ -141,6 +144,42 @@ const MODERATION_LEVEL_BADGE_CLASSES: Record<ModerationLevel, string> = {
   forbidden: 'badge badge--error',
 }
 
+// ─── Dealplace (CP2.5) : deals, arbitrage, messages ──────────────────────────
+
+/** Statuts d'un deal (machine à états D64). */
+export const DEAL_STATUS_LABELS: Record<DealStatus, string> = {
+  proposed: 'Proposé',
+  active: 'Actif',
+  completed: 'Conclu',
+  declined: 'Refusé',
+  cancelled: 'Annulé',
+  disputed: 'Litige',
+}
+
+/** Rouge pour la file de travail (litige), vert pour conclu, bleu pour
+ * actif, gris pour les autres états. */
+const DEAL_STATUS_BADGE_CLASSES: Record<DealStatus, string> = {
+  proposed: 'badge badge--neutral',
+  active: 'badge badge--info',
+  completed: 'badge badge--success',
+  declined: 'badge badge--neutral',
+  cancelled: 'badge badge--neutral',
+  disputed: 'badge badge--error',
+}
+
+/** Issues d'un arbitrage de litige (D66). */
+export const DISPUTE_RESOLUTION_LABELS: Record<DisputeResolution, string> = {
+  cancelled: 'Deal annulé',
+  completed: 'Deal conclu',
+  resumed: 'Reprise du deal',
+}
+
+/** Statuts de modération d'un message (D67). */
+export const MESSAGE_STATUS_LABELS: Record<MessageStatus, string> = {
+  active: 'Visible',
+  hidden: 'Masqué',
+}
+
 /**
  * Formate la valeur d'une annonce pour l'affichage : montant unique ('fixed')
  * ou fourchette ('range', valueMin–valueMax). La devise suit le montant.
@@ -231,6 +270,16 @@ export function ListingStatusBadge({ status }: { status: ListingStatus }) {
   return (
     <span className={LISTING_STATUS_BADGE_CLASSES[status]}>
       {LISTING_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+/** Badge de statut de deal (Proposé / Actif / Conclu / Refusé / Annulé /
+ * Litige) — CP2.5. */
+export function DealStatusBadge({ status }: { status: DealStatus }) {
+  return (
+    <span className={DEAL_STATUS_BADGE_CLASSES[status]}>
+      {DEAL_STATUS_LABELS[status]}
     </span>
   )
 }

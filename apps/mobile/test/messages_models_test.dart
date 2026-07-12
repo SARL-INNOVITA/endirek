@@ -19,6 +19,31 @@ void main() {
       expect(message.senderId, 'u4');
       expect(message.body, contains('panier péi'));
     });
+
+    test('message masqué par la modération → estMasque (CP2.5)', () {
+      final message = MessageChat.fromJson({
+        'id': 'm2',
+        'conversationId': 'c1',
+        'senderId': 'u11',
+        'body': 'Message masqué par la modération.',
+        'status': 'hidden',
+        'createdAt': '2026-07-11T10:05:00.000Z',
+      });
+      expect(message.status, 'hidden');
+      expect(message.estMasque, isTrue);
+    });
+
+    test('champ status absent → repli active, non masqué', () {
+      final message = MessageChat.fromJson({
+        'id': 'm3',
+        'conversationId': 'c1',
+        'senderId': 'u4',
+        'body': 'Le panier est toujours disponible ?',
+        'createdAt': '2026-07-11T10:06:00.000Z',
+      });
+      expect(message.status, 'active');
+      expect(message.estMasque, isFalse);
+    });
   });
 
   group('ConversationCard', () {

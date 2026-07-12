@@ -1,8 +1,8 @@
 # Module `moderation` — Signalements et modération
 
-**Statut : LIVRÉ pour le périmètre Lot 1 — signalement de publications,
-traitement backoffice, notification `report_handled` et modération des
-commentaires signalés.**
+**Statut : LIVRÉ — signalement de publications (Lot 1) et d'annonces
+Dealplace (Lot 2 — CP2.5, D65), traitement backoffice, notification
+`report_handled` et modération des commentaires signalés.**
 
 Rôle : signalement des contenus par les utilisateurs et traitement
 par les modérateurs.
@@ -49,9 +49,25 @@ Livré (checkpoint 6, côté backoffice) :
   notification `report_handled` pour l'auteur du signalement (sauf si c'est
   l'admin qui traite son propre signalement), via `NotificationsService.create`.
 
-Limite restante : l'endpoint utilisateur pour signaler directement un
-commentaire n'est pas exposé au Lot 1 ; le schéma et la file admin le
-supportent, mais l'UI mobile ne propose pas encore cette action.
+Livré (Lot 2 — CP2.5, décision D65) :
+- `POST /api/v1/dealplace/listings/:id/report { reasonCode, message? }` →
+  201 `{ id, status: 'open' }` — signalement d'une **annonce Dealplace**,
+  MÊMES règles que les posts (annonce visible : 404 sinon ;
+  auto-signalement refusé 400 « Vous ne pouvez pas signaler votre propre
+  annonce » ; anti-doublon 409 y compris sous concurrence). Contrôleur
+  dédié `ListingModerationController` (ancré `dealplace/listings/:id`),
+  visibilité vérifiée via `DealplaceService.loadVisibleListing` (miroir de
+  `PostsService.loadVisiblePost`) ;
+- `reports.target_type` étendu à `'listing'` (migration `0008`) ; la file
+  admin filtre par `?targetType=listing`, sert un extrait d'annonce
+  (titre + description tronquée + statut) et la liste admin des annonces
+  porte `openReportsCount` (voir module `admin`).
 
-Anticipation : la modération s'étendra aux pages, deals et News IA
-supervisées (TODO Lot 2+).
+Limite restante : l'endpoint utilisateur pour signaler directement un
+commentaire n'est pas exposé ; le schéma et la file admin le supportent,
+mais l'UI mobile ne propose pas encore cette action.
+
+Anticipation : la modération s'étendra aux pages et News IA supervisées
+(TODO Lot 3+). L'arbitrage des litiges de deals et la modération des
+messages de conversation sont livrés au CP2.5 (voir modules `deals`,
+`conversations` et `admin` — D66/D67).

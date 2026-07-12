@@ -14,11 +14,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { ListingView } from '../../common/mappers/listing.mapper';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import {
   AdminListingCard,
+  AdminListingDetail,
   AdminListingsService,
   PagedAdminListingCards,
 } from './admin-listings.service';
@@ -48,9 +48,11 @@ export class AdminListingsController {
     description:
       'Liste paginée, TOUS statuts confondus (active, hidden, deleted — ' +
       'audit). ?status= filtre par statut, ?family= par famille, ?category= ' +
-      'par catégorie, ?search= cherche dans le titre, la description et le ' +
-      'nom du propriétaire (insensible à la casse). Chaque élément est un ' +
-      'LISTING_CARD enrichi du statut.',
+      'par catégorie, ?flaggedOnly= par niveau de modération de la ' +
+      'catégorie (CP2.5), ?search= cherche dans le titre, la description et ' +
+      'le nom du propriétaire (insensible à la casse). Chaque élément est ' +
+      'un LISTING_CARD enrichi du statut et du nombre de signalements ' +
+      'ouverts (openReportsCount — CP2.5).',
   })
   @ApiResponse({
     status: 200,
@@ -69,14 +71,15 @@ export class AdminListingsController {
     summary: "Détail d'une annonce (backoffice)",
     description:
       'LISTING complet quel que soit le statut (y compris hidden et ' +
-      'deleted) — 404 uniquement si l\'identifiant n\'existe pas.',
+      'deleted) + les signalements liés (reports, openReportsCount — ' +
+      'CP2.5) — 404 uniquement si l\'identifiant n\'existe pas.',
   })
   @ApiParam({ name: 'id', description: "Identifiant de l'annonce" })
-  @ApiResponse({ status: 200, description: 'LISTING' })
+  @ApiResponse({ status: 200, description: 'LISTING + reports' })
   @ApiResponse({ status: 401, description: 'Authentification requise' })
   @ApiResponse({ status: 403, description: 'Rôle administrateur requis' })
   @ApiResponse({ status: 404, description: 'Annonce introuvable' })
-  getListing(@Param('id') id: string): Promise<ListingView> {
+  getListing(@Param('id') id: string): Promise<AdminListingDetail> {
     return this.service.getListing(id);
   }
 

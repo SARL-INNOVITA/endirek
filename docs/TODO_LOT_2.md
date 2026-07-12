@@ -5,11 +5,11 @@ Réunionnais, selon le PRD global — dossier `01_PRD`). Il est exécuté par
 checkpoints : **CP2.1** (taxonomie + listings) est **livré** ; ce fichier suit
 l'avancement et rappelle les points d'ancrage déjà posés dans le socle.
 
-**État (2026-07-11)** : ✅ **CP2.1** (taxonomie + listings), ✅ **CP2.2**
-(profil sans avis — D59), ✅ **CP2.3** (conversations 1-to-1 — D63) validés et
-poussés ; ✅ **CP2.4** (deals contractuels + avis — D64) implémenté — §1.1 à
-§1.5 faits. Reste : modération avancée / consolidation (**CP2.5** — dont
-arbitrage des litiges, modération messages/deals, signalement d'annonce).
+**État (2026-07-12)** : ✅ **CP2.1** (taxonomie + listings), ✅ **CP2.2**
+(profil sans avis — D59), ✅ **CP2.3** (conversations 1-to-1 — D63),
+✅ **CP2.4** (deals contractuels + avis — D64) validés et poussés ;
+✅ **CP2.5** (modération avancée — D65/D66/D67) implémenté — §1.1 à §1.6
+faits : le Lot 2 est COMPLET (validation product owner du CP2.5 à venir).
 **Paiement = hors app** (jamais dans le périmètre applicatif).
 
 ---
@@ -41,10 +41,13 @@ arbitrage des litiges, modération messages/deals, signalement d'annonce).
       restaurable). Front `ListingsView` + `ListingDetailAdmin`.
 - [x] Onglet **Dealplace mobile réel** (annuaire, création, détail). Le bouton
       « Proposer un deal » du détail reste un **placeholder** (deals = CP2.4).
+- [x] **Signalement d'annonce côté utilisateur** — ✅ CP2.5 (D65) : menu ⋮ du
+      détail d'annonce, `POST /dealplace/listings/:id/report`, file admin
+      étendue (`targetType=listing`, `openReportsCount`, signalements liés au
+      détail admin, filtre `flaggedOnly` exposé).
 - [ ] **Reste ouvert (post-CP2.1)** : recherche géographique fine (réutiliser le
       module `map` pour la proximité — le CP2.1 filtre par commune, pas par
-      rayon) ; **signalement d'annonce côté utilisateur** (non exposé au CP2.1,
-      la modération passe par le backoffice).
+      rayon).
 
 ### 1.3 Profil Dealplace — ✅ CP2.2 (périmètre arbitré le 2026-07-11, D59/D62)
 - [x] Volet « Profil Dealplace » du profil utilisateur (mockup 05) : onglets
@@ -71,17 +74,20 @@ arbitrage des litiges, modération messages/deals, signalement d'annonce).
       in-app par message (anti-flood — D63), polling de repli ~45 s.
 - [x] Icône messagerie du header mobile ACTIVE avec badge ; écrans
       `/messages` (liste) et `/messages/:id` (fil, bulles, temps réel).
+- [x] **Modération backoffice des messages** — ✅ CP2.5 (D67) :
+      `messages.status` (masquage doux réversible, corps remplacé pour les
+      participants, fil backoffice en clair), sous-vue Conversations du
+      backoffice + section « Conversation liée » du détail d'un deal.
 - [ ] **Reste ouvert (post-CP2.3)** : pièces jointes (adapter média prêt),
-      modération backoffice des messages (CP2.5), pagination profonde des
-      fils très actifs.
+      pagination profonde des fils très actifs.
 
 ### 1.5 Page de deal contractuelle — ✅ CP2.4 (D64)
 - [x] Machine à états explicite : `proposed → active → completed`
       (conclusion AUTOMATIQUE quand les deux parties ont tout validé), plus
       les sorties **declined**, **cancelled** (retrait de proposition OU
       annulation amiable EN DEUX TEMPS) et **disputed** (litige unilatéral —
-      TERMINAL au CP2.4, arbitrage à venir avec la modération avancée / IA,
-      voir [MOCKED_SERVICES.md](MOCKED_SERVICES.md) §2).
+      arbitré par le backoffice depuis le CP2.5, D66 ; l'arbitrage IA reste
+      futur, voir [MOCKED_SERVICES.md](MOCKED_SERVICES.md) §2).
 - [x] **Éléments et sous-éléments validables** : le fournisseur « honore »,
       la contrepartie « valide » — le deal n'avance que si les deux parties
       valident ; badges d'éléments et stepper 5 étapes DÉRIVÉS.
@@ -91,9 +97,29 @@ arbitrage des litiges, modération messages/deals, signalement d'annonce).
 - [x] **Avis détaillés** (D59) : 3 critères 1-5 + commentaire sur deal
       CONCLU, un par partie ; profil Dealplace ACTIVÉ (note globale, barres
       des critères, « X deals réalisés », « Deals conclus », derniers avis).
-- [ ] **Reste ouvert (post-CP2.4)** : arbitrage des litiges (backoffice /
-      IA), modération backoffice des deals, échéance avec rappels,
-      modification des sous-éléments par ajustement.
+- [ ] **Reste ouvert (post-CP2.4)** : échéance avec rappels, modification
+      des sous-éléments par ajustement.
+
+### 1.6 Modération avancée Dealplace — ✅ CP2.5 (D65/D66/D67)
+
+- [x] **Arbitrage des litiges** (D66) : `disputed` n'est plus terminal — le
+      backoffice tranche (annuler / déclarer conclu / reprendre), note de
+      décision obligatoire montrée aux deux parties, traçabilité
+      `dispute_resolved_*` (migration 0008), notifications + `deal.updated`.
+      L'arbitrage IA reste un chantier futur (adapter à prévoir — D22).
+- [x] **Modération backoffice des deals** (D66) : visibilité complète —
+      `GET /admin/dealplace/deals` (tous statuts, file `?status=disputed`,
+      recherche parties/annonce/n°) + détail avec les deux parties nommées.
+      Pas d'annulation forcée d'un deal sain (le levier = flux de litige).
+- [x] **Modération backoffice des messages** (D67) — voir §1.4.
+- [x] **Signalement d'annonce côté utilisateur** (D65) — voir §1.2.
+- [x] **Consolidation documentaire du Lot 2** : docs remises au niveau du
+      code (DATABASE §8, ARCHITECTURE, README api, KNOWN_LIMITS,
+      MOCKED_SERVICES), seed de démo enrichi (deal en litige, signalement
+      d'annonce, message masqué).
+- [ ] **Reste ouvert (post-Lot 2)** : arbitrage IA des litiges (adapter),
+      signalement de commentaire et de message côté utilisateur (le schéma
+      les supporte, l'UI mobile ne les expose pas), signalement de profil.
 
 ---
 

@@ -6,9 +6,14 @@ import {
 } from '@nestjs/common';
 import { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { REPORTS_REPOSITORY } from '../../database/database.tokens';
-import { Report, ReportStatus } from '../../database/domain/entities';
+import {
+  Report,
+  ReportStatus,
+  ReportTargetType,
+} from '../../database/domain/entities';
 import { UniqueViolationError } from '../../database/repositories/errors';
 import { ReportsRepository } from '../../database/repositories/interfaces';
+import { DealplaceService } from '../dealplace/dealplace.service';
 import { PostsService } from '../posts/posts.service';
 import { CreateReportDto } from './dto/create-report.dto';
 
@@ -41,6 +46,7 @@ export class ModerationService {
     @Inject(REPORTS_REPOSITORY)
     private readonly reportsRepository: ReportsRepository,
     private readonly postsService: PostsService,
+    private readonly dealplaceService: DealplaceService,
   ) {}
 
   /** Signale une publication visible (POST /posts/:id/report). */
@@ -59,11 +65,46 @@ export class ModerationService {
       );
     }
 
+    return this.createReport(viewer, 'post', post.id, dto);
+  }
+
+  /** Signale une annonce Dealplace visible (POST /dealplace/listings/:id/report
+   * — CP2.5, D65). Mêmes règles que les posts : visibilité, auto-signalement
+   * refusé, anti-doublon 409. */
+  async reportListing(
+    viewer: AuthenticatedUser,
+    listingId: string,
+    dto: CreateReportDto,
+  ): Promise<CreatedReport> {
+    const listing = await this.dealplaceService.loadVisibleListing(
+      viewer,
+      listingId,
+    );
+
+    // Miroir des posts : signaler sa PROPRE annonce est refusé (le
+    // propriétaire dispose déjà de la suppression).
+    if (viewer.userId === listing.ownerId) {
+      throw new BadRequestException(
+        'Vous ne pouvez pas signaler votre propre annonce',
+      );
+    }
+
+    return this.createReport(viewer, 'listing', listing.id, dto);
+  }
+
+  /** Création commune : anti-doublon amont (409) + rattrapage de la violation
+   * d'unicité sous concurrence. */
+  private async createReport(
+    viewer: AuthenticatedUser,
+    targetType: ReportTargetType,
+    targetId: string,
+    dto: CreateReportDto,
+  ): Promise<CreatedReport> {
     if (
       await this.reportsRepository.existsByReporterAndTarget(
         viewer.userId,
-        'post',
-        post.id,
+        targetType,
+        targetId,
       )
     ) {
       throw new ConflictException('Vous avez déjà signalé ce contenu');
@@ -71,14 +112,14 @@ export class ModerationService {
 
     // La vérification amont ne suffit pas sous concurrence (deux requêtes
     // simultanées peuvent toutes deux la passer) : la violation d'unicité
-    // levée par la COUCHE REPOSITORY (mock aujourd'hui, postgres demain) est
-    // traduite en 409 plutôt que de fuir en 500.
+    // levée par la COUCHE REPOSITORY (mock ou postgres) est traduite en 409
+    // plutôt que de fuir en 500.
     let report: Report;
     try {
       report = await this.reportsRepository.create({
         reporterId: viewer.userId,
-        targetType: 'post',
-        targetId: post.id,
+        targetType,
+        targetId,
         reasonCode: dto.reasonCode,
         message: dto.message,
       });

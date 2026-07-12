@@ -571,10 +571,11 @@ export class PostgresSeeder {
     let inserted = 0;
     for (const m of data.messages) {
       const res = await client.query(
-        `INSERT INTO messages (id, conversation_id, sender_id, body, created_at)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO messages
+           (id, conversation_id, sender_id, body, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (id) DO NOTHING`,
-        [m.id, m.conversationId, m.senderId, m.body, m.createdAt],
+        [m.id, m.conversationId, m.senderId, m.body, m.status, m.createdAt],
       );
       inserted += res.rowCount ?? 0;
     }
@@ -591,10 +592,11 @@ export class PostgresSeeder {
         `INSERT INTO deals
            (id, deal_number, listing_id, conversation_id, proposer_id,
             recipient_id, status, due_date, cancellation_requested_by,
-            disputed_by, dispute_reason, accepted_at, completed_at, closed_at,
-            created_at, updated_at)
+            disputed_by, dispute_reason, dispute_resolved_by,
+            dispute_resolved_at, dispute_resolution, dispute_resolution_note,
+            accepted_at, completed_at, closed_at, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                 $15, $16)
+                 $15, $16, $17, $18, $19, $20)
          ON CONFLICT (id) DO NOTHING`,
         [
           d.id,
@@ -608,6 +610,10 @@ export class PostgresSeeder {
           d.cancellationRequestedBy,
           d.disputedBy,
           d.disputeReason,
+          d.disputeResolvedBy,
+          d.disputeResolvedAt,
+          d.disputeResolution,
+          d.disputeResolutionNote,
           d.acceptedAt,
           d.completedAt,
           d.closedAt,

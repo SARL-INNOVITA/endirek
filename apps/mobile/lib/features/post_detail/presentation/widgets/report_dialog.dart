@@ -15,9 +15,12 @@ const List<({String code, String label})> motifsSignalement = [
 /// Ouvre le dialogue de signalement : raison OBLIGATOIRE parmi les 5 codes,
 /// précisions optionnelles (≤ 500). [envoyer] fait l'appel API — le 409
 /// « Vous avez déjà signalé ce contenu » (et toute autre erreur) s'affiche
-/// dans le dialogue. Renvoie true si le signalement a été envoyé.
+/// dans le dialogue. [titre] adapte le dialogue à la cible (publication par
+/// défaut, annonce Dealplace — CP2.5). Renvoie true si le signalement a été
+/// envoyé.
 Future<bool> montrerDialogSignalement(
   BuildContext context, {
+  String titre = 'Signaler cette publication',
   required Future<void> Function({
     required String reasonCode,
     String? message,
@@ -25,14 +28,15 @@ Future<bool> montrerDialogSignalement(
 }) async {
   final bool? envoye = await showDialog<bool>(
     context: context,
-    builder: (_) => _DialogSignalement(envoyer: envoyer),
+    builder: (_) => _DialogSignalement(titre: titre, envoyer: envoyer),
   );
   return envoye ?? false;
 }
 
 class _DialogSignalement extends StatefulWidget {
-  const _DialogSignalement({required this.envoyer});
+  const _DialogSignalement({required this.titre, required this.envoyer});
 
+  final String titre;
   final Future<void> Function({required String reasonCode, String? message})
       envoyer;
 
@@ -85,7 +89,7 @@ class _DialogSignalementState extends State<_DialogSignalement> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Signaler cette publication'),
+      title: Text(widget.titre),
       contentPadding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
       content: SizedBox(
         width: double.maxFinite,

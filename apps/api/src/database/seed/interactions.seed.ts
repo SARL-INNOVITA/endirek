@@ -323,11 +323,12 @@ export function buildSeedSavedPosts(): SavedPost[] {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Signalements — 2 ouverts (1 post, 1 commentaire), 1 traité (le post masqué
-// du seed posts), 1 rejeté. handled_by = la modératrice (utilisateur n°2).
+// Signalements — 3 ouverts (1 post, 1 commentaire, 1 annonce — CP2.5, D65),
+// 1 traité (le post masqué du seed posts), 1 rejeté. handled_by = la
+// modératrice (utilisateur n°2).
 // ────────────────────────────────────────────────────────────────────────────
 
-/** 4 signalements de démonstration (2 open, 1 action_taken, 1 dismissed) —
+/** 5 signalements de démonstration (3 open, 1 action_taken, 1 dismissed) —
  * reconstruits à chaque appel (dates relatives recalculées, objets neufs). */
 export function buildSeedReports(): Report[] {
   return [
@@ -388,6 +389,23 @@ export function buildSeedReports(): Report[] {
       handledAt: minutesAgo(150),
       resolutionNote: 'Simple désaccord météo, aucune infraction aux règles.',
       createdAt: minutesAgo(220),
+    },
+    // Ouvert, sur une ANNONCE (CP2.5 — D65) : le scooter de Thierry (n°8),
+    // signalé par Valérie — la file « Annonces » du backoffice a un cas.
+    {
+      id: seedUuid('report', 5),
+      reporterId: seedUuid('user', 4),
+      targetType: 'listing',
+      targetId: seedUuid('listing', 8),
+      reasonCode: 'other',
+      message:
+        'Le prix est anormalement bas et le vendeur refuse toute rencontre '
+        + 'en personne — possible arnaque.',
+      status: 'open',
+      handledBy: null,
+      handledAt: null,
+      resolutionNote: null,
+      createdAt: minutesAgo(95),
     },
   ];
 }

@@ -166,14 +166,22 @@ class _CarteConversation extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
+                              // Corps déjà remplacé par le serveur quand le
+                              // message est masqué (CP2.5) — italique gris
+                              // d'après `status`.
                               conversation.lastMessage!.body,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: nonLu
-                                    ? EndirekColors.encre
-                                    : EndirekColors.encreSecondaire,
+                                color: conversation.lastMessage!.estMasque
+                                    ? EndirekColors.encreSecondaire
+                                    : nonLu
+                                        ? EndirekColors.encre
+                                        : EndirekColors.encreSecondaire,
                                 fontSize: 13.5,
+                                fontStyle: conversation.lastMessage!.estMasque
+                                    ? FontStyle.italic
+                                    : null,
                                 fontWeight: nonLu
                                     ? FontWeight.w600
                                     : FontWeight.w400,

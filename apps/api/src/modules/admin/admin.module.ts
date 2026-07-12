@@ -1,13 +1,17 @@
 import { Module } from '@nestjs/common';
 import { CamerasModule } from '../cameras/cameras.module';
 import { DealplaceModule } from '../dealplace/dealplace.module';
+import { DealsModule } from '../deals/deals.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
 import { AdminCamerasController } from './admin-cameras.controller';
 import { AdminCommentsController } from './admin-comments.controller';
 import { AdminCommentsService } from './admin-comments.service';
+import { AdminConversationsController } from './admin-conversations.controller';
+import { AdminConversationsService } from './admin-conversations.service';
 import { AdminDealplaceTaxonomyController } from './admin-dealplace-taxonomy.controller';
 import { AdminDealplaceTaxonomyService } from './admin-dealplace-taxonomy.service';
+import { AdminDealsController } from './admin-deals.controller';
 import { AdminListingsController } from './admin-listings.controller';
 import { AdminListingsService } from './admin-listings.service';
 import { AdminNotificationsController } from './admin-notifications.controller';
@@ -47,9 +51,22 @@ import { AdminUsersService } from './admin-users.service';
  * Lot 2 — CP2.1 : backoffice Dealplace (annonces + taxonomie). DealplaceModule
  * est importé pour ListingAssembler : la forme LISTING/LISTING_CARD servie au
  * backoffice est assemblée par la MÊME source unique que l'annuaire public.
+ *
+ * Lot 2 — CP2.5 : modération avancée Dealplace (D65-D67) — file des
+ * signalements étendue aux ANNONCES (extrait de cible + compteur sur la liste
+ * admin des annonces), DEALS (liste/détail/arbitrage des litiges — délégué à
+ * DealsService, pattern « service métier hôte » : la machine à états reste au
+ * module deals) et CONVERSATIONS (liste, fils en clair, masquage doux d'un
+ * message).
  */
 @Module({
-  imports: [PostsModule, CamerasModule, NotificationsModule, DealplaceModule],
+  imports: [
+    PostsModule,
+    CamerasModule,
+    NotificationsModule,
+    DealplaceModule,
+    DealsModule,
+  ],
   controllers: [
     AdminUsersController,
     AdminPostsController,
@@ -60,6 +77,8 @@ import { AdminUsersService } from './admin-users.service';
     AdminNotificationsController,
     AdminListingsController,
     AdminDealplaceTaxonomyController,
+    AdminDealsController,
+    AdminConversationsController,
   ],
   providers: [
     AdminUsersService,
@@ -70,6 +89,7 @@ import { AdminUsersService } from './admin-users.service';
     AdminNotificationsService,
     AdminListingsService,
     AdminDealplaceTaxonomyService,
+    AdminConversationsService,
   ],
 })
 export class AdminModule {}

@@ -207,7 +207,24 @@ class _Contenu extends ConsumerWidget {
         icone: Icons.gavel_outlined,
         texte:
             'Litige déclaré${deal.disputeReason != null ? ' : ${deal.disputeReason}' : ''}. '
-            'Son traitement arrive avec la modération avancée.',
+            'L’équipe de modération va examiner la situation.',
+        actions: const [],
+      ));
+    }
+    // Litige TRANCHÉ par la modération (CP2.5) — affiché quel que soit le
+    // statut courant (cancelled/completed/active après reprise).
+    if (deal.disputeResolvedAt != null) {
+      final String libelle = switch (deal.disputeResolution) {
+        'cancelled' => 'deal annulé',
+        'completed' => 'deal conclu',
+        'resumed' => 'reprise du deal',
+        _ => 'décision rendue',
+      };
+      bandeaux.add(_Bandeau(
+        couleur: const Color(0xFFE8F1FB),
+        icone: Icons.gavel_outlined,
+        texte: 'Litige tranché par la modération : $libelle.'
+            '${deal.disputeResolutionNote != null ? ' Décision : ${deal.disputeResolutionNote}' : ''}',
         actions: const [],
       ));
     }

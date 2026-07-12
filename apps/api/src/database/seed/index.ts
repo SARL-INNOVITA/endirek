@@ -140,11 +140,12 @@ import { buildSeedFollows, buildSeedUsers } from './users.seed';
  *
  * Contenu : 15 utilisateurs réunionnais fictifs + ~30 follows (users.seed),
  * 42 posts sur les 12 communes + 12 médias (posts.seed), 60 commentaires,
- * ~155 réactions, collections + sauvegardes, 4 signalements et
- * 12 notifications (interactions.seed), 12 caméras météo/trafic
- * (cameras.seed), 8 annonces Dealplace + médias + tags (listings.seed),
- * 2 conversations + 6 messages (conversations.seed), 2 deals (1 actif,
- * 1 conclu avec avis croisés — deals.seed).
+ * ~155 réactions, collections + sauvegardes, 5 signalements (dont 1 sur une
+ * annonce — CP2.5) et 12 notifications (interactions.seed), 12 caméras
+ * météo/trafic (cameras.seed), 8 annonces Dealplace + médias + tags
+ * (listings.seed), 3 conversations + 9 messages dont 1 masqué
+ * (conversations.seed), 3 deals (1 actif, 1 conclu avec avis croisés,
+ * 1 en litige non arbitré — deals.seed).
  * Toutes les références croisées passent par seedUuid — chaque fichier
  * vérifie sa propre cohérence à la construction.
  */

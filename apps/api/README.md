@@ -3,18 +3,17 @@
 API REST + WebSocket (NestJS 11) du réseau social mobile local temps réel de La Réunion.
 Elle sert l'application mobile Flutter (`apps/mobile`) et le backoffice (`apps/admin`).
 
-> **État actuel — étape 5** : configuration typée, healthcheck, couche
-> persistance (driver mock + seed La Réunion), authentification JWT (guard
-> global), profils/follows/RGPD (étape 3), le cœur social (étape 4 :
-> publications, feed scoré, commentaires deux niveaux, réactions,
-> enregistrements, upload d'images, signalements et modération backoffice)
-> puis l'étape 5 : **carte** (`/map/overview`, `/map/cameras`, `/map/posts`,
-> `/map/communes`), **caméras** (`GET /cameras/:id` public + gestion
-> `/admin/cameras`), **notifications** in-app (lecture + badge de non-lues,
-> types `comment`/`reply`/`reaction`/`report_handled`) et **temps réel**
-> (gateway socket.io, events `notification.created` / `map.updated`, auth
-> handshake JWT + fallback polling). Reste le complément backoffice de
-> l'étape 6.
+> **État actuel — Lot 1 complet + Lot 2 (Dealplace) complet** : configuration
+> typée, healthcheck, couche persistance à **deux drivers** (`mock` défaut /
+> `postgres` fonctionnel — Lot 1.5), authentification JWT (guard global),
+> profils/follows/RGPD, cœur social (publications, feed scoré, commentaires
+> deux niveaux, réactions, enregistrements, upload d'images), carte, caméras,
+> notifications in-app, temps réel (socket.io), backoffice consolidé — puis
+> le **Lot 2** : taxonomie + annonces Dealplace (CP2.1), profil Dealplace
+> (CP2.2), conversations 1-to-1 temps réel (CP2.3), deals contractuels + avis
+> (CP2.4) et **modération avancée** (CP2.5 : signalement d'annonce, arbitrage
+> des litiges, modération des messages). Voir
+> [docs/AI_HANDOFF.md](../../docs/AI_HANDOFF.md).
 
 ## Lancement
 
@@ -64,14 +63,15 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 | `cameras` | Caméras météo/trafic — `GET /cameras/:id` public (caméra `active` uniquement) ; numéro auto, ville déduite par géocodage, statuts | **5 ✅** |
 | `notifications` | Notifications in-app — lecture (`GET /notifications`, `/unread-count`, `PATCH /read-all`, `/:id/read`), types `comment`/`reply`/`reaction`/`report_handled` via un point d'entrée unique (persistance + émission socket) | **5 ✅** |
 | `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` / `map.updated`, CORS aligné via `RealtimeIoAdapter` | **5 ✅** |
-| `moderation` | Signalements et traitement — **signalement utilisateur fait à l'étape 4** (`POST /posts/:id/report`, anti-doublon 409) | **4 partiel** / 6 |
-| `admin` | Endpoints du backoffice — **utilisateurs (étape 3), publications et signalements (étape 4), caméras (étape 5 : 6 routes `/admin/cameras`)** ; les paramètres des types de posts à l'étape 6 | **3-5 partiel** / 6 |
-| `_future/*` | Lots 2+ (pages, dealplace, deals, conversations, news, billing) | TODO Lot 2+ |
+| `moderation` | Signalements et traitement — posts (`POST /posts/:id/report`, étape 4) et **annonces Dealplace** (`POST /dealplace/listings/:id/report`, CP2.5 — D65), anti-doublon 409 | **4 + 6 + CP2.5 ✅** |
+| `admin` | Endpoints du backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires, notifications système, **annonces & taxonomie Dealplace (CP2.1)**, **deals/litiges & conversations (CP2.5)** | **3-6 + Lot 2 ✅** |
+| `dealplace` | **Lot 2 — CP2.1/CP2.2** : taxonomie biens/services pilotable + annonces (annuaire filtré, CRUD propriétaire, listes de profil) | **Lot 2 ✅** |
+| `conversations` | **Lot 2 — CP2.3/CP2.5** : messagerie 1-to-1 liée aux annonces, temps réel, modération des messages | **Lot 2 ✅** |
+| `deals` | **Lot 2 — CP2.4/CP2.5** : deals contractuels (machine à états, éléments validables, ajustements, avis) + arbitrage des litiges | **Lot 2 ✅** |
+| `_future/*` | Lots 3+ (pages, news, billing) | TODO Lot 3+ |
 
 Chaque dossier de module contient un `README.md` détaillant son périmètre et
-les règles métier du Lot 1 ; les modules de l'étape 6 n'ont pas encore de
-code (hors parties partielles ci-dessus), seuls leurs README documentent
-l'architecture cible.
+ses règles métier.
 
 ## Exemples rapides (étape 4)
 

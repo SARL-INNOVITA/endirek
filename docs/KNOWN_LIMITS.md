@@ -1,10 +1,11 @@
 # ENDIREK — Limites connues
 
 État honnête des limites du projet **au Lot 1 (checkpoint 7 + Lot 1.5) et au
-CP2.1 du Lot 2** (socle, couche base de données, auth/profils/follows/RGPD,
-posts/feed/interactions/médias, carte/caméras/notifications/temps réel,
-consolidation backoffice, stabilisation démo, puis **Dealplace : taxonomie +
-listings**).
+Lot 2 complet (CP2.1 → CP2.5)** : socle, couche base de données,
+auth/profils/follows/RGPD, posts/feed/interactions/médias,
+carte/caméras/notifications/temps réel, consolidation backoffice,
+stabilisation démo, puis **Dealplace complet** (taxonomie + annonces, profil,
+conversations, deals + avis, modération avancée).
 Ce fichier est mis à jour au fil des checkpoints.
 
 ---
@@ -79,11 +80,11 @@ les routes métier `api/v1` des étapes 3 à 6 :
   `DELETE` caméra = masquage doux).
 
 Le temps réel passe par un socket WebSocket (socket.io, namespace par défaut,
-non préfixé `api/v1`), pas par une route HTTP. **Le CP2.1 ajoute les routes
-Dealplace** (`/dealplace/taxonomy`, `/dealplace/listings*`, `/users/me|:id/listings`,
-`/admin/dealplace/*` — voir §2 sexies). Les modules des checkpoints/lots non
-démarrés restent volontairement absents : ne pas s'étonner de 404 sur les
-conversations, deals, avis, pages ou News.
+non préfixé `api/v1`), pas par une route HTTP. **Le Lot 2 ajoute les routes
+Dealplace** (`/dealplace/*`, `/users/me|:id/listings`, `/conversations*`,
+`/deals*`, `/users/:id/deal-profile`, `/admin/dealplace/*` — voir §2 sexies).
+Les modules des lots non démarrés restent volontairement absents : ne pas
+s'étonner de 404 sur les pages restaurants/entreprises ou les News.
 
 ## 2 bis. Limites de l'authentification (étape 3)
 
@@ -178,27 +179,31 @@ conversations, deals, avis, pages ou News.
   `comment`/`reply` et `report_handled` (traitement de signalement) — toutes
   lisibles via les endpoints de l'étape 5.
 
-## 2 sexies. Limites du Dealplace (Lot 2 — CP2.1 + CP2.2)
+## 2 sexies. Limites du Dealplace (Lot 2 — CP2.1 → CP2.5)
 
-Le CP2.1 livre la **taxonomie** (biens/services) et les **listings** (annonces) ;
-le CP2.2 livre le **volet Profil Dealplace** (SANS avis — périmètre D59).
-Périmètre volontairement restreint — tout le reste du Dealplace arrive aux
-checkpoints suivants :
+Le Lot 2 est complet : taxonomie + annonces (CP2.1), profil sans avis
+(CP2.2), conversations (CP2.3), deals + avis (CP2.4), modération avancée
+(CP2.5 — signalement d'annonce, arbitrage des litiges, modération des
+messages). Limites restantes :
 
-- **Deals (CP2.4) volontairement bornés (D64)** : le **litige est TERMINAL**
-  — personne ne peut le trancher avant la modération avancée (CP2.5+,
-  arbitrage IA prévu architecturalement) ; les ajustements ne modifient pas
-  les SOUS-ÉLÉMENTS (seulement nature/titre/description/valeur des
-  éléments) ; l'échéance est indicative (pas de rappel) ; **aucune modération
-  backoffice des deals** ; la **valeur des éléments est indicative** — le
-  paiement se règle hors app ; un avis n'est ni modifiable ni supprimable.
-- **Messagerie (CP2.3) volontairement minimale (D63)** : fils TOUJOURS liés à
-  une annonce (pas de message direct sans annonce), **texte seul** (pas de
-  pièces jointes malgré l'adapter média prêt), pas d'édition/suppression de
-  message, pas de groupe, pas d'indicateur de frappe ni d'accusé par message
-  (jalon de lecture par fil), **pas de modération backoffice des messages**
-  (CP2.5). Pages des fils bornées à 50 messages côté mobile (pagination
-  profonde à brancher avec l'usage réel).
+- **Deals volontairement bornés (D64/D66)** : les ajustements ne modifient
+  pas les SOUS-ÉLÉMENTS (seulement nature/titre/description/valeur des
+  éléments) ; l'échéance est indicative (pas de rappel) ; la **valeur des
+  éléments est indicative** — le paiement se règle hors app ; un avis n'est
+  ni modifiable ni supprimable. Le litige est arbitré par un HUMAIN au
+  backoffice (D66) — l'**arbitrage IA** reste un chantier futur (adapter à
+  prévoir, D22) ; un litige déjà tranché ne se re-arbitre pas (409) ; le
+  backoffice n'annule jamais un deal SAIN (pas de levier hors litige).
+- **Messagerie (CP2.3/CP2.5) volontairement minimale (D63/D67)** : fils
+  TOUJOURS liés à une annonce (pas de message direct sans annonce), **texte
+  seul** (pas de pièces jointes malgré l'adapter média prêt), pas
+  d'édition/suppression de message, pas de groupe, pas d'indicateur de
+  frappe ni d'accusé par message (jalon de lecture par fil). Pages des fils
+  bornées à 50 messages côté mobile (pagination profonde à brancher avec
+  l'usage réel). Le **masquage d'un message par la modération n'émet pas
+  d'event socket** : un fil ouvert ne reflète le masquage qu'à sa
+  réouverture (D67 — REST source de vérité). Pas de signalement de MESSAGE
+  côté utilisateur (la modération parcourt les fils au backoffice).
 - **Pas d'avis au CP2.2 (décision D59)** : le volet Profil Dealplace est livré
   SANS note, critères ni historique d'échanges — les avis détaillés sont
   construits AVEC les deals au **CP2.4**. Les blocs avis / « X deals
@@ -208,11 +213,10 @@ checkpoints suivants :
   50 max par section — pagination à prévoir avec la croissance des profils).
   Pas de bouton « partager le profil » ni de badge type « DealPlace partner »
   (mockup) au CP2.2.
-- **Pas de signalement d'annonce côté utilisateur** : le CP2.1 n'expose pas de
-  « signaler cette annonce ». La modération passe uniquement par le backoffice
-  (`GET /admin/dealplace/listings`, `PATCH …/:id/status` masquer/republier). Une
-  annonce **`deleted` n'est jamais restaurée** (409) ; seul le propriétaire
-  supprime (soft-delete).
+- **Signalement d'annonce livré au CP2.5 (D65)** ; en revanche le
+  signalement de **profil** (`targetType=user`) n'a toujours pas d'endpoint
+  utilisateur (le schéma le supporte). Une annonce **`deleted` n'est jamais
+  restaurée** (409) ; seul le propriétaire supprime (soft-delete).
 - **Paiement hors application** : aucun flux de paiement dans l'app (décision
   produit) — la valeur d'une annonce est **indicative** (fixe ou fourchette),
   l'échange se règle hors app.
@@ -276,10 +280,12 @@ des tests backoffice sur les actions critiques.
 
 ## 8. Rappels de périmètre
 
-- **News** reste un **onglet placeholder** (Lot 4). **Dealplace est réel depuis
-  le CP2.1** (onglet mobile : annuaire, création, détail d'annonces) — mais
-  limité à la taxonomie + les listings ; conversations/deals/avis viennent aux
-  checkpoints suivants (voir §2 sexies et [TODO_LOT_2.md](TODO_LOT_2.md)).
+- **News** reste un **onglet placeholder** (Lot 4). **Dealplace est COMPLET
+  depuis le CP2.5** (annuaire/création/détail d'annonces, profil,
+  conversations temps réel, deals contractuels + avis, signalement
+  d'annonce, arbitrage des litiges et modération des messages au
+  backoffice) — voir §2 sexies et [TODO_LOT_2.md](TODO_LOT_2.md) pour les
+  limites restantes.
 - L'onglet Carte du mobile est **réel depuis l'étape 5** (mode « Météo &
   trafic » : posts géolocalisés + caméras actives, clustering, cartes de
   preview). Les modes carte « Offres & restos » et « Événements » relèvent

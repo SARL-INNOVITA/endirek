@@ -19,6 +19,7 @@ import {
   DealAdjustment,
   DealAdjustmentAddPayload,
   DealAdjustmentModifyPayload,
+  DealDisputeResolution,
   DealItem,
   DealItemStep,
   DealNote,
@@ -26,11 +27,13 @@ import {
   DealStatus,
 } from '../../database/domain/entities';
 import {
+  AdminListDealsParams,
   ConversationsRepository,
   CreateDealItemSpec,
   DealsRepository,
   ListingsRepository,
   PageParams,
+  UpdateDealPatch,
   UsersRepository,
 } from '../../database/repositories/interfaces';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -150,6 +153,12 @@ export interface DealView {
   cancellationRequestedBy: string | null;
   disputedBy: string | null;
   disputeReason: string | null;
+  /** Issue de l'arbitrage du litige (CP2.5 — D66), null tant que non tranché.
+   * L'IDENTITÉ du modérateur n'est jamais exposée aux parties (seuls l'issue,
+   * la note de décision et la date le sont). */
+  disputeResolution: DealDisputeResolution | null;
+  disputeResolutionNote: string | null;
+  disputeResolvedAt: Date | null;
   items: DealItemView[];
   adjustments: DealAdjustmentView[];
   notes: DealNoteView[];
@@ -158,6 +167,62 @@ export interface DealView {
   myReviewSubmitted: boolean;
   acceptedAt: Date | null;
   completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Carte DEAL du BACKOFFICE (CP2.5 — D66) : les DEUX parties nommées (la
+ * forme n'est pas viewer-centrique, contrairement à DealCardView). */
+export interface AdminDealCardView {
+  id: string;
+  dealNumber: number;
+  status: DealStatus;
+  stage: DealStage;
+  listing: DealListingRef;
+  proposer: PostAuthor;
+  recipient: PostAuthor;
+  /** Résumés « ce que fournit chaque partie » (premiers titres). */
+  proposerOfferSummary: string;
+  recipientOfferSummary: string;
+  disputedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt: Date | null;
+}
+
+/** Liste paginée de cartes deal backoffice. */
+export interface PagedAdminDealCards {
+  items: AdminDealCardView[];
+  total: number;
+}
+
+/** Page DEAL complète du BACKOFFICE (CP2.5 — D66) : les deux parties, le
+ * litige et son éventuel arbitrage (y compris l'identité du modérateur —
+ * jamais exposée aux parties). */
+export interface AdminDealView {
+  id: string;
+  dealNumber: number;
+  status: DealStatus;
+  stage: DealStage;
+  listing: DealListingRef;
+  conversationId: string | null;
+  proposer: PostAuthor;
+  recipient: PostAuthor;
+  dueDate: Date | null;
+  cancellationRequestedBy: string | null;
+  disputedBy: string | null;
+  disputeReason: string | null;
+  disputeResolvedBy: string | null;
+  disputeResolvedAt: Date | null;
+  disputeResolution: DealDisputeResolution | null;
+  disputeResolutionNote: string | null;
+  items: DealItemView[];
+  adjustments: DealAdjustmentView[];
+  notes: DealNoteView[];
+  reviews: DealReviewView[];
+  acceptedAt: Date | null;
+  completedAt: Date | null;
+  closedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -714,7 +779,8 @@ export class DealsService {
     return this.assembleOne(id, viewer.userId);
   }
 
-  /** Déclare un LITIGE (unilatéral, deal actif) — terminal au CP2.4. */
+  /** Déclare un LITIGE (unilatéral, deal actif) — arbitré par la modération
+   * backoffice depuis le CP2.5 (D66). */
   async dispute(
     viewer: AuthenticatedUser,
     id: string,
@@ -726,13 +792,20 @@ export class DealsService {
       status: 'disputed',
       disputedBy: viewer.userId,
       disputeReason: reason,
+      // Un deal REPRIS par arbitrage peut connaître un NOUVEAU litige : les
+      // traces du précédent arbitrage sont effacées pour qu'un seul cycle
+      // litige→arbitrage soit visible à la fois (D66).
+      disputeResolvedBy: null,
+      disputeResolvedAt: null,
+      disputeResolution: null,
+      disputeResolutionNote: null,
       closedAt: new Date(),
     });
     await this.notifyDeal(disputed, this.otherParty(deal, viewer.userId), viewer.userId, {
       event: 'disputed',
       title: `Litige déclaré (Deal ${deal.dealNumber})`,
       message:
-        'Un litige a été déclaré sur ce deal — son traitement arrive avec la modération avancée.',
+        'Un litige a été déclaré sur ce deal — l’équipe de modération va l’examiner.',
     });
     return this.assembleOne(id, viewer.userId);
   }
@@ -842,8 +915,273 @@ export class DealsService {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
+  // Backoffice (CP2.5 — D66) : la machine à états reste ICI, le module admin
+  // délègue (pattern « service métier hôte », comme les caméras).
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Liste BACKOFFICE des deals (tous statuts) — GET /admin/dealplace/deals. */
+  async listAdminDeals(
+    params: AdminListDealsParams,
+  ): Promise<PagedAdminDealCards> {
+    const page = await this.dealsRepository.listAdmin(params);
+    return {
+      items: await this.assembleAdminCards(page.items),
+      total: page.total,
+    };
+  }
+
+  /** Page DEAL complète backoffice (tous statuts, 404 si id inconnu). */
+  async getAdminDeal(id: string): Promise<AdminDealView> {
+    await this.loadAdminDeal(id);
+    return this.assembleAdmin(id);
+  }
+
+  /**
+   * ARBITRE un litige (D66) — deal 'disputed' uniquement (409 sinon) :
+   * - 'cancelled' : le deal est ANNULÉ (closedAt du litige conservé) ;
+   * - 'completed' : le deal est déclaré CONCLU — completedAt posé, les avis
+   *   s'ouvrent et les stats de profil sont incrémentées (comme une
+   *   conclusion normale) ;
+   * - 'resumed'   : litige jugé non fondé, le deal REPREND ('active',
+   *   closedAt effacé) — un nouveau litige reste possible (dispute() efface
+   *   alors les traces de cet arbitrage).
+   * L'issue, la note et la date sont montrées aux DEUX parties ; l'identité
+   * du modérateur reste interne au backoffice. Un modérateur PARTIE PRENANTE
+   * du deal ne peut pas l'arbitrer (403 — conflit d'intérêts).
+   */
+  async resolveDispute(
+    admin: AuthenticatedUser,
+    id: string,
+    input: { outcome: DealDisputeResolution; note: string },
+  ): Promise<AdminDealView> {
+    const deal = await this.loadAdminDeal(id);
+    if (
+      admin.userId === deal.proposerId ||
+      admin.userId === deal.recipientId
+    ) {
+      throw new ForbiddenException(
+        'Vous ne pouvez pas arbitrer un litige dont vous êtes partie prenante',
+      );
+    }
+    this.assertStatus(deal, 'disputed');
+
+    const now = new Date();
+    const patch: UpdateDealPatch = {
+      disputeResolvedBy: admin.userId,
+      disputeResolvedAt: now,
+      disputeResolution: input.outcome,
+      disputeResolutionNote: input.note,
+    };
+    switch (input.outcome) {
+      case 'cancelled':
+        // closedAt (posé au litige) reste la date de clôture effective.
+        patch.status = 'cancelled';
+        break;
+      case 'completed':
+        // Miroir d'une conclusion normale : completedAt posé, closedAt
+        // effacé (réservé aux terminaux non conclus).
+        patch.status = 'completed';
+        patch.completedAt = now;
+        patch.closedAt = null;
+        break;
+      case 'resumed':
+        // Le deal reprend son cours ; disputedBy/disputeReason sont CONSERVÉS
+        // (audit du cycle litige→arbitrage affiché aux parties).
+        patch.status = 'active';
+        patch.closedAt = null;
+        break;
+    }
+    const resolved = await this.dealsRepository.update(id, patch);
+
+    const outcomeLabel: Record<DealDisputeResolution, string> = {
+      cancelled: 'le deal est annulé',
+      completed: 'le deal est déclaré conclu',
+      resumed: 'le deal reprend son cours',
+    };
+    // Les DEUX parties sont notifiées (l'admin n'en est jamais une — vérifié
+    // ci-dessus, donc aucune auto-notification possible).
+    for (const userId of [deal.proposerId, deal.recipientId]) {
+      await this.notifyDeal(resolved, userId, admin.userId, {
+        event: 'dispute_resolved',
+        title: `Litige tranché (Deal ${deal.dealNumber})`,
+        message: `La modération a tranché le litige : ${outcomeLabel[input.outcome]}.`,
+      });
+    }
+    return this.assembleAdmin(id);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Aides privées
   // ──────────────────────────────────────────────────────────────────────────
+
+  /** 404 si le deal n'existe pas (backoffice : pas de filtre participant). */
+  private async loadAdminDeal(id: string): Promise<Deal> {
+    const deal = await this.dealsRepository.findById(id);
+    if (!deal) {
+      throw new NotFoundException('Deal introuvable');
+    }
+    return deal;
+  }
+
+  /** Cartes DEAL backoffice (deux parties nommées — PAR LOT, anti N+1). */
+  private async assembleAdminCards(
+    deals: Deal[],
+  ): Promise<AdminDealCardView[]> {
+    if (deals.length === 0) {
+      return [];
+    }
+    const listingIds = [...new Set(deals.map((d) => d.listingId))];
+    const partyIds = [
+      ...new Set(deals.flatMap((d) => [d.proposerId, d.recipientId])),
+    ];
+    const [listings, parties, itemsByDeal] = await Promise.all([
+      this.listingsRepository.findByIds(listingIds),
+      this.usersRepository.findByIds(partyIds),
+      this.dealsRepository.listItemsByDealIds(deals.map((d) => d.id)),
+    ]);
+    const allItems = Object.values(itemsByDeal).flat();
+    const steps = await this.dealsRepository.listSteps(
+      allItems.map((i) => i.id),
+    );
+    const stepsByItem = new Map<string, DealItemStep[]>();
+    for (const step of steps) {
+      (stepsByItem.get(step.itemId) ??
+        stepsByItem.set(step.itemId, []).get(step.itemId)!).push(step);
+    }
+    const listingsById = new Map(listings.map((l) => [l.id, l]));
+    const partiesById = new Map(parties.map((u) => [u.id, u]));
+
+    return deals.map((deal) => {
+      const items = itemsByDeal[deal.id] ?? [];
+      const dealSteps: DealStepView[] = items.flatMap((item) =>
+        (stepsByItem.get(item.id) ?? []).map((s) => ({
+          id: s.id,
+          label: s.label,
+          position: s.position,
+          honoredAt: s.honoredAt,
+          validatedAt: s.validatedAt,
+        })),
+      );
+      return {
+        id: deal.id,
+        dealNumber: deal.dealNumber,
+        status: deal.status,
+        stage: this.stage(deal, dealSteps),
+        listing: this.toListingRef(
+          deal.listingId,
+          listingsById.get(deal.listingId) ?? null,
+        ),
+        proposer: toPostAuthor(
+          deal.proposerId,
+          partiesById.get(deal.proposerId) ?? null,
+        ),
+        recipient: toPostAuthor(
+          deal.recipientId,
+          partiesById.get(deal.recipientId) ?? null,
+        ),
+        proposerOfferSummary: this.offerSummary(items, deal.proposerId),
+        recipientOfferSummary: this.offerSummary(items, deal.recipientId),
+        disputedBy: deal.disputedBy,
+        createdAt: deal.createdAt,
+        updatedAt: deal.updatedAt,
+        completedAt: deal.completedAt,
+      };
+    });
+  }
+
+  /** Assemble la page DEAL backoffice (relue — reflète l'état à jour). */
+  private async assembleAdmin(id: string): Promise<AdminDealView> {
+    const deal = (await this.dealsRepository.findById(id)) as Deal;
+    const [listing, items, adjustments, notes, reviews] = await Promise.all([
+      this.listingsRepository.findById(deal.listingId),
+      this.dealsRepository.listItems(id),
+      this.dealsRepository.listAdjustments(id),
+      this.dealsRepository.listNotes(id),
+      this.dealsRepository.listReviewsByDeal(id),
+    ]);
+    const steps = await this.dealsRepository.listSteps(items.map((i) => i.id));
+    const stepsByItem = new Map<string, DealStepView[]>();
+    for (const step of steps) {
+      (stepsByItem.get(step.itemId) ??
+        stepsByItem.set(step.itemId, []).get(step.itemId)!).push({
+        id: step.id,
+        label: step.label,
+        position: step.position,
+        honoredAt: step.honoredAt,
+        validatedAt: step.validatedAt,
+      });
+    }
+
+    const authorIds = new Set<string>([deal.proposerId, deal.recipientId]);
+    for (const note of notes) {
+      authorIds.add(note.authorId);
+    }
+    for (const review of reviews) {
+      authorIds.add(review.reviewerId);
+    }
+    const users = await this.usersRepository.findByIds([...authorIds]);
+    const usersById = new Map(users.map((u) => [u.id, u]));
+    const author = (userId: string): PostAuthor =>
+      toPostAuthor(userId, usersById.get(userId) ?? null);
+
+    const allStepViews = [...stepsByItem.values()].flat();
+
+    return {
+      id: deal.id,
+      dealNumber: deal.dealNumber,
+      status: deal.status,
+      stage: this.stage(deal, allStepViews),
+      listing: this.toListingRef(deal.listingId, listing),
+      conversationId: deal.conversationId,
+      proposer: author(deal.proposerId),
+      recipient: author(deal.recipientId),
+      dueDate: deal.dueDate,
+      cancellationRequestedBy: deal.cancellationRequestedBy,
+      disputedBy: deal.disputedBy,
+      disputeReason: deal.disputeReason,
+      disputeResolvedBy: deal.disputeResolvedBy,
+      disputeResolvedAt: deal.disputeResolvedAt,
+      disputeResolution: deal.disputeResolution,
+      disputeResolutionNote: deal.disputeResolutionNote,
+      items: items.map((item) => {
+        const itemSteps = stepsByItem.get(item.id) ?? [];
+        return {
+          id: item.id,
+          providerId: item.providerId,
+          kind: item.kind,
+          title: item.title,
+          description: item.description,
+          value: item.value,
+          position: item.position,
+          badge: this.itemBadge(itemSteps),
+          steps: itemSteps,
+        };
+      }),
+      adjustments: adjustments.map((a) => ({
+        id: a.id,
+        proposedBy: a.proposedBy,
+        kind: a.kind,
+        itemId: a.itemId,
+        payload: a.payload,
+        description: a.description,
+        status: a.status,
+        decidedAt: a.decidedAt,
+        createdAt: a.createdAt,
+      })),
+      notes: notes.map((n) => ({
+        id: n.id,
+        author: author(n.authorId),
+        body: n.body,
+        createdAt: n.createdAt,
+      })),
+      reviews: await this.assembleReviews(reviews),
+      acceptedAt: deal.acceptedAt,
+      completedAt: deal.completedAt,
+      closedAt: deal.closedAt,
+      createdAt: deal.createdAt,
+      updatedAt: deal.updatedAt,
+    };
+  }
 
   /** 404 si le deal n'existe pas OU si l'appelant n'en est pas partie. */
   private async loadOwnDeal(
@@ -1095,6 +1433,9 @@ export class DealsService {
       cancellationRequestedBy: deal.cancellationRequestedBy,
       disputedBy: deal.disputedBy,
       disputeReason: deal.disputeReason,
+      disputeResolution: deal.disputeResolution,
+      disputeResolutionNote: deal.disputeResolutionNote,
+      disputeResolvedAt: deal.disputeResolvedAt,
       items: items.map((item) => {
         const itemSteps = stepsByItem.get(item.id) ?? [];
         return {

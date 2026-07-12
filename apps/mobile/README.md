@@ -19,8 +19,10 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
   présents mais désactivés (« bientôt disponible », le backend répond 501) ;
 - **Inscription** (`/register`) — nom affiché, email, mot de passe ≥ 8
   caractères + confirmation ;
-- **Shell à 4 onglets** (Accueil, Carte, News, Dealplace) — Accueil et Carte
-  sont réels ; News et Dealplace restent des placeholders propres ;
+- **Shell à 4 onglets** (Accueil, Carte, News, Dealplace) — Accueil, Carte
+  et **Dealplace** (Lot 2 : annuaire, création/détail d'annonces avec
+  signalement, profil Dealplace, messagerie, deals) sont réels ; News reste
+  un placeholder propre ;
 - **Fil d'actualité** (`/home`) — feed scoré de l'API, infinite scroll
   (offset/limit) + tirer-pour-rafraîchir, cartes de post (type, médias,
   compteurs) avec actions J'aime / Commenter / Partager / Enregistrer et
@@ -53,7 +55,9 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
   carte interactive.
 - La palette de réactions du mobile est locale (miroir du seed
   `reaction_types`) — un GET dédié côté API reste à prévoir.
-- Les onglets **News** et **Dealplace** restent des placeholders Lot 1.
+- L'onglet **News** reste un placeholder (Lot 4) ; **Dealplace est réel
+  depuis le Lot 2** (annuaire, annonces, profil, messagerie, deals,
+  signalement d'annonce — voir `lib/features/*/README.md`).
 
 Principales dépendances : Riverpod, go_router, Dio, `flutter_secure_storage`,
 `image_picker`, `flutter_map`, `socket_io_client` et `flutter_localizations`.

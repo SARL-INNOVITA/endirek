@@ -21,6 +21,7 @@ import {
   Deal,
   DealAdjustment,
   DealAdjustmentKind,
+  DealDisputeResolution,
   DealItem,
   DealItemKind,
   DealItemStep,
@@ -40,6 +41,7 @@ import {
   ListingTag,
   ListingValueKind,
   Message,
+  MessageStatus,
   ModerationLevel,
   Notification,
   NotificationType,
@@ -799,11 +801,21 @@ export interface CreateConversationInput {
 }
 
 /** Données de création d'un message (le service garantit : émetteur
- * participant de la conversation, body 1-2000 après trim). */
+ * participant de la conversation, body 1-2000 après trim). Tout message est
+ * créé 'active' (le statut 'hidden' est réservé à la modération — D67). */
 export interface CreateMessageInput {
   conversationId: string;
   senderId: string;
   body: string;
+}
+
+/** Filtres de la liste BACKOFFICE des conversations (CP2.5 — D67). */
+export interface AdminListConversationsParams {
+  /** Recherche insensible à la casse sur le nom affiché d'un participant ou
+   * le titre de l'annonce liée. */
+  search?: string;
+  limit: number;
+  offset: number;
 }
 
 /**
@@ -852,11 +864,27 @@ export interface ConversationsRepository {
    * ATOMIQUEMENT (équivalent transaction SQL). */
   createMessage(input: CreateMessageInput): Promise<Message>;
   /** Messages d'une conversation, du PLUS RÉCENT au plus ancien (tie-break id
-   * — le client inverse pour l'affichage), paginés. */
+   * — le client inverse pour l'affichage), paginés. Les messages 'hidden'
+   * SONT inclus (pagination et non-lus inchangés — D67) : c'est le SERVICE
+   * qui remplace leur corps pour les participants. */
   listMessages(
     conversationId: string,
     params: PageParams,
   ): Promise<PagedResult<Message>>;
+
+  // ── Backoffice (CP2.5 — D67) ─────────────────────────────────────────────
+  /** TOUTES les conversations (backoffice), triées par activité décroissante
+   * (lastMessageAt ?? createdAt DESC, tie-break id — même tri que
+   * listByParticipant). `search` : nom affiché d'un participant ou titre de
+   * l'annonce liée, insensible à la casse. */
+  listAdmin(
+    params: AdminListConversationsParams,
+  ): Promise<PagedResult<Conversation>>;
+  findMessageById(id: string): Promise<Message | null>;
+  /** Pose le statut de modération d'un message (masquer/réactiver).
+   * Idempotent. Erreur si le message n'existe pas
+   * (`Message introuvable : <id>.`). */
+  setMessageStatus(id: string, status: MessageStatus): Promise<Message>;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -897,6 +925,11 @@ export interface UpdateDealPatch {
   cancellationRequestedBy?: string | null;
   disputedBy?: string | null;
   disputeReason?: string | null;
+  /** Arbitrage d'un litige (CP2.5 — D66). */
+  disputeResolvedBy?: string | null;
+  disputeResolvedAt?: Date | null;
+  disputeResolution?: DealDisputeResolution | null;
+  disputeResolutionNote?: string | null;
   acceptedAt?: Date | null;
   completedAt?: Date | null;
   closedAt?: Date | null;
@@ -905,6 +938,17 @@ export interface UpdateDealPatch {
 /** Filtres de MES deals (liste mobile). */
 export interface ListDealsParams {
   status?: DealStatus;
+  limit: number;
+  offset: number;
+}
+
+/** Filtres de la liste BACKOFFICE des deals (CP2.5 — D66). */
+export interface AdminListDealsParams {
+  status?: DealStatus;
+  /** Recherche insensible à la casse sur le nom affiché d'une des parties ou
+   * le titre de l'annonce liée ; si la saisie est entièrement numérique, elle
+   * matche AUSSI le numéro exact du deal. */
+  search?: string;
   limit: number;
   offset: number;
 }
@@ -986,6 +1030,10 @@ export interface DealsRepository {
     userId: string,
     params: PageParams,
   ): Promise<PagedResult<Deal>>;
+  /** TOUS les deals (backoffice — CP2.5, D66), tous statuts, du plus récent
+   * au plus ancien (createdAt DESC, tie-break id — convention des listes
+   * admin). Voir AdminListDealsParams pour la sémantique de `search`. */
+  listAdmin(params: AdminListDealsParams): Promise<PagedResult<Deal>>;
 
   // ── Éléments & sous-éléments ─────────────────────────────────────────────
   /** Éléments d'un deal, triés par position ASC (tie-break createdAt, id). */

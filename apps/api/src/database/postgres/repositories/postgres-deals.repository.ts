@@ -25,6 +25,7 @@ import {
 } from '../../domain/entities';
 import { POSTGRES_POOL } from '../../database.tokens';
 import {
+  AdminListDealsParams,
   CreateDealAdjustmentInput,
   CreateDealInput,
   CreateDealItemSpec,
@@ -59,6 +60,10 @@ const DEAL_PATCH_COLUMNS: Record<keyof UpdateDealPatch, string> = {
   cancellationRequestedBy: 'cancellation_requested_by',
   disputedBy: 'disputed_by',
   disputeReason: 'dispute_reason',
+  disputeResolvedBy: 'dispute_resolved_by',
+  disputeResolvedAt: 'dispute_resolved_at',
+  disputeResolution: 'dispute_resolution',
+  disputeResolutionNote: 'dispute_resolution_note',
   acceptedAt: 'accepted_at',
   completedAt: 'completed_at',
   closedAt: 'closed_at',
@@ -196,6 +201,61 @@ export class PostgresDealsRepository implements DealsRepository {
         ORDER BY d.updated_at DESC, d.id
         LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
       pageParams,
+    );
+    return {
+      items: rows.map(rowToDeal),
+      total: Number(totalRes.rows[0].n),
+    };
+  }
+
+  async listAdmin(params: AdminListDealsParams): Promise<PagedResult<Deal>> {
+    // Liste BACKOFFICE (CP2.5 — D66) : tous statuts, convention des listes
+    // admin (created_at DESC, tie-break id). Recherche insensible à la casse
+    // sur le nom d'une des parties ou le titre de l'annonce (JOIN users ×2 +
+    // listings — miroir du mock) ; une saisie entièrement numérique matche
+    // AUSSI le numéro exact du deal.
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let n = 1;
+    if (params.status !== undefined) {
+      conditions.push(`d.status = $${n++}`);
+      values.push(params.status);
+    }
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim();
+      const searchParts = [
+        `up.display_name ILIKE $${n}`,
+        `ur.display_name ILIKE $${n}`,
+        `l.title ILIKE $${n}`,
+      ];
+      values.push(`%${needle}%`);
+      n++;
+      if (/^\d+$/.test(needle)) {
+        searchParts.push(`d.deal_number = $${n++}`);
+        values.push(Number(needle));
+      }
+      conditions.push(`(${searchParts.join(' OR ')})`);
+    }
+    const whereSql =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const fromSql = `
+         FROM deals d
+         JOIN users up ON up.id = d.proposer_id
+         JOIN users ur ON ur.id = d.recipient_id
+         JOIN listings l ON l.id = d.listing_id`;
+    const totalRes = await query(
+      this.pool,
+      `SELECT count(*) AS n ${fromSql} ${whereSql}`,
+      values,
+    );
+    const { rows } = await query(
+      this.pool,
+      `SELECT ${SQL_DEAL_COLUMNS}
+        ${fromSql}
+        ${whereSql}
+        ORDER BY d.created_at DESC, d.id
+        LIMIT $${n} OFFSET $${n + 1}`,
+      [...values, params.limit, params.offset],
     );
     return {
       items: rows.map(rowToDeal),

@@ -10,7 +10,9 @@ import '../../../core/auth/auth_state.dart';
 import '../../../core/config/api_config.dart';
 import '../../../core/theme/endirek_theme.dart';
 import '../../feed/presentation/widgets/avatar_rond.dart';
+import '../../post_detail/presentation/widgets/report_dialog.dart';
 import '../application/listing_detail_provider.dart';
+import '../data/dealplace_repository.dart';
 import '../domain/dealplace_value.dart';
 import '../domain/listing.dart';
 import 'widgets/badge_type_annonce.dart';
@@ -31,6 +33,17 @@ class ListingDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<Listing> annonce =
         ref.watch(listingDetailProvider(listingId));
+    // Menu ⋮ visible seulement une fois l'annonce chargée ET pour un tiers
+    // (même test que _BarreProposerDeal : signaler sa propre annonce n'a pas
+    // de sens — le serveur le refuse d'ailleurs en 400).
+    final Listing? chargee = switch (annonce) {
+      AsyncData(:final value) => value,
+      _ => null,
+    };
+    final AuthState auth = ref.watch(authControllerProvider);
+    final bool estAMoi = chargee != null &&
+        auth is AuthSignedIn &&
+        auth.profile.id == chargee.ownerId;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -43,6 +56,19 @@ class ListingDetailScreen extends ConsumerWidget {
             ),
           _ => const Text('Annonce'),
         },
+        actions: [
+          if (chargee != null && !estAMoi)
+            PopupMenuButton<String>(
+              tooltip: 'Plus d\'options',
+              onSelected: (choix) => _surMenu(context, ref, choix, chargee),
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'signaler',
+                  child: Text('Signaler'),
+                ),
+              ],
+            ),
+        ],
       ),
       body: switch (annonce) {
         AsyncData(:final value) => _Contenu(annonce: value),
@@ -54,6 +80,34 @@ class ListingDetailScreen extends ConsumerWidget {
         _ => const Center(child: CircularProgressIndicator()),
       },
     );
+  }
+
+  /// Actions du menu ⋮ — signalement d'annonce (CP2.5), pattern miroir du
+  /// _surMenu de post_detail_screen.dart.
+  Future<void> _surMenu(
+    BuildContext context,
+    WidgetRef ref,
+    String choix,
+    Listing annonce,
+  ) async {
+    switch (choix) {
+      case 'signaler':
+        final bool envoye = await montrerDialogSignalement(
+          context,
+          titre: 'Signaler cette annonce',
+          envoyer: ({required String reasonCode, String? message}) =>
+              ref.read(dealplaceRepositoryProvider).signalerAnnonce(
+                    annonce.id,
+                    reasonCode: reasonCode,
+                    message: message,
+                  ),
+        );
+        if (envoye && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text(messageSignalementEnvoye)),
+          );
+        }
+    }
   }
 
   static String _messageErreur(Object error) {

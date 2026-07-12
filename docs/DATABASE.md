@@ -1,7 +1,8 @@
-# ENDIREK — Base de données (Lot 1 + Dealplace CP2.1)
+# ENDIREK — Base de données (Lot 1 + Dealplace, Lot 2 complet)
 
 Documentation du schéma de données posé à **l'étape 2 du Lot 1**, étendu au
-**CP2.1 du Lot 2** (Dealplace : taxonomie + listings, voir §9).
+fil du **Lot 2** (Dealplace : taxonomie + listings, profil, conversations,
+deals + avis, modération avancée).
 
 - **Source de vérité** : le schéma **PostgreSQL 16 + PostGIS 3.4**, écrit dans
   [`apps/api/db/migrations/`](../apps/api/db/migrations/) :
@@ -14,7 +15,10 @@ Documentation du schéma de données posé à **l'étape 2 du Lot 1**, étendu a
   (CP2.2 : colonne `users.dealplace_seeking`, rejouable via
   `ADD COLUMN IF NOT EXISTS`) ; **`0006_conversations.sql`** (CP2.3 : tables
   `conversations` + `messages`, rejouable) ; **`0007_deals.sql`** (CP2.4 :
-  6 tables deals + avis, rejouable).
+  6 tables deals + avis, rejouable) ; **`0008_moderation.sql`** (CP2.5 :
+  cible `listing` des signalements, `messages.status`, colonnes d'arbitrage
+  des litiges — rejouable via `ADD COLUMN IF NOT EXISTS` + contraintes
+  recréées `DROP CONSTRAINT IF EXISTS`/`ADD`).
 - **Deux drivers fonctionnels** (comportement observable identique, choisi au
   chargement du module via `DB_DRIVER`) :
   - `DB_DRIVER=mock` (défaut, fallback) — adapter **in-memory TypeScript**
@@ -255,7 +259,7 @@ Index : `cameras_location_gist_idx` (GIST), `cameras_category_idx`, `cameras_sta
 |---|---|
 | `id` | `uuid` PK |
 | `reporter_id` | `uuid NOT NULL REFERENCES users(id)` |
-| `target_type` | `text`, `CHECK IN ('post','comment','user')` |
+| `target_type` | `text`, `CHECK IN ('post','comment','user','listing')` — `'listing'` ajouté au CP2.5 (D65, migration 0008) |
 | `target_id` | `uuid NOT NULL` — polymorphe, pas de FK (intégrité service) |
 | `reason_code` | `text NOT NULL` — codes documentés : `spam`, `hateful`, `dangerous`, `false_info`, `other` (pilotables plus tard) |
 | `message` | `text NOT NULL DEFAULT ''` |
@@ -440,6 +444,7 @@ Index : `conversations_initiator_id_idx`, `conversations_owner_id_idx`,
 | `conversation_id` | `uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE` |
 | `sender_id` | `uuid NOT NULL REFERENCES users(id)` |
 | `body` | `text NOT NULL`, `CHECK char_length BETWEEN 1 AND 2000` — texte seul au CP2.3 |
+| `status` | `text NOT NULL DEFAULT 'active'`, `CHECK IN ('active','hidden')` — modération CP2.5 (D67, migration 0008) : un message masqué RESTE dans le fil, son corps est remplacé pour les participants |
 | `created_at` | `timestamptz NOT NULL DEFAULT now()` |
 
 Index : `messages_conversation_created_idx` (`conversation_id, created_at DESC`).
@@ -452,7 +457,7 @@ d'avis **dérivés à la lecture** — rien de stocké.
 
 | Table | Rôle | Points clés |
 |---|---|---|
-| `deals` | Contrat d'échange lié à une annonce | `deal_number` (séquence, « Deal 345 »), `conversation_id` nullable, `status CHECK (proposed/active/completed/declined/cancelled/disputed)`, `cancellation_requested_by` (annulation 2 temps), `disputed_by`+`dispute_reason`, `CHECK proposer <> recipient` |
+| `deals` | Contrat d'échange lié à une annonce | `deal_number` (séquence, « Deal 345 »), `conversation_id` nullable, `status CHECK (proposed/active/completed/declined/cancelled/disputed)`, `cancellation_requested_by` (annulation 2 temps), `disputed_by`+`dispute_reason` ; **arbitrage CP2.5 (D66, migration 0008)** : `dispute_resolved_by/at`, `dispute_resolution CHECK (NULL/cancelled/completed/resumed)`, `dispute_resolution_note`, `CHECK proposer <> recipient` |
 | `deal_items` | Élément fourni par UNE partie | `provider_id`, `kind CHECK (service/good/money)`, `value >= 0` (euros entiers, indicatif), `ON DELETE CASCADE` du deal |
 | `deal_item_steps` | Sous-élément validable (≥ 1 par élément) | `honored_at` (fournisseur), `validated_at` (contrepartie), `CHECK validated ⇒ honored` |
 | `deal_adjustments` | Négociation en phase active | `kind CHECK (add/modify/remove)`, `item_id ON DELETE SET NULL`, `payload jsonb` appliqué à l'acceptation, `status CHECK (pending/accepted/rejected)` |
@@ -669,18 +674,16 @@ Au démarrage, l'API loggue :
 
 Aucune de ces tables n'existe dans les migrations : elles sont uniquement
 anticipées (ancrages dans `apps/api/src/modules/_future/` et
-[TODO_LOT_2.md](TODO_LOT_2.md)). **Les tables Dealplace listings/taxonomie ont
-quitté cette liste : elles sont créées au CP2.1** (§2 bis, migrations 0003/0004).
+[TODO_LOT_2.md](TODO_LOT_2.md)). **Toutes les tables du Lot 2 ont quitté
+cette liste** : Dealplace listings/taxonomie au CP2.1 (§2 bis),
+`conversations`/`messages` au CP2.3 (§2 ter), `deals`/`deal_items`/
+`deal_item_steps`/`deal_adjustments`/`deal_notes`/`deal_reviews` au CP2.4
+(§2 quater — les noms réels diffèrent des anticipations `deal_elements`/
+`deal_sub_items`/`reviews`).
 
 | Table future | Rôle (une ligne) | Lot / CP |
 |---|---|---|
 | `pages` | Pages restaurants/entreprises possédées par des utilisateurs (cible de la future FK `posts.page_id`) | Lot 3 |
-| `conversations` | Fils de messagerie privée 1-to-1 liés à un listing/deal | Lot 2 — CP2.3 |
-| `reviews` (avis Dealplace) | Avis détaillés d'un profil Dealplace (note + critères + commentaire) | Lot 2 — CP2.2 |
-| `messages` | Messages des conversations (temps réel via la gateway WebSocket du Lot 1) | Lot 2 — CP2.3 |
-| `deals` | Deals contractuels avec machine à états (brouillon → conclu, annulation, litige) | Lot 2 — CP2.4 |
-| `deal_elements` | Éléments d'un deal validables par les deux parties | Lot 2 — CP2.4 |
-| `deal_sub_items` | Sous-éléments détaillant un élément de deal | Lot 2 — CP2.4 |
 | `news_sources` | Sources d'actualité locales à scraper pour le module News | Lot 4 (News IA) |
 | `news_events` | Événements d'actualité détectés/agrégés à partir des sources | Lot 4 (News IA) |
 | `generated_articles` | Articles rédigés par l'agent IA à partir des news_events | Lot 4 (News IA) |

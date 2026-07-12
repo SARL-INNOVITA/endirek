@@ -88,8 +88,8 @@ function bind(token: symbol, useClass: Type<unknown>): Provider {
 
 /**
  * Providers du driver MOCK : MockDatabaseService (service interne, jamais
- * exporté) + les 9 repositories mock liés à leurs tokens. Comportement ACTUEL
- * inchangé.
+ * exporté) + les 13 repositories mock liés à leurs tokens. Comportement
+ * ACTUEL inchangé.
  */
 const mockProviders: Provider[] = [
   MockDatabaseService,
@@ -110,8 +110,8 @@ const mockProviders: Provider[] = [
 
 /**
  * Providers du driver POSTGRES : le pool (POSTGRES_POOL), le service de cycle
- * de vie (ping + seed) et les 9 repositories SQL liés aux MÊMES tokens que le
- * mock. MockDatabaseService n'est PAS présent ici — jamais instancié.
+ * de vie (ping + seed) et les 13 repositories SQL liés aux MÊMES tokens que
+ * le mock. MockDatabaseService n'est PAS présent ici — jamais instancié.
  */
 const postgresProviders: Provider[] = [
   postgresPoolProvider,

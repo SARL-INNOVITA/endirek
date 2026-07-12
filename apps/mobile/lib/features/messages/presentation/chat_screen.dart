@@ -364,6 +364,10 @@ class _BulleMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Message masqué par la modération (CP2.5) : placeholder en italique
+    // gris, stylé d'après `status` (le serveur remplace déjà le corps) —
+    // bulle neutre pour rester lisible même sur mes propres messages.
+    final bool masque = message.estMasque;
     return Align(
       alignment: estDeMoi ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -373,7 +377,9 @@ class _BulleMessage extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
         decoration: BoxDecoration(
-          color: estDeMoi ? EndirekColors.bleu : EndirekColors.surface,
+          color: estDeMoi && !masque
+              ? EndirekColors.bleu
+              : EndirekColors.surface,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(14),
             topRight: const Radius.circular(14),
@@ -385,19 +391,30 @@ class _BulleMessage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              message.body,
-              style: TextStyle(
-                color: estDeMoi ? Colors.white : EndirekColors.encre,
-                fontSize: 14.5,
-                height: 1.35,
+            if (masque)
+              const Text(
+                'Message masqué par la modération.',
+                style: TextStyle(
+                  color: EndirekColors.encreSecondaire,
+                  fontSize: 14.5,
+                  fontStyle: FontStyle.italic,
+                  height: 1.35,
+                ),
+              )
+            else
+              Text(
+                message.body,
+                style: TextStyle(
+                  color: estDeMoi ? Colors.white : EndirekColors.encre,
+                  fontSize: 14.5,
+                  height: 1.35,
+                ),
               ),
-            ),
             const SizedBox(height: 2),
             Text(
               _heure(message.createdAt),
               style: TextStyle(
-                color: estDeMoi
+                color: estDeMoi && !masque
                     ? Colors.white.withValues(alpha: 0.75)
                     : EndirekColors.encreSecondaire,
                 fontSize: 10.5,

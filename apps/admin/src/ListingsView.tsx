@@ -40,6 +40,9 @@ const SEARCH_DEBOUNCE_MS = 300
 /** '' = pas de filtre (aucun paramètre envoyé à l'API). */
 type FamilyFilter = '' | ListingFamily
 type StatusFilter = '' | ListingStatus
+/** Filtre modération (CP2.5) : '' = toutes, 'flagged' = catégories
+ * sensibles/interdites, 'standard' = catégories standard. */
+type FlaggedFilter = '' | 'flagged' | 'standard'
 
 type ListState =
   | { kind: 'loading' }
@@ -52,6 +55,7 @@ export default function ListingsView() {
   const [familyFilter, setFamilyFilter] = useState<FamilyFilter>('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('')
+  const [flaggedFilter, setFlaggedFilter] = useState<FlaggedFilter>('')
   const [offset, setOffset] = useState(0)
   const [list, setList] = useState<ListState>({ kind: 'loading' })
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -98,6 +102,8 @@ export default function ListingsView() {
         family: familyFilter || undefined,
         category: categoryFilter || undefined,
         status: statusFilter || undefined,
+        flaggedOnly:
+          flaggedFilter === '' ? undefined : flaggedFilter === 'flagged',
         search: debouncedSearch || undefined,
         limit: PAGE_SIZE,
         offset,
@@ -117,6 +123,7 @@ export default function ListingsView() {
     familyFilter,
     categoryFilter,
     statusFilter,
+    flaggedFilter,
     offset,
     refreshCount,
   ])
@@ -205,6 +212,19 @@ export default function ListingsView() {
             <option value="hidden">Masquées</option>
             <option value="deleted">Supprimées</option>
           </select>
+          <select
+            className="users-status-filter"
+            aria-label="Filtrer par niveau de modération de la catégorie"
+            value={flaggedFilter}
+            onChange={(event) => {
+              setFlaggedFilter(event.target.value as FlaggedFilter)
+              setOffset(0)
+            }}
+          >
+            <option value="">Toute modération</option>
+            <option value="flagged">Catégories sensibles</option>
+            <option value="standard">Catégories standard</option>
+          </select>
         </div>
 
         {list.kind === 'loading' && <p className="muted">Chargement…</p>}
@@ -232,6 +252,7 @@ export default function ListingsView() {
                   <th scope="col">Commune</th>
                   <th scope="col">Valeur</th>
                   <th scope="col">Statut</th>
+                  <th scope="col">Signalements</th>
                   <th scope="col">Créée le</th>
                 </tr>
               </thead>
@@ -292,6 +313,15 @@ export default function ListingsView() {
                     </td>
                     <td>
                       <ListingStatusBadge status={listing.status} />
+                    </td>
+                    <td>
+                      {listing.openReportsCount > 0 ? (
+                        <span className="badge badge--error">
+                          {listing.openReportsCount}
+                        </span>
+                      ) : (
+                        <span className="cell-muted">—</span>
+                      )}
                     </td>
                     <td className="cell-muted">{formatDate(listing.createdAt)}</td>
                   </tr>

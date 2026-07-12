@@ -266,6 +266,9 @@ class Deal {
     required this.cancellationRequestedBy,
     required this.disputedBy,
     required this.disputeReason,
+    required this.disputeResolution,
+    required this.disputeResolutionNote,
+    required this.disputeResolvedAt,
     required this.items,
     required this.adjustments,
     required this.notes,
@@ -291,6 +294,19 @@ class Deal {
   final String? cancellationRequestedBy;
   final String? disputedBy;
   final String? disputeReason;
+
+  /// Issue d'un litige TRANCHÉ par la modération (CP2.5) :
+  /// 'cancelled' (deal annulé) | 'completed' (deal déclaré conclu) |
+  /// 'resumed' (litige non fondé, le deal a repris son cours). Null tant
+  /// qu'aucun arbitrage — redevient null si un litige est re-déclaré après
+  /// une reprise. L'identité du modérateur n'est jamais exposée.
+  final String? disputeResolution;
+
+  /// Note de décision de la modération (facultative).
+  final String? disputeResolutionNote;
+
+  /// Date de l'arbitrage — null si le litige n'a pas été tranché.
+  final DateTime? disputeResolvedAt;
   final List<DealItem> items;
   final List<DealAdjustment> adjustments;
   final List<DealNote> notes;
@@ -319,6 +335,11 @@ class Deal {
       cancellationRequestedBy: json['cancellationRequestedBy'] as String?,
       disputedBy: json['disputedBy'] as String?,
       disputeReason: json['disputeReason'] as String?,
+      disputeResolution: json['disputeResolution'] as String?,
+      disputeResolutionNote: json['disputeResolutionNote'] as String?,
+      disputeResolvedAt: json['disputeResolvedAt'] == null
+          ? null
+          : DateTime.parse(json['disputeResolvedAt'] as String),
       items: ((json['items'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(DealItem.fromJson)

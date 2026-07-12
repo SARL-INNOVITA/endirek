@@ -15,9 +15,14 @@
 
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'pg';
-import { Conversation, Message } from '../../domain/entities';
+import {
+  Conversation,
+  Message,
+  MessageStatus,
+} from '../../domain/entities';
 import { POSTGRES_POOL } from '../../database.tokens';
 import {
+  AdminListConversationsParams,
   ConversationsRepository,
   CreateConversationInput,
   CreateMessageInput,
@@ -283,6 +288,8 @@ export class PostgresConversationsRepository
     params: PageParams,
   ): Promise<PagedResult<Message>> {
     // Du PLUS RÉCENT au plus ancien, tie-break id (mock) — le client inverse.
+    // Les messages 'hidden' SONT inclus (D67 : pagination et non-lus
+    // inchangés, le corps est remplacé par le SERVICE pour les participants).
     const totalRes = await query(
       this.pool,
       `SELECT count(*) AS n FROM messages m WHERE m.conversation_id = $1`,
@@ -301,5 +308,78 @@ export class PostgresConversationsRepository
       items: rows.map(rowToMessage),
       total: Number(totalRes.rows[0].n),
     };
+  }
+
+  // ── Backoffice (CP2.5 — D67) ───────────────────────────────────────────────
+
+  async listAdmin(
+    params: AdminListConversationsParams,
+  ): Promise<PagedResult<Conversation>> {
+    // TOUTES les conversations, même tri par ACTIVITÉ que listByParticipant
+    // (mock : lastMessageAt ?? createdAt DESC, tie-break id). Recherche
+    // insensible à la casse sur le nom affiché d'un participant ou le titre
+    // de l'annonce liée (JOIN users ×2 + listings — miroir du mock).
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let n = 1;
+    if (params.search !== undefined && params.search.trim() !== '') {
+      conditions.push(
+        `(ui.display_name ILIKE $${n} OR uo.display_name ILIKE $${n} OR l.title ILIKE $${n})`,
+      );
+      values.push(`%${params.search.trim()}%`);
+      n++;
+    }
+    const whereSql =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const fromSql = `
+         FROM conversations c
+         JOIN users ui ON ui.id = c.initiator_id
+         JOIN users uo ON uo.id = c.owner_id
+         JOIN listings l ON l.id = c.listing_id`;
+    const totalRes = await query(
+      this.pool,
+      `SELECT count(*) AS n ${fromSql} ${whereSql}`,
+      values,
+    );
+    const { rows } = await query(
+      this.pool,
+      `SELECT ${SQL_CONVERSATION_COLUMNS}
+        ${fromSql}
+        ${whereSql}
+        ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.id
+        LIMIT $${n} OFFSET $${n + 1}`,
+      [...values, params.limit, params.offset],
+    );
+    return {
+      items: rows.map(rowToConversation),
+      total: Number(totalRes.rows[0].n),
+    };
+  }
+
+  async findMessageById(id: string): Promise<Message | null> {
+    const { rows } = await query(
+      this.pool,
+      `SELECT ${SQL_MESSAGE_COLUMNS} FROM messages m WHERE m.id = $1`,
+      [id],
+    );
+    return rows.length > 0 ? rowToMessage(rows[0]) : null;
+  }
+
+  async setMessageStatus(id: string, status: MessageStatus): Promise<Message> {
+    // Idempotent — reposer le même statut est sans effet (même message
+    // d'erreur que le mock si le message n'existe pas).
+    const { rows } = await query(
+      this.pool,
+      `UPDATE messages SET status = $2
+        WHERE id = $1
+        RETURNING ${SQL_MESSAGE_COLUMNS
+          .replaceAll('m.', '')
+          .replaceAll('\n', ' ')}`,
+      [id, status],
+    );
+    if (rows.length === 0) {
+      throw new Error(`Message introuvable : ${id}.`);
+    }
+    return rowToMessage(rows[0]);
   }
 }

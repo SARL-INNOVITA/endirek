@@ -22,8 +22,8 @@ ENDIREK/
 │   ├── api/                  # Backend NestJS (port 3001)
 │   │   ├── .env.example      # Toutes les variables attendues (aucun secret)
 │   │   ├── db/migrations/    # Schéma SQL PostgreSQL/PostGIS — source de
-│   │   │                     # vérité : 0001/0002 (Lot 1) + 0003/0004
-│   │   │                     # (Dealplace CP2.1), voir DATABASE.md
+│   │   │                     # vérité : 0001/0002 (Lot 1) + 0003→0008
+│   │   │                     # (Lot 2 Dealplace), voir DATABASE.md
 │   │   ├── uploads/          # Médias en dev (créé à l'étape 4, non versionné)
 │   │   └── src/
 │   │       ├── config/       # Chargement de la configuration typée
@@ -55,7 +55,7 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | Module | Rôle | Étape Lot 1 |
 |---|---|---|
 | `health` | `GET /health` (hors préfixe `api/v1`) — sonde de vie | 1 ✅ |
-| `database` | Accès données derrière une interface unique (**11 repositories** : 9 Lot 1 + `listings` et `listing-taxonomy` du CP2.1), **deux drivers `DB_DRIVER=mock\|postgres`** au comportement identique, schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ / Lot 1.5 ✅ / CP2.1 ✅ |
+| `database` | Accès données derrière une interface unique (**13 repositories** : 9 Lot 1 + `listings`/`listing-taxonomy` du CP2.1, `conversations` du CP2.3, `deals` du CP2.4), **deux drivers `DB_DRIVER=mock\|postgres`** au comportement identique, schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ / Lot 1.5 ✅ / Lot 2 ✅ |
 | `auth` | Email/mot de passe, JWT access+refresh, guard global ; endpoints OAuth Google/Apple en 501 | 3 ✅ |
 | `users` | Comptes, profils (photo, bio, ville), follows, export + suppression RGPD (voir [RGPD.md](RGPD.md)) | 3 ✅ |
 | `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h, listes de profil | 4 ✅ |
@@ -68,11 +68,11 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `cameras` | Caméras météo/trafic (numéro auto, ville déduite par géocodage, statuts) — détail public `GET /cameras/:id` (caméra `active` uniquement) ; gestion backoffice sous `/admin/cameras` | 5 ✅ |
 | `notifications` | Notifications in-app persistées + émission temps réel — lecture `GET /notifications`, `/unread-count`, `PATCH /read-all`, `/:id/read` ; types `comment`/`reply`/`reaction`/`report_handled` créés via un point d'entrée unique (persistance + push socket) | 5 ✅ |
 | `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` (room privée `user:<id>`), `map.updated` (room `map`) et `message.created` (CP2.3, room du destinataire) ; fallback polling REST côté client | 5 ✅ |
-| `moderation` | Signalements, masquage de posts, modération de commentaires signalés ; le signalement utilisateur de posts (`POST /posts/:id/report`, anti-doublon 409) reste le flux public Lot 1 | 4 + 6 ✅ |
-| `admin` | Endpoints d'administration consommés par le backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires signalés, notifications système dev/mock, **annonces & taxonomie Dealplace (CP2.1)** | 3-6 + CP2.1 ✅ |
+| `moderation` | Signalements, masquage de posts, modération de commentaires signalés ; signalement utilisateur de posts (`POST /posts/:id/report`) et, depuis le CP2.5 (D65), d'annonces Dealplace (`POST /dealplace/listings/:id/report`) — anti-doublon 409 | 4 + 6 + CP2.5 ✅ |
+| `admin` | Endpoints d'administration consommés par le backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires signalés, notifications système dev/mock, **annonces & taxonomie Dealplace (CP2.1)**, **deals/litiges & conversations (CP2.5 — D66/D67)** | 3-6 + CP2.1 + CP2.5 ✅ |
 | `dealplace` | **Lot 2 — CP2.1** : taxonomie biens/services (référence pilotable) + annonces (listings). `GET /dealplace/taxonomy` ; annuaire public filtré `GET /dealplace/listings` ; CRUD propriétaire `POST /dealplace/listings`, `GET …/:id` (+ `/slug/:slug`), `PATCH|DELETE …/:id` (soft-delete) ; listes de profil `GET /users/me/listings`, `GET /users/:id/listings`. Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, exportée au module `admin` — comme `FeedPostAssembler`). Règles métier au service (valeur fixe/fourchette, photo obligatoire pour un bien, catégorie `forbidden` refusée, médias `/media/upload`) | Lot 2 CP2.1 ✅ |
 | `modules/conversations` | Messagerie 1-to-1 liée aux annonces (CP2.3 — D63) : fils, messages, badge, temps réel via la gateway | 2.3 ✅ |
-| `modules/deals` | Deals contractuels + avis (CP2.4 — D64) : machine à états, éléments validables, ajustements, litiges, stats du profil | 2.4 ✅ |
+| `modules/deals` | Deals contractuels + avis (CP2.4 — D64) : machine à états, éléments validables, ajustements, litiges (arbitrés au backoffice depuis le CP2.5 — D66), stats du profil | 2.4 + 2.5 ✅ |
 | `modules/_future/*` | Placeholders des checkpoints/lots non démarrés (pages, news, billing — voir §6) — **TODO** | — |
 
 > **État réel au checkpoint 7** : le socle est en place — `health`, la couche
@@ -127,8 +127,9 @@ Détail complet (comportements, variables, procédure de bascule) :
 
 ### Persistance : mock ET postgres disponibles (Lot 1.5)
 
-La couche `apps/api/src/database/` expose un **contrat unique** (**11 repositories**
-au CP2.1 — 9 du Lot 1 + `listings` et `listing-taxonomy`,
+La couche `apps/api/src/database/` expose un **contrat unique**
+(**13 repositories** — 9 du Lot 1 + `listings`/`listing-taxonomy` du CP2.1,
+`conversations` du CP2.3 et `deals` du CP2.4 ;
 `repositories/interfaces.ts` ; entités `domain/entities.ts` ; tokens
 `database.tokens.ts`) et deux implémentations sélectionnées **au chargement du
 module** (`process.env.DB_DRIVER`, dans `database.module.ts`) :
@@ -136,9 +137,8 @@ module** (`process.env.DB_DRIVER`, dans `database.module.ts`) :
 - **`mock/`** (défaut, fallback) : repositories in-memory + `MockDatabaseService`
   — spécification de comportement de référence, seed La Réunion en mémoire.
 - **`postgres/`** (fonctionnel depuis le Lot 1.5) : un **pool `pg` partagé**
-  (`postgres-pool.ts`, token `POSTGRES_POOL`), les **11 repositories SQL** (9 du
-  Lot 1 + `postgres-listings` et `postgres-listing-taxonomy` du CP2.1,
-  `repositories/postgres-*.repository.ts`, **SQL brut paramétré**, pas d'ORM),
+  (`postgres-pool.ts`, token `POSTGRES_POOL`), les **13 repositories SQL**
+  (`repositories/postgres-*.repository.ts`, **SQL brut paramétré**, pas d'ORM),
   des **mappers ligne→entité** (`pg-helpers.ts`, conversions snake_case→camelCase,
   jsonb, GeoPoint), un **seeder idempotent** (`postgres-seeder.ts`, réutilise
   `buildSeed()`) et `postgres-database.service.ts` (ping + seed + fermeture du
@@ -191,8 +191,8 @@ garantissant la parité de comportement avec le mock.
   `map`, rejointe via `map.subscribe`). Le temps réel est un **confort, pas
   une source de vérité** : si le socket est indisponible, le client retombe
   sur du **polling REST** (`GET /notifications/unread-count`, ~45 s). La
-  gateway sert de socle au temps réel futur (conversations Dealplace —
-  TODO Lot 2+). **Pas de messagerie au Lot 1.**
+  gateway sert AUSSI la messagerie du Lot 2 (`message.created` — CP2.3) et
+  les deals (`deal.updated` — CP2.4), sans second canal.
 - **Carte : flutter_map + tuiles OSM sans clé** (étape 5) : rendu client via
   `flutter_map`, tuiles publiques OpenStreetMap (dev uniquement, provider
   dédié en prod via `MAP_TILE_URL`/`MAP_API_KEY` — voir
@@ -284,16 +284,15 @@ namespace par défaut, dont le CORS reprend `app.corsOrigins` via
 
 ## 6. Checkpoints/lots suivants (points d'ancrage)
 
-Le CP2.1 est livré (module réel `modules/dealplace` + tables 0003/0004). Le reste
-n'est **pas** développé — uniquement des ancrages propres, marqués **TODO** dans
-le code :
+Le Lot 2 est COMPLET (CP2.1 → CP2.5). Le reste n'est **pas** développé —
+uniquement des ancrages propres, marqués **TODO** dans le code :
 
 | Chantier | Statut | Ancrage posé dans le socle |
 |---|---|---|
 | Dealplace : taxonomie biens/services + listings | ✅ **CP2.1** | Module réel `modules/dealplace` (remplace `_future/dealplace`) ; onglet Dealplace mobile réel ; tables `listing_*` (migrations 0003/0004) |
-| Avis / profil Dealplace | ⏳ CP2.2 | Profil `users` du Lot 1 à étendre (pas de duplication) |
+| Avis / profil Dealplace | ✅ CP2.2 (profil — D59/D62) + CP2.4 (avis — D64) | Colonne `users.dealplace_seeking` (migration 0005) ; avis liés aux deals (`deal_reviews`) |
 | Conversations 1-to-1 temps réel | ✅ CP2.3 (D63) | Gateway WebSocket de l'étape 5 réutilisée (`message.created`) ; module réel `modules/conversations` ; icône messagerie mobile ACTIVE avec badge |
-| Deals contractuels (états, éléments validables, litiges) | ⏳ CP2.4 | `modules/_future/deals` ; machine à états documentée dans [TODO_LOT_2.md](TODO_LOT_2.md) ; bouton « Proposer un deal » (placeholder) |
+| Deals contractuels (états, éléments validables, litiges) | ✅ CP2.4 (D64) + arbitrage CP2.5 (D66) | Module réel `modules/deals` (remplace `_future/deals`) ; tables 0007/0008 ; « Proposer un deal » RÉEL |
 | Pages restaurants / entreprises | ⏳ Lot 3 | `page_id` nullable ; `modules/_future/pages` ; profil utilisateur prêt à « posséder » des pages |
 | News IA automatisées | ⏳ Lot 4 | Onglet News placeholder mobile ; `modules/_future/news` |
 | Premium / monétisation (Stripe, Google Ads) | ⏳ transverse | `modules/_future/billing` ; variables réservées dans [ACCESS_NEEDED.md](ACCESS_NEEDED.md). **Paiement Dealplace = hors app.** |

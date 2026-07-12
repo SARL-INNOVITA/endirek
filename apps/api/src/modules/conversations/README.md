@@ -1,7 +1,7 @@
-# Module `conversations` — Messagerie 1-to-1 (CP2.3)
+# Module `conversations` — Messagerie 1-to-1 (CP2.3/CP2.5)
 
-**Statut : IMPLÉMENTÉ (Lot 2 — CP2.3).** Remplace le placeholder
-`_future/conversations` du Lot 1.
+**Statut : IMPLÉMENTÉ (Lot 2 — CP2.3 ; modération des messages au CP2.5,
+décision D67).** Remplace le placeholder `_future/conversations` du Lot 1.
 
 Rôle : **messagerie privée 1-to-1 temps réel**, LIÉE À UNE ANNONCE au CP2.3
 (décision D63) — point d'entrée unique : « Contacter » depuis le détail d'une
@@ -40,11 +40,27 @@ annonce. Les deals (CP2.4) s'appuieront sur ces fils pour la négociation.
   de message, pas de groupe. Une annonce soft-supprimée laisse le fil
   consultable (référence « Annonce supprimée »).
 
+## Modération des messages (CP2.5 — D67)
+
+- `messages.status` (`active`/`hidden`, migration `0008`) : le backoffice
+  peut **masquer** un message (soft, réversible — pas de suppression, D63).
+- Un message masqué **RESTE dans le fil** (pagination et non-lus inchangés —
+  pas de « badge fantôme ») : son CORPS est remplacé côté service pour les
+  participants (« Message masqué par la modération. », forme MESSAGE avec
+  `status: 'hidden'`) — le contenu réel n'atteint jamais les participants ;
+  le backoffice, lui, lit le corps réel.
+- **Pas d'event socket de modération** : un fil ouvert se resynchronise à sa
+  réouverture (REST = source de vérité, la modération est rare).
+- Routes backoffice (module `admin`) : `GET /admin/dealplace/conversations`
+  (toutes, recherche participant/annonce), `GET .../conversations/:id/messages`
+  (corps réels), `PATCH /admin/dealplace/messages/:id/status`.
+
 ## Parité mock / postgres
 
 Les règles métier vivent ICI (service) ; `MockConversationsRepository` et
 `PostgresConversationsRepository` exposent un comportement observable
 identique (tris par activité, définitions de non-lus, messages d'erreur,
-lectures par lot anti-N+1, `createMessage` atomique). Seed : 2 conversations
-(6 messages) — le fil Valérie ↔ Kévin laisse 1 conversation non lue à
-Valérie pour la démo du badge.
+lectures par lot anti-N+1, `createMessage` atomique, liste backoffice
+`listAdmin` + `setMessageStatus` — CP2.5). Seed : 3 conversations
+(9 messages, dont 1 masqué — fil du deal en litige) — le fil Valérie ↔ Kévin
+laisse 1 conversation non lue à Valérie pour la démo du badge.

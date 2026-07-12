@@ -9,8 +9,8 @@
  * - une annonce 'deleted' n'est jamais restaurée (409) — les boutons sont
  *   remplacés par une explication.
  *
- * Aucune conversation, aucun avis, aucun deal (CP2.2+) : détail en lecture
- * seule côté contenu, seule la modération de statut est actionnable.
+ * Depuis le CP2.5 (D65), le détail liste aussi les SIGNALEMENTS liés à
+ * l'annonce (motif, message, statut, auteur) — miroir de PostDetailAdmin.
  */
 
 import { useEffect, useState } from 'react'
@@ -26,6 +26,8 @@ import {
   ListingFamilyBadge,
   ListingStatusBadge,
   ModerationLevelBadge,
+  REPORT_REASON_LABELS,
+  ReportStatusBadge,
   formatDateTime,
   formatListingValue,
 } from './ui'
@@ -127,6 +129,13 @@ export default function ListingDetailAdmin({
             <ListingFamilyBadge family={state.listing.listingType} />
             <ListingStatusBadge status={state.listing.status} />
             <ModerationLevelBadge level={state.listing.category.moderationLevel} />
+            {state.listing.openReportsCount > 0 && (
+              <span className="badge badge--error">
+                {state.listing.openReportsCount} signalement
+                {state.listing.openReportsCount > 1 ? 's' : ''} ouvert
+                {state.listing.openReportsCount > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
 
           <div className="detail-identity">
@@ -255,6 +264,33 @@ export default function ListingDetailAdmin({
                     >
                       {link.label || link.url} ↗
                     </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {state.listing.reports.length > 0 && (
+            <section aria-label="Signalements liés">
+              <h4 className="detail-section-title">Signalements liés</h4>
+              <ul className="report-list">
+                {state.listing.reports.map((report) => (
+                  <li key={report.id} className="report-item">
+                    <div className="report-item-head">
+                      <span className="badge badge--info">
+                        {REPORT_REASON_LABELS[report.reasonCode]}
+                      </span>
+                      <ReportStatusBadge status={report.status} />
+                      <span className="muted">
+                        {formatDateTime(report.createdAt)}
+                      </span>
+                    </div>
+                    {report.message !== '' && (
+                      <p className="report-item-message">{report.message}</p>
+                    )}
+                    <p className="muted">
+                      Signalé par {report.reporter.displayName}
+                    </p>
                   </li>
                 ))}
               </ul>

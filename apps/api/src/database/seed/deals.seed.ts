@@ -1,7 +1,7 @@
 /**
- * Seed Lot 2 — CP2.4 : deals contractuels + avis de démonstration.
+ * Seed Lot 2 — CP2.4/CP2.5 : deals contractuels + avis de démonstration.
  *
- * 2 deals pensés pour la démo (mockups 05/07) :
+ * 3 deals pensés pour la démo (mockups 05/07 + backoffice CP2.5) :
  *
  * 1. Deal n°1 — ACTIF, Valérie (n°4) ⇄ Kévin (n°11), lié à leur conversation
  *    seed sur le « panier péi » (annonce n°4) : Kévin fournit le panier
@@ -15,9 +15,15 @@
  *    alimente le profil Dealplace (« 1 deal réalisé », note globale, dernier
  *    avis) des deux comptes.
  *
+ * 3. Deal n°3 — EN LITIGE (CP2.5, D66), Didier (n°5) ⇄ Sully (n°7), lié à
+ *    l'initiation surf (annonce n°7, conversation seed n°3) : Didier a honoré
+ *    sa part (révision du VTT, validée) mais la 2ᵉ séance de surf a été
+ *    annulée à répétition → litige déclaré par Didier, NON ARBITRÉ → la file
+ *    « Litiges » du backoffice a un cas à trancher au premier boot.
+ *
  * Reconstruits À CHAQUE appel (dates relatives recalculées, objets neufs).
- * Les numéros de deal (1, 2) sont FIXES — les séquences des drivers sont
- * resynchronisées après le seed (prochain numéro : 3).
+ * Les numéros de deal (1, 2, 3) sont FIXES — les séquences des drivers sont
+ * resynchronisées après le seed (prochain numéro : 4).
  */
 
 import {
@@ -46,6 +52,10 @@ export function buildSeedDeals(): Deal[] {
       cancellationRequestedBy: null,
       disputedBy: null,
       disputeReason: null,
+      disputeResolvedBy: null,
+      disputeResolvedAt: null,
+      disputeResolution: null,
+      disputeResolutionNote: null,
       acceptedAt: minutesAgo(100),
       completedAt: null,
       closedAt: null,
@@ -65,11 +75,42 @@ export function buildSeedDeals(): Deal[] {
       cancellationRequestedBy: null,
       disputedBy: null,
       disputeReason: null,
+      disputeResolvedBy: null,
+      disputeResolvedAt: null,
+      disputeResolution: null,
+      disputeResolutionNote: null,
       acceptedAt: daysAgo(5),
       completedAt: daysAgo(3),
       closedAt: null,
       createdAt: daysAgo(6),
       updatedAt: daysAgo(3),
+    },
+    {
+      // Didier ⇄ Sully autour de l'initiation surf — EN LITIGE, non arbitré
+      // (CP2.5 : cas à trancher dans la file « Litiges » du backoffice).
+      id: seedUuid('deal', 3),
+      dealNumber: 3,
+      listingId: seedUuid('listing', 7),
+      conversationId: seedUuid('conversation', 3),
+      proposerId: seedUuid('user', 5),
+      recipientId: seedUuid('user', 7),
+      status: 'disputed',
+      dueDate: null,
+      cancellationRequestedBy: null,
+      disputedBy: seedUuid('user', 5),
+      disputeReason:
+        'La deuxième séance de surf a été annulée trois fois au dernier '
+        + 'moment, sans nouvelle proposition de créneau, alors que la '
+        + 'révision du VTT est faite et validée depuis le début.',
+      disputeResolvedBy: null,
+      disputeResolvedAt: null,
+      disputeResolution: null,
+      disputeResolutionNote: null,
+      acceptedAt: minutesAgo(5600),
+      completedAt: null,
+      closedAt: minutesAgo(2880),
+      createdAt: minutesAgo(5650),
+      updatedAt: minutesAgo(2880),
     },
   ];
 }
@@ -147,6 +188,30 @@ export function buildSeedDealItems(): DealItem[] {
       position: 2,
       createdAt: daysAgo(6),
     },
+    // Deal 3 (litige) — ce que SULLY (destinataire) fournit.
+    {
+      id: seedUuid('deal-item', 7),
+      dealId: seedUuid('deal', 3),
+      providerId: seedUuid('user', 7),
+      kind: 'service',
+      title: 'Initiation surf — 2 séances à Saint-Leu',
+      description: 'Matériel fourni, créneaux du week-end.',
+      value: 60,
+      position: 0,
+      createdAt: minutesAgo(5650),
+    },
+    // Deal 3 — ce que DIDIER (proposeur) fournit.
+    {
+      id: seedUuid('deal-item', 8),
+      dealId: seedUuid('deal', 3),
+      providerId: seedUuid('user', 5),
+      kind: 'service',
+      title: 'Révision complète du VTT',
+      description: 'Freins, transmission, roulements — atelier à domicile.',
+      value: 50,
+      position: 1,
+      createdAt: minutesAgo(5650),
+    },
   ];
 }
 
@@ -220,6 +285,32 @@ export function buildSeedDealItemSteps(): DealItemStep[] {
       position: 0,
       honoredAt: daysAgo(4),
       validatedAt: daysAgo(3),
+    },
+    // Deal 3 (litige) : séance 1 validée, séance 2 jamais honorée (le nœud
+    // du litige) ; la part de Didier est honorée ET validée.
+    {
+      id: seedUuid('deal-step', 9),
+      itemId: seedUuid('deal-item', 7),
+      label: 'Séance 1 effectuée',
+      position: 0,
+      honoredAt: minutesAgo(4300),
+      validatedAt: minutesAgo(4200),
+    },
+    {
+      id: seedUuid('deal-step', 10),
+      itemId: seedUuid('deal-item', 7),
+      label: 'Séance 2 effectuée',
+      position: 1,
+      honoredAt: null,
+      validatedAt: null,
+    },
+    {
+      id: seedUuid('deal-step', 11),
+      itemId: seedUuid('deal-item', 8),
+      label: 'VTT révisé et restitué',
+      position: 0,
+      honoredAt: minutesAgo(5000),
+      validatedAt: minutesAgo(4900),
     },
   ];
 }

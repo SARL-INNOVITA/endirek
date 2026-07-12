@@ -7,7 +7,10 @@
  *   « Marquer examiné » / « Action prise » / « Rejeter »
  *   (PATCH /api/v1/admin/reports/:id) avec note de résolution facultative ;
  * - si la cible est une publication : bouton « Voir la publication » qui
- *   ouvre le panneau PostDetailAdmin (depuis lequel on peut la masquer).
+ *   ouvre le panneau PostDetailAdmin (depuis lequel on peut la masquer) ;
+ * - si la cible est une annonce Dealplace (CP2.5 — D65) : actions directes
+ *   Masquer / Réactiver + bouton « Voir l'annonce » qui ouvre le panneau
+ *   ListingDetailAdmin.
  *
  * Rappel d'équivalence documentée côté API : le statut « open » correspond
  * au « pending » de la spécification produit.
@@ -18,23 +21,29 @@ import {
   adminHandleReport,
   adminListReports,
   adminSetCommentStatus,
+  adminSetListingStatus,
   toErrorMessage,
 } from './api'
 import type {
   AdminFeedPost,
   AdminCommentView,
+  AdminListingCard,
   AdminReport,
+  AdminSettableListingStatus,
   CommentStatus,
   PagedAdminReports,
   ReportCommentTarget,
   ReportDecision,
+  ReportListingTarget,
   ReportPostTarget,
   ReportStatus,
   ReportTargetType,
 } from './api'
+import ListingDetailAdmin from './ListingDetailAdmin'
 import PostDetailAdmin from './PostDetailAdmin'
 import {
   Avatar,
+  ListingStatusBadge,
   PostStatusBadge,
   REPORT_REASON_LABELS,
   REPORT_STATUS_LABELS,
@@ -74,6 +83,8 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
   const [selected, setSelected] = useState<AdminReport | null>(null)
   /** Publication ouverte depuis « Voir la publication » (remplace le panneau). */
   const [viewedPostId, setViewedPostId] = useState<string | null>(null)
+  /** Annonce ouverte depuis « Voir l'annonce » (remplace le panneau — CP2.5). */
+  const [viewedListingId, setViewedListingId] = useState<string | null>(null)
   // Incrémenté après un traitement ou une modération pour recharger la page.
   const [refreshCount, setRefreshCount] = useState(0)
 
@@ -143,16 +154,40 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
     setRefreshCount((count) => count + 1)
   }
 
+  /** L'annonce signalée a été modérée (inline ou via son panneau) :
+   * l'extrait de cible reflète son nouveau statut (CP2.5). */
+  function handleListingUpdated(updated: AdminListingCard) {
+    setSelected((current) => {
+      if (
+        !current ||
+        current.targetType !== 'listing' ||
+        current.target?.id !== updated.id
+      ) {
+        return current
+      }
+      return {
+        ...current,
+        target: {
+          ...current.target,
+          status: updated.status,
+        },
+      }
+    })
+    setRefreshCount((count) => count + 1)
+  }
+
   function selectReport(report: AdminReport) {
     setSelected(report)
     setViewedPostId(null)
+    setViewedListingId(null)
   }
 
   const loading = list.kind === 'loading'
   const total = list.kind === 'success' ? list.page.total : 0
   const hasPrevious = offset > 0
   const hasNext = list.kind === 'success' && offset + PAGE_SIZE < total
-  const panelOpen = selected !== null || viewedPostId !== null
+  const panelOpen =
+    selected !== null || viewedPostId !== null || viewedListingId !== null
 
   return (
     <div className={panelOpen ? 'view-layout view-layout--with-detail' : 'view-layout'}>
@@ -196,6 +231,7 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
             <option value="">Toutes les cibles</option>
             <option value="post">Publications</option>
             <option value="comment">Commentaires</option>
+            <option value="listing">Annonces</option>
             <option value="user">Profils</option>
           </select>
         </div>
@@ -295,6 +331,12 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
           onClose={() => setViewedPostId(null)}
           onPostUpdated={handlePostUpdated}
         />
+      ) : viewedListingId ? (
+        <ListingDetailAdmin
+          listingId={viewedListingId}
+          onClose={() => setViewedListingId(null)}
+          onListingUpdated={handleListingUpdated}
+        />
       ) : (
         selected && (
           <ReportPanel
@@ -302,7 +344,9 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
             onClose={() => setSelected(null)}
             onHandled={handleReportHandled}
             onViewPost={(postId) => setViewedPostId(postId)}
+            onViewListing={(listingId) => setViewedListingId(listingId)}
             onCommentModerated={handleCommentUpdated}
+            onListingModerated={handleListingUpdated}
           />
         )
       )}
@@ -319,7 +363,10 @@ interface ReportPanelProps {
   onHandled: (updated: AdminReport) => void
   /** Ouvre le panneau publication (cible de type post uniquement). */
   onViewPost: (postId: string) => void
+  /** Ouvre le panneau annonce (cible de type listing — CP2.5). */
+  onViewListing: (listingId: string) => void
   onCommentModerated: (updated: AdminCommentView) => void
+  onListingModerated: (updated: AdminListingCard) => void
 }
 
 function ReportPanel({
@@ -327,13 +374,18 @@ function ReportPanel({
   onClose,
   onHandled,
   onViewPost,
+  onViewListing,
   onCommentModerated,
+  onListingModerated,
 }: ReportPanelProps) {
   const [note, setNote] = useState('')
   const [acting, setActing] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [commentActing, setCommentActing] = useState<CommentStatus | null>(null)
   const [commentError, setCommentError] = useState<string | null>(null)
+  const [listingActing, setListingActing] =
+    useState<AdminSettableListingStatus | null>(null)
+  const [listingError, setListingError] = useState<string | null>(null)
 
   // Repart d'une note vierge quand on passe à un autre signalement.
   useEffect(() => {
@@ -349,6 +401,10 @@ function ReportPanel({
   const commentTarget =
     report.targetType === 'comment' && report.target
       ? (report.target as ReportCommentTarget)
+      : null
+  const listingTarget =
+    report.targetType === 'listing' && report.target
+      ? (report.target as ReportListingTarget)
       : null
 
   /** Enregistre une décision de modération après confirmation. */
@@ -390,6 +446,30 @@ function ReportPanel({
       setCommentError(toErrorMessage(caught))
     } finally {
       setCommentActing(null)
+    }
+  }
+
+  /** Masque ou republie l'annonce signalée (CP2.5 — action directe). */
+  async function applyListingStatus(status: AdminSettableListingStatus) {
+    if (!listingTarget) return
+    const question =
+      status === 'hidden'
+        ? `Masquer l'annonce « ${listingTarget.title} » ? Elle disparaîtra ` +
+          "de l'annuaire et du détail public (masquage réversible)."
+        : `Réactiver l'annonce « ${listingTarget.title} » ?`
+    if (!window.confirm(question)) return
+
+    setListingActing(status)
+    setListingError(null)
+    try {
+      const updated = await adminSetListingStatus(listingTarget.id, status)
+      onListingModerated(updated)
+    } catch (caught) {
+      // 409 (annonce supprimée : statut définitif) porte déjà un message
+      // français propre renvoyé par l'API.
+      setListingError(toErrorMessage(caught))
+    } finally {
+      setListingActing(null)
     }
   }
 
@@ -436,9 +516,16 @@ function ReportPanel({
               {postTarget?.title && (
                 <p className="excerpt-title">{postTarget.title}</p>
               )}
+              {listingTarget && (
+                <p className="excerpt-title">{listingTarget.title}</p>
+              )}
               <p className="target-extract-body">{report.target.body}</p>
               <div className="detail-badges">
-                <PostStatusBadge status={report.target.status} />
+                {listingTarget ? (
+                  <ListingStatusBadge status={listingTarget.status} />
+                ) : (
+                  <PostStatusBadge status={report.target.status} />
+                )}
               </div>
               {postTarget && (
                 <button
@@ -448,6 +535,45 @@ function ReportPanel({
                 >
                   Voir la publication
                 </button>
+              )}
+              {listingTarget && (
+                <div className="report-actions">
+                  <button
+                    type="button"
+                    className="button-ghost"
+                    onClick={() => onViewListing(listingTarget.id)}
+                  >
+                    Voir l'annonce
+                  </button>
+                  {listingTarget.status === 'active' && (
+                    <button
+                      type="button"
+                      className="button-danger"
+                      disabled={listingActing !== null}
+                      onClick={() => void applyListingStatus('hidden')}
+                    >
+                      {listingActing === 'hidden' ? 'En cours…' : 'Masquer'}
+                    </button>
+                  )}
+                  {listingTarget.status === 'hidden' && (
+                    <button
+                      type="button"
+                      className="button-primary"
+                      disabled={listingActing !== null}
+                      onClick={() => void applyListingStatus('active')}
+                    >
+                      {listingActing === 'active' ? 'En cours…' : 'Réactiver'}
+                    </button>
+                  )}
+                  {listingTarget.status === 'deleted' && (
+                    <p className="muted">Annonce déjà supprimée.</p>
+                  )}
+                </div>
+              )}
+              {listingError && (
+                <p className="form-error" role="alert">
+                  {listingError}
+                </p>
               )}
               {commentTarget && (
                 <div className="report-actions">
@@ -576,6 +702,8 @@ function targetKindLabel(report: AdminReport): string {
       return 'Commentaire'
     case 'user':
       return 'Profil'
+    case 'listing':
+      return 'Annonce'
   }
 }
 
@@ -585,6 +713,10 @@ function targetText(report: AdminReport): string {
   if (report.targetType === 'post') {
     const target = report.target as ReportPostTarget
     return target.title ? `${target.title} — ${target.body}` : target.body
+  }
+  if (report.targetType === 'listing') {
+    const target = report.target as ReportListingTarget
+    return `${target.title} — ${target.body}`
   }
   return report.target.body
 }

@@ -58,8 +58,9 @@ export type PostMediaType = 'image' | 'video';
 /** Cible d'une réaction (association polymorphe, intégrité au niveau service). */
 export type ReactionTargetType = 'post' | 'comment';
 
-/** Cible d'un signalement (association polymorphe, intégrité au niveau service). */
-export type ReportTargetType = 'post' | 'comment' | 'user';
+/** Cible d'un signalement (association polymorphe, intégrité au niveau
+ * service). 'listing' (annonce Dealplace) ajouté au CP2.5 — D65. */
+export type ReportTargetType = 'post' | 'comment' | 'user' | 'listing';
 
 /** Motifs de signalement documentés (TEXT côté SQL, codes pilotés côté app). */
 export type ReportReasonCode =
@@ -441,6 +442,12 @@ export interface Conversation {
   updatedAt: Date;
 }
 
+/** Statut d'un message (CP2.5 — D67) : 'hidden' = masqué par la modération
+ * backoffice. Pas de 'deleted' (D63 : les messages ne sont ni éditables ni
+ * supprimables). Un message masqué RESTE dans le fil (pagination et non-lus
+ * inchangés) ; seul son corps est remplacé pour les participants. */
+export type MessageStatus = 'active' | 'hidden';
+
 /** Table `messages` — messages TEXTE (1-2000 caractères) d'une conversation.
  * Pas de pièces jointes au CP2.3. */
 export interface Message {
@@ -448,6 +455,8 @@ export interface Message {
   conversationId: string;
   senderId: string;
   body: string;
+  /** Modération backoffice (CP2.5 — D67). */
+  status: MessageStatus;
   createdAt: Date;
 }
 
@@ -458,7 +467,9 @@ export interface Message {
 /** Statut d'un deal — machine à états D64 :
  * proposed → active (accepté) | declined | cancelled (retiré avant accord) ;
  * active → completed (AUTOMATIQUE : tout validé) | cancelled (annulation
- * amiable en deux temps) | disputed (unilatéral, terminal au CP2.4). */
+ * amiable en deux temps) | disputed (unilatéral). Depuis le CP2.5 (D66),
+ * 'disputed' n'est plus terminal : l'arbitrage backoffice tranche vers
+ * cancelled/completed/active (issue tracée par disputeResolution*). */
 export type DealStatus =
   | 'proposed'
   | 'active'
@@ -466,6 +477,11 @@ export type DealStatus =
   | 'declined'
   | 'cancelled'
   | 'disputed';
+
+/** Issue d'un arbitrage de litige (CP2.5 — D66) : le deal est annulé, conclu
+ * (les avis s'ouvrent) ou repris (le litige est jugé non fondé, le deal
+ * redevient 'active'). */
+export type DealDisputeResolution = 'cancelled' | 'completed' | 'resumed';
 
 /** Nature d'un élément de deal (mockup 07 : Service / Paiement / bien). */
 export type DealItemKind = 'service' | 'good' | 'money';
@@ -494,6 +510,14 @@ export interface Deal {
   cancellationRequestedBy: string | null;
   disputedBy: string | null;
   disputeReason: string | null;
+  /** Arbitrage du litige (CP2.5 — D66) : modérateur qui a tranché (null =
+   * litige non arbitré). Miroir du pattern reports.handledBy/handledAt. */
+  disputeResolvedBy: string | null;
+  disputeResolvedAt: Date | null;
+  /** Issue de l'arbitrage (null tant que le litige n'est pas tranché). */
+  disputeResolution: DealDisputeResolution | null;
+  /** Note de décision du modérateur, montrée aux DEUX parties. */
+  disputeResolutionNote: string | null;
   acceptedAt: Date | null;
   completedAt: Date | null;
   /** Clôture d'un état terminal non conclu (declined/cancelled/disputed). */

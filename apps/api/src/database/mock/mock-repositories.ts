@@ -41,6 +41,7 @@ import {
   ListingSubcategory,
   ListingTag,
   Message,
+  MessageStatus,
   Notification,
   Post,
   PostMedia,
@@ -56,6 +57,8 @@ import {
 } from '../domain/entities';
 import {
   AdminListCamerasParams,
+  AdminListConversationsParams,
+  AdminListDealsParams,
   AdminListListingsParams,
   AdminListPostsParams,
   CamerasRepository,
@@ -2172,6 +2175,9 @@ export class MockConversationsRepository implements ConversationsRepository {
       conversationId: input.conversationId,
       senderId: input.senderId,
       body: input.body,
+      // Tout message naît 'active' — 'hidden' est réservé à la modération
+      // backoffice (CP2.5, D67).
+      status: 'active',
       createdAt: now,
     };
     this.db.messages.set(message.id, message);
@@ -2187,7 +2193,9 @@ export class MockConversationsRepository implements ConversationsRepository {
     params: PageParams,
   ): Promise<PagedResult<Message>> {
     // Du PLUS RÉCENT au plus ancien (le client inverse pour l'affichage),
-    // tie-break id — ordre stable entre pages.
+    // tie-break id — ordre stable entre pages. Les messages 'hidden' SONT
+    // inclus (D67 : pagination et non-lus inchangés, le corps est remplacé
+    // par le SERVICE pour les participants).
     const items = [...this.db.messages.values()]
       .filter((m) => m.conversationId === conversationId)
       .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
@@ -2197,6 +2205,55 @@ export class MockConversationsRepository implements ConversationsRepository {
         .map((m) => clone(m)),
       total: items.length,
     });
+  }
+
+  // ── Backoffice (CP2.5 — D67) ───────────────────────────────────────────────
+
+  listAdmin(
+    params: AdminListConversationsParams,
+  ): Promise<PagedResult<Conversation>> {
+    // TOUTES les conversations, même tri par ACTIVITÉ que listByParticipant
+    // (lastMessageAt ?? createdAt DESC, tie-break id). Recherche insensible à
+    // la casse sur le nom affiché d'un participant ou le titre de l'annonce.
+    let items = [...this.db.conversations.values()];
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim().toLowerCase();
+      items = items.filter((c) => {
+        const initiator = this.db.users.get(c.initiatorId);
+        const owner = this.db.users.get(c.ownerId);
+        const listing = this.db.listings.get(c.listingId);
+        return (
+          (initiator?.displayName ?? '').toLowerCase().includes(needle) ||
+          (owner?.displayName ?? '').toLowerCase().includes(needle) ||
+          (listing?.title ?? '').toLowerCase().includes(needle)
+        );
+      });
+    }
+    items.sort((a, b) => {
+      const activityA = (a.lastMessageAt ?? a.createdAt).getTime();
+      const activityB = (b.lastMessageAt ?? b.createdAt).getTime();
+      return activityB - activityA || a.id.localeCompare(b.id);
+    });
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((c) => clone(c)),
+      total: items.length,
+    });
+  }
+
+  findMessageById(id: string): Promise<Message | null> {
+    return Promise.resolve(clone(this.db.messages.get(id) ?? null));
+  }
+
+  setMessageStatus(id: string, status: MessageStatus): Promise<Message> {
+    const message = this.db.messages.get(id);
+    if (!message) {
+      throw new Error(`Message introuvable : ${id}.`);
+    }
+    // Idempotent — reposer le même statut est sans effet.
+    message.status = status;
+    return Promise.resolve(clone(message));
   }
 
   /** Jalon de lecture du participant userId dans cette conversation. */
@@ -2286,6 +2343,10 @@ export class MockDealsRepository implements DealsRepository {
       cancellationRequestedBy: null,
       disputedBy: null,
       disputeReason: null,
+      disputeResolvedBy: null,
+      disputeResolvedAt: null,
+      disputeResolution: null,
+      disputeResolutionNote: null,
       acceptedAt: null,
       completedAt: null,
       closedAt: null,
@@ -2324,6 +2385,45 @@ export class MockDealsRepository implements DealsRepository {
     items.sort(
       (a, b) =>
         b.updatedAt.getTime() - a.updatedAt.getTime() ||
+        a.id.localeCompare(b.id),
+    );
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((d) => clone(d)),
+      total: items.length,
+    });
+  }
+
+  listAdmin(params: AdminListDealsParams): Promise<PagedResult<Deal>> {
+    // Liste BACKOFFICE (CP2.5 — D66) : tous statuts, convention des listes
+    // admin (createdAt DESC, tie-break id). Recherche insensible à la casse
+    // sur le nom d'une des parties ou le titre de l'annonce ; une saisie
+    // entièrement numérique matche AUSSI le numéro exact du deal.
+    let items = [...this.db.deals.values()];
+    if (params.status !== undefined) {
+      items = items.filter((d) => d.status === params.status);
+    }
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim().toLowerCase();
+      const asNumber = /^\d+$/.test(needle) ? Number(needle) : null;
+      items = items.filter((d) => {
+        if (asNumber !== null && d.dealNumber === asNumber) {
+          return true;
+        }
+        const proposer = this.db.users.get(d.proposerId);
+        const recipient = this.db.users.get(d.recipientId);
+        const listing = this.db.listings.get(d.listingId);
+        return (
+          (proposer?.displayName ?? '').toLowerCase().includes(needle) ||
+          (recipient?.displayName ?? '').toLowerCase().includes(needle) ||
+          (listing?.title ?? '').toLowerCase().includes(needle)
+        );
+      });
+    }
+    items.sort(
+      (a, b) =>
+        b.createdAt.getTime() - a.createdAt.getTime() ||
         a.id.localeCompare(b.id),
     );
     return Promise.resolve({
