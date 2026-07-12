@@ -3,7 +3,7 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : Lot 2 — CP2.4 (deals contractuels + avis) (2026-07-11)._
+_Dernière mise à jour : Lot 2 — CP2.5 (modération avancée Dealplace) (2026-07-12)._
 
 Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. `DB_DRIVER=mock` reste le défaut et le fallback API ; **`DB_DRIVER=postgres` est fonctionnel** (Docker requis — voir §8 bis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
@@ -309,17 +309,62 @@ curl "http://localhost:3001/api/v1/users/<USER_ID>/deal-profile" -H "Authorizati
 ```
 
 Rappels : notifications in-app type `deal` sur les JALONS uniquement ; event
-socket `deal.updated` pour la page ouverte ; litige TERMINAL (modération
-avancée = CP2.5) ; valeur des éléments INDICATIVE (paiement hors app).
+socket `deal.updated` pour la page ouverte ; litige arbitré par le backoffice
+(CP2.5 — D66) ; valeur des éléments INDICATIVE (paiement hors app).
+
+## 4 octies. Vérifier la modération avancée Dealplace (Lot 2 — CP2.5)
+
+Routes admin réservées aux rôles moderator/super_admin (403 sinon). Parité
+mock/postgres (migration `0008`). Seed : **Deal 3 EN LITIGE** (Didier ⇄
+Sully, initiation surf — la file d'arbitrage a un cas au boot), **1
+signalement d'annonce ouvert** (Valérie sur le scooter de Thierry) et **1
+message masqué** (dernier message de la conversation 3).
+
+```bash
+# Signaler une annonce (mêmes règles que les posts : 400 sa propre annonce,
+# 409 doublon, 404 annonce invisible)
+curl -X POST "http://localhost:3001/api/v1/dealplace/listings/<LISTING_ID>/report" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"reasonCode":"other","message":"Prix anormalement bas, possible arnaque."}'
+
+# File admin filtrée par cible annonce + liste des annonces avec compteur
+curl "http://localhost:3001/api/v1/admin/reports?targetType=listing" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/dealplace/listings?flaggedOnly=true" -H "Authorization: Bearer <TOKEN_ADMIN>"
+
+# Deals backoffice : file des litiges, détail, recherche (partie/annonce/n°)
+curl "http://localhost:3001/api/v1/admin/dealplace/deals?status=disputed" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/dealplace/deals/<DEAL_ID>" -H "Authorization: Bearer <TOKEN_ADMIN>"
+
+# Arbitrage (note 10-1000 OBLIGATOIRE ; outcome cancelled|completed|resumed ;
+# 409 si non disputé, 403 si l'arbitre est partie prenante)
+curl -X POST "http://localhost:3001/api/v1/admin/dealplace/deals/<DEAL_ID>/resolve-dispute" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" -H "Content-Type: application/json" \
+  -d '{"outcome":"resumed","note":"Litige non fondé après échange avec les deux parties."}'
+
+# Conversations backoffice : liste, fil EN CLAIR, masquage doux d'un message
+curl "http://localhost:3001/api/v1/admin/dealplace/conversations?search=surf" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/dealplace/conversations/<CONV_ID>/messages" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl -X PATCH "http://localhost:3001/api/v1/admin/dealplace/messages/<MESSAGE_ID>/status" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" -H "Content-Type: application/json" \
+  -d '{"status":"hidden"}'
+```
+
+Rappels : un message masqué RESTE dans le fil des participants (corps
+remplacé par « Message masqué par la modération. », non-lus inchangés) ; la
+note d'arbitrage est montrée aux DEUX parties, jamais l'identité du
+modérateur ; l'issue `completed` OUVRE les avis ; après une reprise
+(`resumed`), un nouveau litige efface les traces de l'arbitrage précédent.
 
 ## 5. Log de boot attendu (seed mock)
 
 ```
-Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 4 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags), 2 conversations (6 messages), 2 deals (2 avis)
+Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 5 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags), 3 conversations (9 messages), 3 deals (2 avis)
 ```
-Le suffixe Dealplace (annonces + taxonomie) a été ajouté au CP2.1. Si ce log
-change après une modification non liée au seed, c'est un signal de régression à
-investiguer.
+Le suffixe Dealplace (annonces + taxonomie) a été ajouté au CP2.1 ; le CP2.5
+porte le seed à 5 signalements (dont 1 sur annonce), 3 conversations
+(9 messages dont 1 masqué) et 3 deals (dont 1 en litige à arbitrer). Si ce
+log change après une modification non liée au seed, c'est un signal de
+régression à investiguer.
 
 ---
 
@@ -382,7 +427,8 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
 
 Migrations (première base ou après `docker compose -f infra/docker-compose.yml down -v`) —
 Lot 1 (`0001`, `0002`) **puis** Dealplace CP2.1 (`0003`, `0004`) **puis**
-profil Dealplace CP2.2 (`0005`), conversations CP2.3 (`0006`) **puis** deals CP2.4 (`0007`) :
+profil Dealplace CP2.2 (`0005`), conversations CP2.3 (`0006`), deals CP2.4
+(`0007`) **puis** modération CP2.5 (`0008`) :
 
 ```bash
 docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
@@ -392,6 +438,7 @@ docker cp apps/api/db/migrations/0004_dealplace_reference.sql endirek-postgres:/
 docker cp apps/api/db/migrations/0005_dealplace_profile.sql endirek-postgres:/tmp/0005_dealplace_profile.sql
 docker cp apps/api/db/migrations/0006_conversations.sql endirek-postgres:/tmp/0006_conversations.sql
 docker cp apps/api/db/migrations/0007_deals.sql endirek-postgres:/tmp/0007_deals.sql
+docker cp apps/api/db/migrations/0008_moderation.sql endirek-postgres:/tmp/0008_moderation.sql
 
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
@@ -407,6 +454,8 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0006_conversations.sql
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0007_deals.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0008_moderation.sql
 ```
 
 État validé : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables
@@ -416,11 +465,13 @@ ajoute 6 tables Dealplace (`listing_categories`, `listing_subcategories`,
 de référence (20 catégories, sous-catégories, ~10 tags) ; CP2.2 ajoute la
 colonne `users.dealplace_seeking` (migration `0005`, rejouable) ; CP2.3 ajoute
 les tables `conversations` et `messages` (migration `0006`, rejouable) ; CP2.4
-ajoute les 6 tables deals + avis (migration `0007`, rejouable).
+ajoute les 6 tables deals + avis (migration `0007`, rejouable) ; CP2.5 étend
+`reports.target_type` à `'listing'`, ajoute `messages.status` et les colonnes
+d'arbitrage des litiges sur `deals` (migration `0008`, rejouable).
 
 > Les migrations sont aussi applicables via le raccourci `npm run db:migrate`
 > (copie + `psql -f` de **tout** le dossier `migrations/` dans l'ordre
-> lexicographique — `0001`→`0007` — dans le conteneur, voir §8 bis).
+> lexicographique — `0001`→`0008` — dans le conteneur, voir §8 bis).
 > **⚠️ Uniquement sur une base VIERGE** : `0001` n'est pas rejouable
 > (`CREATE TABLE` sans `IF NOT EXISTS`) — sur une base déjà migrée, appliquer
 > uniquement les NOUVELLES migrations via `docker cp` + `psql -f` (ci-dessus).

@@ -3,7 +3,7 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : Lot 2 — CP2.1 (Dealplace : taxonomie + listings) (2026-07-10)._
+_Dernière mise à jour : Lot 2 — CP2.5 (modération avancée Dealplace) (2026-07-12)._
 
 ---
 
@@ -218,3 +218,66 @@ _Dernière mise à jour : Lot 2 — CP2.1 (Dealplace : taxonomie + listings) (20
   mobiles : « Proposer un deal » du détail (non-propriétaire), action du fil
   de conversation (les deux parties, `?recipient=`), liste « Mes deals »
   depuis le profil.
+
+## Lot 2 — CP2.5 : Modération avancée Dealplace (2026-07-12)
+
+> Dernier checkpoint du Lot 2 : le versant MODÉRATION du Dealplace. Aucun
+> mockup dédié (comme D63) — conception dérivée des TODO et des conventions
+> établies (file de signalements du Lot 1, vues admin existantes).
+
+- **D65.** **Signalement d'annonce côté utilisateur = extension du pattern
+  Lot 1**, pas un nouveau système : `reports.target_type` accepte `'listing'`
+  (migration `0008` — le CHECK de 0001 est étendu), route
+  `POST /dealplace/listings/:id/report` (contrôleur dédié du module
+  `moderation`, ancré sous le préfixe dealplace), MÊMES règles que les posts
+  (cible visible sinon 404, auto-signalement 400, anti-doublon 409 y compris
+  sous concurrence, motifs communs). File admin : filtre
+  `?targetType=listing` + extrait d'annonce (titre, description tronquée,
+  statut) ; la liste admin des annonces porte `openReportsCount` (pattern des
+  posts) et expose enfin le filtre `flaggedOnly` (dormant depuis le CP2.1) ;
+  le détail admin d'une annonce liste ses signalements. La décision sur le
+  signalement reste SÉPARÉE de l'action sur la cible (masquage via le PATCH
+  statut existant). Mobile : menu ⋮ du détail d'annonce (non-propriétaire
+  uniquement), dialogue de signalement du Lot 1 réutilisé (titre paramétré).
+- **D66.** **Arbitrage des litiges = HUMAIN, au backoffice, sans nouveau
+  statut de deal.** L'arbitrage IA reste futur (MOCKED_SERVICES §2) ; les
+  rôles moderator/super_admin tranchent. Trois issues :
+  `cancelled` (deal annulé), `completed` (deal déclaré conclu — completedAt
+  posé, les avis s'ouvrent et les stats de profil s'incrémentent comme une
+  conclusion normale), `resumed` (litige non fondé — le deal redevient
+  `active`, un NOUVEAU litige reste possible et efface alors les traces de
+  l'arbitrage précédent : un seul cycle litige→arbitrage visible à la fois).
+  Traçabilité par colonnes miroir du pattern reports :
+  `dispute_resolved_by/at`, `dispute_resolution`, `dispute_resolution_note`
+  (migration `0008`). La NOTE DE DÉCISION est OBLIGATOIRE (10-1000) et
+  montrée aux DEUX parties ; l'IDENTITÉ du modérateur ne l'est jamais
+  (visible au backoffice seulement). Un modérateur PARTIE PRENANTE du deal ne
+  peut pas l'arbitrer (403 — conflit d'intérêts). Notification type 'deal'
+  (event `dispute_resolved`) aux deux parties + event socket `deal.updated`
+  (la page mobile ouverte se recharge seule). Routes :
+  `GET /admin/dealplace/deals` (tous statuts, `?status=disputed` = file
+  d'arbitrage, recherche parties/annonce/n°), `GET .../deals/:id`,
+  `POST .../deals/:id/resolve-dispute`. Le contrôleur admin DÉLÈGUE à
+  `DealsService` (pattern « service métier hôte », comme les caméras) : la
+  machine à états ne sort jamais du module deals. La « modération des
+  deals » du CP2.5 = VISIBILITÉ complète (liste + détail avec les deux
+  parties nommées) + arbitrage — PAS d'annulation forcée d'un deal sain :
+  le levier de modération d'un deal problématique est le flux de litige.
+- **D67.** **Modération des messages = masquage doux, message CONSERVÉ dans
+  le fil.** `messages.status` (`active`/`hidden`, migration `0008`) — pas de
+  'deleted' (D63 : jamais de suppression de message). Un message masqué
+  RESTE dans le fil (pagination offset intacte) et les NON-LUS ne changent
+  pas (le placeholder reste « quelque chose à voir » — aucun badge fantôme,
+  aucun des 4 calculs de lecture n'est modifié) ; son CORPS est remplacé
+  côté service pour les participants (« Message masqué par la modération. »,
+  `status: 'hidden'` exposé — le contenu réel n'atteint jamais les
+  participants). Le BACKOFFICE lit les corps RÉELS (la modération doit lire
+  pour statuer) : `GET /admin/dealplace/conversations` (toutes, recherche
+  participant/annonce), `GET .../conversations/:id/messages`,
+  `PATCH /admin/dealplace/messages/:id/status` (réversible, idempotent) —
+  aussi accessible depuis la section « Conversation liée » du détail admin
+  d'un deal (le contexte d'un litige vit souvent dans le fil). PAS d'event
+  socket de modération : un fil ouvert se resynchronise à sa réouverture
+  (REST = source de vérité, la modération est rare). PAS de notification à
+  l'auteur du contenu masqué (cohérent avec posts/commentaires/annonces).
+  Mobile : bulle placeholder italique stylée d'après `status`.
