@@ -71,3 +71,14 @@ Anticipation : la modération s'étendra aux pages et News IA supervisées
 (TODO Lot 3+). L'arbitrage des litiges de deals et la modération des
 messages de conversation sont livrés au CP2.5 (voir modules `deals`,
 `conversations` et `admin` — D66/D67).
+
+## Extension Lot 3 — signalement de page (D76)
+
+- `POST /api/v1/pages/:id/report { reasonCode, message? }` → mêmes règles
+  que les posts et les annonces (cible visible sinon 404, auto-signalement
+  400, doublon 409) — contrôleur dédié `PageModerationController` (ancré
+  `pages/:id`), visibilité déléguée à `PagesService.loadVisiblePage`.
+- `reports.target_type` étendu à `'page'` (migration `0009`) ; la file admin
+  filtre par `?targetType=page` et sert un extrait de page (nom, type, bio
+  tronquée, statut) ; l'action sur la cible reste séparée
+  (`PATCH /admin/pages/:id/status`).

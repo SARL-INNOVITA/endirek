@@ -9,6 +9,7 @@ import { PostAuthor, toPostAuthor } from '../../common/mappers/post.mapper';
 import {
   CONVERSATIONS_REPOSITORY,
   LISTINGS_REPOSITORY,
+  PAGES_REPOSITORY,
   USERS_REPOSITORY,
 } from '../../database/database.tokens';
 import {
@@ -16,11 +17,14 @@ import {
   Listing,
   Message,
   MessageStatus,
+  Page,
+  PageType,
 } from '../../database/domain/entities';
 import {
   ConversationsRepository,
   ListingsRepository,
   PageParams,
+  PagesRepository,
   UsersRepository,
 } from '../../database/repositories/interfaces';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -55,10 +59,26 @@ export interface MessageView {
 /** Corps substitué aux messages masqués pour les participants (D67). */
 export const HIDDEN_MESSAGE_BODY = 'Message masqué par la modération.';
 
-/** Forme CONVERSATION du contrat — carte de la liste ET en-tête du fil. */
+/** Référence LÉGÈRE de la page d'une conversation (Lot 3 — D75) : bandeau du
+ * fil « Message » d'une page. `status` permet au client de griser une page
+ * disparue (miroir de ConversationListingRef). */
+export interface ConversationPageRef {
+  id: string;
+  name: string;
+  urlSlug: string;
+  pageType: PageType;
+  avatarUrl: string | null;
+  status: string;
+}
+
+/** Forme CONVERSATION du contrat — carte de la liste ET en-tête du fil.
+ * Exactement UNE cible non nulle : `listing` (fil d'annonce — D63) ou
+ * `page` (fil de page — Lot 3, D75). */
 export interface ConversationView {
   id: string;
-  listing: ConversationListingRef;
+  listing: ConversationListingRef | null;
+  /** Page liée (Lot 3 — D75) — null pour un fil d'annonce. */
+  page: ConversationPageRef | null;
   /** L'AUTRE participant (forme AUTEUR publique — jamais d'email). */
   otherParticipant: PostAuthor;
   lastMessage: MessageView | null;
@@ -84,12 +104,13 @@ export interface PagedMessages {
 
 /**
  * Service conversations 1-to-1 (Lot 2 — CP2.3) — messagerie privée LIÉE À UNE
- * ANNONCE (décision D63).
+ * ANNONCE (décision D63) OU À UNE PAGE (Lot 3 — décision D75).
  *
  * Règles métier appliquées ICI :
- * - démarrage : annonce VISIBLE par l'appelant (active — hidden/deleted →
- *   404 comme le détail public), jamais sur SA PROPRE annonce (400) ;
- *   get-or-create sur (annonce, initiateur) + PREMIER message obligatoire ;
+ * - démarrage : exactement UNE cible (listingId XOR pageId — 400 sinon) ;
+ *   cible VISIBLE par l'appelant (active — hidden/deleted → 404 comme le
+ *   détail public), jamais sur SA PROPRE annonce/page (400) ;
+ *   get-or-create sur (cible, initiateur) + PREMIER message obligatoire ;
  * - accès à un fil STRICTEMENT réservé à ses deux participants (404 sinon —
  *   ne rien divulguer, miroir des notifications) ;
  * - messages texte 1-2000 caractères (trim au DTO) ;
@@ -104,6 +125,8 @@ export class ConversationsService {
     private readonly conversationsRepository: ConversationsRepository,
     @Inject(LISTINGS_REPOSITORY)
     private readonly listingsRepository: ListingsRepository,
+    @Inject(PAGES_REPOSITORY)
+    private readonly pagesRepository: PagesRepository,
     @Inject(USERS_REPOSITORY)
     private readonly usersRepository: UsersRepository,
     private readonly realtime: RealtimeGateway,
@@ -114,34 +137,67 @@ export class ConversationsService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Démarre (ou reprend) la conversation de l'appelant sur une annonce et
-   * envoie le PREMIER message (POST /conversations). Get-or-create : si le
-   * fil existe déjà, le message y est simplement ajouté.
+   * Démarre (ou reprend) la conversation de l'appelant sur une annonce OU une
+   * page (exactement une cible — D75) et envoie le PREMIER message
+   * (POST /conversations). Get-or-create : si le fil existe déjà, le message
+   * y est simplement ajouté.
    */
   async start(
     viewer: AuthenticatedUser,
     dto: StartConversationDto,
   ): Promise<{ conversation: ConversationView; message: MessageView }> {
-    const listing = await this.listingsRepository.findById(dto.listingId);
-    // Miroir de la visibilité publique du détail : hidden/deleted → 404.
-    if (!listing || listing.status !== 'active') {
-      throw new NotFoundException('Annonce introuvable');
-    }
-    if (listing.ownerId === viewer.userId) {
+    const hasListing = dto.listingId !== undefined;
+    const hasPage = dto.pageId !== undefined;
+    if (hasListing === hasPage) {
       throw new BadRequestException(
-        'Vous ne pouvez pas ouvrir une conversation sur votre propre annonce',
+        'Indiquez une annonce (listingId) ou une page (pageId) — exactement une des deux',
       );
     }
 
-    let conversation = await this.conversationsRepository.findByListingAndInitiator(
-      dto.listingId,
-      viewer.userId,
-    );
+    let conversation: Conversation | null;
+    let ownerId: string;
+    if (hasListing) {
+      const listing = await this.listingsRepository.findById(
+        dto.listingId as string,
+      );
+      // Miroir de la visibilité publique du détail : hidden/deleted → 404.
+      if (!listing || listing.status !== 'active') {
+        throw new NotFoundException('Annonce introuvable');
+      }
+      if (listing.ownerId === viewer.userId) {
+        throw new BadRequestException(
+          'Vous ne pouvez pas ouvrir une conversation sur votre propre annonce',
+        );
+      }
+      ownerId = listing.ownerId;
+      conversation =
+        await this.conversationsRepository.findByListingAndInitiator(
+          dto.listingId as string,
+          viewer.userId,
+        );
+    } else {
+      const page = await this.pagesRepository.findById(dto.pageId as string);
+      // Miroir de la visibilité publique de la page : hidden/deleted → 404.
+      if (!page || page.status !== 'active') {
+        throw new NotFoundException('Page introuvable');
+      }
+      if (page.ownerId === viewer.userId) {
+        throw new BadRequestException(
+          'Vous ne pouvez pas ouvrir une conversation avec votre propre page',
+        );
+      }
+      ownerId = page.ownerId;
+      conversation = await this.conversationsRepository.findByPageAndInitiator(
+        dto.pageId as string,
+        viewer.userId,
+      );
+    }
     if (!conversation) {
       conversation = await this.conversationsRepository.create({
-        listingId: dto.listingId,
+        listingId: dto.listingId ?? null,
+        pageId: dto.pageId ?? null,
         initiatorId: viewer.userId,
-        ownerId: listing.ownerId,
+        ownerId,
       });
     }
 
@@ -194,6 +250,24 @@ export class ConversationsService {
     const conversation =
       await this.conversationsRepository.findByListingAndInitiator(
         listingId,
+        viewer.userId,
+      );
+    if (!conversation) {
+      throw new NotFoundException('Conversation introuvable');
+    }
+    return this.assembleOne(conversation.id, viewer.userId);
+  }
+
+  /** Ma conversation existante avec une page (GET /conversations/page/:id) —
+   * 404 si je n'en ai pas encore ouvert (Lot 3 — D75, miroir du fil
+   * d'annonce). */
+  async findMineForPage(
+    viewer: AuthenticatedUser,
+    pageId: string,
+  ): Promise<ConversationView> {
+    const conversation =
+      await this.conversationsRepository.findByPageAndInitiator(
+        pageId,
         viewer.userId,
       );
     if (!conversation) {
@@ -330,7 +404,20 @@ export class ConversationsService {
       return [];
     }
     const conversationIds = conversations.map((c) => c.id);
-    const listingIds = [...new Set(conversations.map((c) => c.listingId))];
+    const listingIds = [
+      ...new Set(
+        conversations
+          .map((c) => c.listingId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const pageIds = [
+      ...new Set(
+        conversations
+          .map((c) => c.pageId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
     const otherIds = [
       ...new Set(
         conversations.map((c) =>
@@ -339,10 +426,11 @@ export class ConversationsService {
       ),
     ];
 
-    const [listings, media, others, lastMessages, unreadCounts] =
+    const [listings, media, pages, others, lastMessages, unreadCounts] =
       await Promise.all([
         this.listingsRepository.findByIds(listingIds),
         this.listingsRepository.listMediaByListingIds(listingIds),
+        this.pagesRepository.findByIds(pageIds),
         this.usersRepository.findByIds(otherIds),
         this.conversationsRepository.lastMessagesByConversationIds(
           conversationIds,
@@ -354,6 +442,7 @@ export class ConversationsService {
       ]);
 
     const listingsById = new Map(listings.map((l) => [l.id, l]));
+    const pagesById = new Map(pages.map((pa) => [pa.id, pa]));
     const othersById = new Map(others.map((u) => [u.id, u]));
     // Vignette = thumbnail (sinon url) du 1er média de chaque annonce (les
     // médias arrivent triés par position croissante).
@@ -372,11 +461,21 @@ export class ConversationsService {
       const last = lastMessages[conversation.id];
       return {
         id: conversation.id,
-        listing: this.toListingRef(
-          conversation.listingId,
-          listingsById.get(conversation.listingId),
-          coverByListing.get(conversation.listingId) ?? null,
-        ),
+        listing:
+          conversation.listingId === null
+            ? null
+            : this.toListingRef(
+                conversation.listingId,
+                listingsById.get(conversation.listingId),
+                coverByListing.get(conversation.listingId) ?? null,
+              ),
+        page:
+          conversation.pageId === null
+            ? null
+            : this.toPageRef(
+                conversation.pageId,
+                pagesById.get(conversation.pageId),
+              ),
         otherParticipant: toPostAuthor(otherId, othersById.get(otherId) ?? null),
         lastMessage: last ? this.toMessageView(last) : null,
         unreadCount: unreadCounts[conversation.id] ?? 0,
@@ -408,6 +507,32 @@ export class ConversationsService {
       urlSlug: listing.urlSlug,
       status: listing.status,
       coverThumbnailUrl,
+    };
+  }
+
+  /** Référence légère de page — repli neutre si la page a disparu
+   * (soft-delete : le fil reste consultable, miroir de toListingRef). */
+  private toPageRef(
+    pageId: string,
+    page: Page | undefined,
+  ): ConversationPageRef {
+    if (!page) {
+      return {
+        id: pageId,
+        name: 'Page supprimée',
+        urlSlug: '',
+        pageType: 'business',
+        avatarUrl: null,
+        status: 'deleted',
+      };
+    }
+    return {
+      id: page.id,
+      name: page.name,
+      urlSlug: page.urlSlug,
+      pageType: page.pageType,
+      avatarUrl: page.avatarUrl,
+      status: page.status,
     };
   }
 

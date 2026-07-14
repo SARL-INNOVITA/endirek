@@ -27,6 +27,7 @@ import {
   DealItemStep,
   DealNote,
   DealReview,
+  Dish,
   Follow,
   Listing,
   ListingCategory,
@@ -35,6 +36,14 @@ import {
   ListingTag,
   Message,
   Notification,
+  Page,
+  PageDocument,
+  PageEvent,
+  PageFollow,
+  PageHour,
+  PageMenu,
+  PageMenuItem,
+  PageOffer,
   Post,
   PostMedia,
   PostType,
@@ -69,6 +78,7 @@ const POST_TYPE_ROWS: PostTypeRow[] = [
     requiresLocationForMap: false,
     showsOnMap: false,
     defaultMapDurationMinutes: null,
+    pageOnly: false,
     isActive: true,
     position: 1,
   },
@@ -80,6 +90,7 @@ const POST_TYPE_ROWS: PostTypeRow[] = [
     requiresLocationForMap: true,
     showsOnMap: true,
     defaultMapDurationMinutes: 120,
+    pageOnly: false,
     isActive: true,
     position: 2,
   },
@@ -91,6 +102,7 @@ const POST_TYPE_ROWS: PostTypeRow[] = [
     requiresLocationForMap: true,
     showsOnMap: true,
     defaultMapDurationMinutes: 120,
+    pageOnly: false,
     isActive: true,
     position: 3,
   },
@@ -102,6 +114,7 @@ const POST_TYPE_ROWS: PostTypeRow[] = [
     requiresLocationForMap: true,
     showsOnMap: true,
     defaultMapDurationMinutes: 120,
+    pageOnly: false,
     isActive: true,
     position: 4,
   },
@@ -113,8 +126,48 @@ const POST_TYPE_ROWS: PostTypeRow[] = [
     requiresLocationForMap: false,
     showsOnMap: false,
     defaultMapDurationMinutes: null,
+    pageOnly: false,
     isActive: true,
     position: 5,
+  },
+  // Types RÉSERVÉS AUX PAGES (Lot 3 — D73, miroir de 0009_pages.sql) :
+  // la durée carte est calculée au SERVICE (23 h Réunion / fin d'événement),
+  // d'où defaultMapDurationMinutes null malgré showsOnMap true.
+  {
+    slug: 'menu',
+    labelFr: 'Menu du jour',
+    icon: 'restaurant',
+    color: '#0EA5A4',
+    requiresLocationForMap: false,
+    showsOnMap: true,
+    defaultMapDurationMinutes: null,
+    pageOnly: true,
+    isActive: true,
+    position: 6,
+  },
+  {
+    slug: 'offer',
+    labelFr: 'Offre du jour',
+    icon: 'tag',
+    color: '#D97706',
+    requiresLocationForMap: false,
+    showsOnMap: true,
+    defaultMapDurationMinutes: null,
+    pageOnly: true,
+    isActive: true,
+    position: 7,
+  },
+  {
+    slug: 'event',
+    labelFr: 'Événement',
+    icon: 'calendar',
+    color: '#DB2777',
+    requiresLocationForMap: false,
+    showsOnMap: true,
+    defaultMapDurationMinutes: null,
+    pageOnly: true,
+    isActive: true,
+    position: 8,
   },
 ];
 
@@ -164,6 +217,18 @@ export class MockDatabaseService implements OnModuleInit {
   readonly dealReviews = new Map<string, DealReview>();
   /** Association N-N annonce <-> tag (miroir de listing_tag_map). */
   readonly listingTagMap: SeedListingTagMap[] = [];
+
+  // ── Pages restaurants & entreprises (Lot 3) ──────────────────────────────
+  readonly pages = new Map<string, Page>();
+  readonly pageHours = new Map<string, PageHour>();
+  readonly pageDocuments = new Map<string, PageDocument>();
+  readonly dishes = new Map<string, Dish>();
+  readonly pageMenus = new Map<string, PageMenu>();
+  readonly pageMenuItems = new Map<string, PageMenuItem>();
+  readonly pageOffers = new Map<string, PageOffer>();
+  readonly pageEvents = new Map<string, PageEvent>();
+  /** Abonnements aux pages (PK composite — miroir de page_follows). */
+  readonly pageFollows: PageFollow[] = [];
 
   /** Séquence en mémoire — équivalent de `camera_number ... AS IDENTITY`. */
   private cameraNumberSequence = 1;
@@ -375,6 +440,34 @@ export class MockDatabaseService implements OnModuleInit {
       this.listingMedia.set(media.id, { ...media });
     }
     this.listingTagMap.push(...seed.listingTagMap.map((m) => ({ ...m })));
+    // Pages restaurants & entreprises (Lot 3) : identité + horaires +
+    // documents + plats + menus + offres + événements + abonnés. Le compteur
+    // d'abonnés est TOUJOURS calculé à la lecture — rien à recalculer ici.
+    for (const page of seed.pages) {
+      this.pages.set(page.id, { ...page, attributes: [...page.attributes] });
+    }
+    for (const hour of seed.pageHours) {
+      this.pageHours.set(hour.id, { ...hour });
+    }
+    for (const document of seed.pageDocuments) {
+      this.pageDocuments.set(document.id, { ...document });
+    }
+    for (const dish of seed.dishes) {
+      this.dishes.set(dish.id, { ...dish });
+    }
+    for (const menu of seed.pageMenus) {
+      this.pageMenus.set(menu.id, { ...menu });
+    }
+    for (const item of seed.pageMenuItems) {
+      this.pageMenuItems.set(item.id, { ...item });
+    }
+    for (const offer of seed.pageOffers) {
+      this.pageOffers.set(offer.id, { ...offer });
+    }
+    for (const event of seed.pageEvents) {
+      this.pageEvents.set(event.id, { ...event });
+    }
+    this.pageFollows.push(...seed.pageFollows.map((f) => ({ ...f })));
     // Conversations 1-to-1 (CP2.3) : fils + messages (les jalons de lecture et
     // lastMessageAt sont déclarés par le seed — pas de compteur à recalculer,
     // les non-lus sont TOUJOURS calculés à la lecture).
@@ -454,7 +547,9 @@ export class MockDatabaseService implements OnModuleInit {
         post.location !== null &&
         post.status === 'active' &&
         post.mapExpiresAt !== null &&
-        post.mapExpiresAt.getTime() > now.getTime()
+        post.mapExpiresAt.getTime() > now.getTime() &&
+        (post.mapVisibleFrom === null ||
+          post.mapVisibleFrom.getTime() <= now.getTime())
       ) {
         visibleOnMap++;
       }
@@ -474,7 +569,11 @@ export class MockDatabaseService implements OnModuleInit {
         `${this.listingTags.size} tags), ` +
         `${this.conversations.size} conversations ` +
         `(${this.messages.size} messages), ` +
-        `${this.deals.size} deals (${this.dealReviews.size} avis)`,
+        `${this.deals.size} deals (${this.dealReviews.size} avis), ` +
+        `${this.pages.size} pages (${this.dishes.size} plats, ` +
+        `${this.pageMenus.size} menus, ${this.pageOffers.size} offres, ` +
+        `${this.pageEvents.size} événements, ` +
+        `${this.pageFollows.length} abonnés)`,
     );
   }
 }

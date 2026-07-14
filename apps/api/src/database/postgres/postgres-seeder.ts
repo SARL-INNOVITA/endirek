@@ -2,10 +2,12 @@
  * PostgresSeeder — insertion du seed La Réunion dans PostgreSQL.
  *
  * Miroir SQL de MockDatabaseService.loadSeed() : consomme la MÊME source
- * (buildSeed(), src/database/seed/) et insère les 14 collections d'entités
- * (users, follows, posts, post_media, comments, reactions, saved_collections,
- * saved_posts, cameras, reports, notifications, + Dealplace : listings,
- * listing_media, listing_tag_map).
+ * (buildSeed(), src/database/seed/) et insère toutes les collections
+ * d'entités (users, follows, posts, post_media, comments, reactions,
+ * saved_collections, saved_posts, cameras, reports, notifications,
+ * + Dealplace : listings, listing_media, listing_tag_map, conversations,
+ * messages, deals*, + Lot 3 : pages, page_hours, page_documents, dishes,
+ * page_menus, page_menu_items, page_offers, page_events, page_follows).
  *
  * TAXONOMIE Dealplace (listing_categories / listing_subcategories /
  * listing_tags) : NON insérée ici — c'est de la donnée de RÉFÉRENCE, déjà en
@@ -61,6 +63,19 @@ export class PostgresSeeder {
       const c: Record<string, number> = {};
       c.users = await this.insertUsers(client, data);
       c.follows = await this.insertFollows(client, data);
+      // Pages (Lot 3) : insérées AVANT les posts (FK posts.page_id) et avant
+      // les conversations (FK conversations.page_id). Enfants dans l'ordre
+      // des FK : pages → horaires/documents/plats → menus → items → offres/
+      // événements/abonnés.
+      c.pages = await this.insertPages(client, data);
+      c.page_hours = await this.insertPageHours(client, data);
+      c.page_documents = await this.insertPageDocuments(client, data);
+      c.dishes = await this.insertDishes(client, data);
+      c.page_menus = await this.insertPageMenus(client, data);
+      c.page_menu_items = await this.insertPageMenuItems(client, data);
+      c.page_offers = await this.insertPageOffers(client, data);
+      c.page_events = await this.insertPageEvents(client, data);
+      c.page_follows = await this.insertPageFollows(client, data);
       c.posts = await this.insertPosts(client, data);
       c.post_media = await this.insertPostMedia(client, data);
       c.comments = await this.insertComments(client, data);
@@ -105,7 +120,10 @@ export class PostgresSeeder {
         `${counts.listings} annonces, ${counts.listing_media} médias annonce, ` +
         `${counts.listing_tag_map} tags annonce, ` +
         `${counts.conversations} conversations, ${counts.messages} messages, ` +
-        `${counts.deals} deals (${counts.deal_reviews} avis).`,
+        `${counts.deals} deals (${counts.deal_reviews} avis), ` +
+        `${counts.pages} pages (${counts.dishes} plats, ` +
+        `${counts.page_menus} menus, ${counts.page_offers} offres, ` +
+        `${counts.page_events} événements, ${counts.page_follows} abonnés).`,
     );
     return counts;
   }
@@ -205,6 +223,7 @@ export class PostgresSeeder {
         p.status,
         p.urlSlug,
         p.mapExpiresAt,
+        p.mapVisibleFrom ?? null,
         p.createdAt,
         p.updatedAt,
       );
@@ -212,12 +231,12 @@ export class PostgresSeeder {
         `INSERT INTO posts
            (id, author_id, page_id, type_slug, title, body, location,
             city, visibility, status, url_slug, map_expires_at,
-            created_at, updated_at)
+            map_visible_from, created_at, updated_at)
          VALUES
            ($1, $2, $3, $4, $5, $6, ${geo},
-            $${params.length - 6}, $${params.length - 5}, $${params.length - 4},
-            $${params.length - 3}, $${params.length - 2}, $${params.length - 1},
-            $${params.length})
+            $${params.length - 7}, $${params.length - 6}, $${params.length - 5},
+            $${params.length - 4}, $${params.length - 3}, $${params.length - 2},
+            $${params.length - 1}, $${params.length})
          ON CONFLICT (id) DO NOTHING`,
         params,
       );
@@ -542,14 +561,15 @@ export class PostgresSeeder {
     for (const c of data.conversations) {
       const res = await client.query(
         `INSERT INTO conversations
-           (id, listing_id, initiator_id, owner_id,
+           (id, listing_id, page_id, initiator_id, owner_id,
             initiator_last_read_at, owner_last_read_at, last_message_at,
             created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (id) DO NOTHING`,
         [
           c.id,
           c.listingId,
+          c.pageId,
           c.initiatorId,
           c.ownerId,
           c.initiatorLastReadAt,
@@ -743,6 +763,237 @@ export class PostgresSeeder {
           r.comment,
           r.createdAt,
         ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+
+  // ── Pages restaurants & entreprises (Lot 3) ────────────────────────────────
+
+  private async insertPages(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const pa of data.pages) {
+      const params: unknown[] = [
+        pa.id,
+        pa.ownerId,
+        pa.pageType,
+        pa.name,
+        pa.urlSlug,
+        pa.bio,
+        pa.avatarUrl,
+        pa.coverUrl,
+        pa.city,
+      ];
+      const geo = this.geoValue(pa.location, params);
+      // attributes : text[] passé tel quel (node-postgres sérialise le
+      // tableau JS en littéral tableau PostgreSQL).
+      params.push(
+        pa.phone,
+        pa.attributes,
+        pa.vacationUntil,
+        pa.vacationMessage,
+        pa.verified,
+        pa.status,
+        pa.createdAt,
+        pa.updatedAt,
+        pa.deletedAt,
+      );
+      const res = await client.query(
+        `INSERT INTO pages
+           (id, owner_id, page_type, name, url_slug, bio, avatar_url,
+            cover_url, city, location, phone, attributes, vacation_until,
+            vacation_message, verified, status, created_at, updated_at,
+            deleted_at)
+         VALUES
+           ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${geo},
+            $${params.length - 8}, $${params.length - 7}, $${params.length - 6},
+            $${params.length - 5}, $${params.length - 4}, $${params.length - 3},
+            $${params.length - 2}, $${params.length - 1}, $${params.length})
+         ON CONFLICT (id) DO NOTHING`,
+        params,
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertPageHours(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const h of data.pageHours) {
+      const res = await client.query(
+        `INSERT INTO page_hours
+           (id, page_id, weekday, opens_minute, closes_minute, position)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO NOTHING`,
+        [h.id, h.pageId, h.weekday, h.opensMinute, h.closesMinute, h.position],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertPageDocuments(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const d of data.pageDocuments) {
+      const res = await client.query(
+        `INSERT INTO page_documents
+           (id, page_id, label, url, file_size_bytes, position, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO NOTHING`,
+        [d.id, d.pageId, d.label, d.url, d.fileSizeBytes, d.position, d.createdAt],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertDishes(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const di of data.dishes) {
+      const res = await client.query(
+        `INSERT INTO dishes
+           (id, page_id, name, description, image_url, price_takeaway_cents,
+            price_dinein_cents, position, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          di.id,
+          di.pageId,
+          di.name,
+          di.description,
+          di.imageUrl,
+          di.priceTakeawayCents,
+          di.priceDineInCents,
+          di.position,
+          di.status,
+          di.createdAt,
+          di.updatedAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertPageMenus(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const m of data.pageMenus) {
+      const res = await client.query(
+        `INSERT INTO page_menus (id, page_id, menu_date, created_at, updated_at)
+         VALUES ($1, $2, $3::date, $4, $5)
+         ON CONFLICT (id) DO NOTHING`,
+        [m.id, m.pageId, m.menuDate, m.createdAt, m.updatedAt],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertPageMenuItems(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const i of data.pageMenuItems) {
+      const res = await client.query(
+        `INSERT INTO page_menu_items (id, menu_id, dish_id, position)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO NOTHING`,
+        [i.id, i.menuId, i.dishId, i.position],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertPageOffers(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const o of data.pageOffers) {
+      const res = await client.query(
+        `INSERT INTO page_offers
+           (id, page_id, title, description, image_url, starts_at, ends_at,
+            status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          o.id,
+          o.pageId,
+          o.title,
+          o.description,
+          o.imageUrl,
+          o.startsAt,
+          o.endsAt,
+          o.status,
+          o.createdAt,
+          o.updatedAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertPageEvents(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const e of data.pageEvents) {
+      const res = await client.query(
+        `INSERT INTO page_events
+           (id, page_id, title, description, image_url, starts_at, ends_at,
+            status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          e.id,
+          e.pageId,
+          e.title,
+          e.description,
+          e.imageUrl,
+          e.startsAt,
+          e.endsAt,
+          e.status,
+          e.createdAt,
+          e.updatedAt,
+        ],
+      );
+      inserted += res.rowCount ?? 0;
+    }
+    return inserted;
+  }
+
+  private async insertPageFollows(
+    client: PoolClient,
+    data: SeedData,
+  ): Promise<number> {
+    let inserted = 0;
+    for (const f of data.pageFollows) {
+      const res = await client.query(
+        `INSERT INTO page_follows (page_id, user_id, created_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (page_id, user_id) DO NOTHING`,
+        [f.pageId, f.userId, f.createdAt],
       );
       inserted += res.rowCount ?? 0;
     }

@@ -12,7 +12,7 @@
  */
 
 /** Pool de connexions PostgreSQL (pg.Pool) — driver postgres uniquement.
- * Injecté par les 9 repositories Postgres* et par PostgresDatabaseService.
+ * Injecté par les 14 repositories Postgres* et par PostgresDatabaseService.
  * En driver mock, ce token n'est jamais fourni ni injecté. */
 export const POSTGRES_POOL = Symbol('POSTGRES_POOL');
 
@@ -36,6 +36,9 @@ export const CONVERSATIONS_REPOSITORY = Symbol('CONVERSATIONS_REPOSITORY');
 // Deals contractuels + avis (Lot 2 — CP2.4).
 export const DEALS_REPOSITORY = Symbol('DEALS_REPOSITORY');
 
+// Pages restaurants & entreprises (Lot 3).
+export const PAGES_REPOSITORY = Symbol('PAGES_REPOSITORY');
+
 /** Liste complète des tokens de repositories — source unique de vérité,
  * réellement utilisée par DatabaseModule pour ses `exports` (tout nouveau
  * token ajouté ici est automatiquement exposé au code métier). */
@@ -53,4 +56,5 @@ export const ALL_REPOSITORY_TOKENS: symbol[] = [
   LISTINGS_REPOSITORY,
   CONVERSATIONS_REPOSITORY,
   DEALS_REPOSITORY,
+  PAGES_REPOSITORY,
 ];

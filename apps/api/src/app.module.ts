@@ -14,6 +14,7 @@ import { MapModule } from './modules/map/map.module';
 import { MediaModule } from './modules/media/media.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PagesModule } from './modules/pages/pages.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { ReactionsModule } from './modules/reactions/reactions.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -61,6 +62,12 @@ import { UsersModule } from './modules/users/users.module';
  * Lot 2 — CP2.4 : DealsModule (deals contractuels — machine à états,
  * éléments validables, ajustements, litiges — + avis détaillés et stats du
  * profil Dealplace).
+ *
+ * Lot 3 : PagesModule (pages restaurants & entreprises — identité, horaires,
+ * plats/menus programmés, cartes PDF, offres, événements, abonnés,
+ * publications au nom de la page ; le backoffice Pages vit dans AdminModule
+ * qui importe PagesModule pour l'assembler, le signalement de page dans
+ * ModerationModule).
  */
 @Module({
   imports: [
@@ -85,6 +92,7 @@ import { UsersModule } from './modules/users/users.module';
     DealplaceModule,
     ConversationsModule,
     DealsModule,
+    PagesModule,
     HealthModule,
   ],
 })

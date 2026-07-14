@@ -529,7 +529,7 @@ function buildPost(spec: PostSpec): SeedPost {
   return {
     id: seedUuid('post', spec.n),
     authorId: seedUuid('user', spec.authorN),
-    pageId: null, // toujours null au Lot 1 (pages = Lot 3)
+    pageId: null, // les posts DE PAGE du seed vivent dans pages.seed.ts (Lot 3)
     typeSlug: spec.type,
     title: spec.title,
     body: spec.body,
@@ -543,6 +543,7 @@ function buildPost(spec: PostSpec): SeedPost {
       isMapType && location !== null
         ? new Date(createdAt.getTime() + MAP_DURATION_MINUTES * 60_000)
         : null,
+    mapVisibleFrom: null, // visibilité différée réservée aux événements de page (D73)
     createdAt,
     updatedAt: createdAt,
   };

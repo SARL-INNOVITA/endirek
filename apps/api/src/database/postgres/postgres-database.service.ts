@@ -81,7 +81,8 @@ export class PostgresDatabaseService implements OnModuleInit, OnModuleDestroy {
   /**
    * Journal de démarrage analogue au mock : comptes réels lus en SQL, dont le
    * nombre de posts actuellement visibles sur la carte (mêmes critères que le
-   * mock : location non nulle, status 'active', map_expires_at > now()).
+   * mock : location non nulle, status 'active', map_expires_at > now(),
+   * map_visible_from atteint — Lot 3, D73).
    */
   private async logBootSummary(): Promise<void> {
     const res = await this.pool.query<{
@@ -103,7 +104,9 @@ export class PostgresDatabaseService implements OnModuleInit, OnModuleDestroy {
             WHERE location IS NOT NULL
               AND status = 'active'
               AND map_expires_at IS NOT NULL
-              AND map_expires_at > now())     AS map_visible,
+              AND map_expires_at > now()
+              AND (map_visible_from IS NULL
+                   OR map_visible_from <= now())) AS map_visible,
          (SELECT COUNT(*) FROM comments)      AS comments,
          (SELECT COUNT(*) FROM reactions)     AS reactions,
          (SELECT COUNT(*) FROM cameras)       AS cameras,

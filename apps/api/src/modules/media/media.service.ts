@@ -44,6 +44,17 @@ export interface UploadedMedia {
   mediaType: 'image';
 }
 
+const INVALID_DOCUMENT_MESSAGE =
+  'Fichier invalide : seuls les documents PDF sont acceptés';
+
+/** Réponse de POST /media/upload-document (Lot 3 — D77) : documents PDF des
+ * pages (« Nos cartes »). */
+export interface UploadedDocument {
+  url: string;
+  fileSizeBytes: number;
+  mediaType: 'document';
+}
+
 @Injectable()
 export class MediaService {
   constructor(
@@ -123,6 +134,44 @@ export class MediaService {
       width,
       height,
       mediaType: 'image',
+    };
+  }
+
+  /**
+   * Traite un upload de document PDF (Lot 3 — D77, section « Nos cartes »
+   * des pages restaurant) :
+   * 1. validation par MAGIC BYTES (%PDF-) — comme les images, le mimetype
+   *    déclaré et le nom de fichier client ne prouvent rien ;
+   * 2. écriture TELLE QUELLE via l'adapter de stockage (nom aléatoire,
+   *    extension pdf) — aucun retraitement (pas d'équivalent sharp).
+   *
+   * Même limite de taille que les images (MEDIA_MAX_FILE_SIZE_MB — multer,
+   * 413 en amont).
+   */
+  async uploadDocument(file?: Express.Multer.File): Promise<UploadedDocument> {
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException(
+        'Fichier manquant : envoyez un PDF dans le champ multipart « file ».',
+      );
+    }
+
+    // 1. Magic bytes : tout PDF commence par « %PDF- » (ISO 32000). Décodage
+    // ASCII des 5 premiers octets — un .exe renommé .pdf est rejeté.
+    const header = file.buffer.subarray(0, 5).toString('ascii');
+    if (header !== '%PDF-') {
+      throw new BadRequestException(INVALID_DOCUMENT_MESSAGE);
+    }
+
+    // 2. Persistance via l'adapter (nom aléatoire, jamais le nom client).
+    const stored = await this.storage.save(file.buffer, {
+      extension: 'pdf',
+      mimeType: 'application/pdf',
+    });
+
+    return {
+      url: stored.publicUrl,
+      fileSizeBytes: file.buffer.length,
+      mediaType: 'document',
     };
   }
 }

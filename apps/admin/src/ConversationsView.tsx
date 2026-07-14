@@ -7,6 +7,10 @@
  * Le backoffice lit les corps RÉELS (y compris masqués) : la modération doit
  * lire pour statuer. Un message masqué RESTE dans le fil des participants,
  * son corps y est remplacé par « Message masqué par la modération. ».
+ *
+ * Depuis le Lot 3, une conversation porte sur une annonce Dealplace OU sur
+ * une page restaurant/entreprise (exactement une des deux cibles non
+ * nulle) : la colonne « Sujet » et le panneau affichent l'une ou l'autre.
  */
 
 import { useEffect, useState } from 'react'
@@ -22,7 +26,7 @@ import type {
   MessageStatus,
   PagedAdminConversations,
 } from './api'
-import { Avatar, formatDate, formatDateTime } from './ui'
+import { Avatar, PageTypeBadge, formatDate, formatDateTime } from './ui'
 
 /** Taille de page du backoffice (identique aux autres vues). */
 const PAGE_SIZE = 20
@@ -42,6 +46,14 @@ type MessagesState =
   | { kind: 'loading' }
   | { kind: 'success'; messages: AdminMessage[]; total: number }
   | { kind: 'error'; message: string }
+
+/** Sujet lisible d'une conversation : le titre de l'annonce ou le nom de la
+ * page liée (Lot 3 — exactement une des deux cibles non nulle). */
+function conversationSubject(conversation: AdminConversationCard): string {
+  if (conversation.listing) return conversation.listing.title
+  if (conversation.page) return `Page : ${conversation.page.name}`
+  return '—'
+}
 
 export default function ConversationsView() {
   const [search, setSearch] = useState('')
@@ -117,8 +129,8 @@ export default function ConversationsView() {
           <input
             type="search"
             className="users-search"
-            placeholder="Rechercher un participant ou une annonce…"
-            aria-label="Rechercher un participant ou une annonce"
+            placeholder="Rechercher un participant, une annonce ou une page…"
+            aria-label="Rechercher un participant, une annonce ou une page"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -144,7 +156,7 @@ export default function ConversationsView() {
               <thead>
                 <tr>
                   <th scope="col">Participants</th>
-                  <th scope="col">Annonce</th>
+                  <th scope="col">Sujet</th>
                   <th scope="col">Dernier message</th>
                   <th scope="col">Activité</th>
                 </tr>
@@ -187,11 +199,20 @@ export default function ConversationsView() {
                     </td>
                     <td
                       className="cell-excerpt"
-                      title={conversation.listing.title}
+                      title={conversationSubject(conversation)}
                     >
-                      <span className="excerpt-title">
-                        {conversation.listing.title}
-                      </span>
+                      {conversation.page ? (
+                        <>
+                          <span className="excerpt-title">
+                            Page : {conversation.page.name}
+                          </span>{' '}
+                          <PageTypeBadge pageType={conversation.page.pageType} />
+                        </>
+                      ) : (
+                        <span className="excerpt-title">
+                          {conversation.listing?.title ?? '—'}
+                        </span>
+                      )}
                     </td>
                     <td className="cell-excerpt conversation-last-message">
                       {conversation.lastMessage ? (
@@ -370,7 +391,9 @@ function ConversationPanel({ conversation, onClose }: ConversationPanelProps) {
               {conversation.owner.displayName}
             </p>
             <p className="detail-email">
-              Annonce : {conversation.listing.title}
+              {conversation.listing
+                ? `Annonce : ${conversation.listing.title}`
+                : conversationSubject(conversation)}
             </p>
           </div>
         </div>

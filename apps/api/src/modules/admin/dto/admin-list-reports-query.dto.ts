@@ -18,12 +18,14 @@ const QUERY_REPORT_STATUSES = [...FILTERABLE_REPORT_STATUSES, 'pending'] as cons
 
 /** Types de cible filtrables — 'user' est déjà supporté par le schéma
  * (cible polymorphe) même si le signalement d'un profil n'ouvre qu'au
- * Lot 2+ ; 'listing' (annonce Dealplace) depuis le CP2.5 (D65). */
+ * Lot 2+ ; 'listing' (annonce Dealplace) depuis le CP2.5 (D65) ; 'page'
+ * (page professionnelle) depuis le Lot 3 (D76). */
 const FILTERABLE_TARGET_TYPES: ReportTargetType[] = [
   'post',
   'comment',
   'user',
   'listing',
+  'page',
 ];
 
 /**
@@ -52,8 +54,8 @@ export class AdminListReportsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn(FILTERABLE_TARGET_TYPES, {
     message:
-      'Le type de cible doit être « post », « comment », « user » ou ' +
-      '« listing »',
+      'Le type de cible doit être « post », « comment », « user », ' +
+      '« listing » ou « page »',
   })
   targetType?: ReportTargetType;
 }

@@ -127,7 +127,7 @@ faits : le Lot 2 est COMPLET (validation product owner du CP2.5 à venir).
 
 | Ancrage | Où | Sert à |
 |---|---|---|
-| Modules placeholders `_future` | `apps/api/src/modules/_future/` (deals, conversations, pages, news, billing ; **`_future/dealplace` remplacé au CP2.1 par le module réel `modules/dealplace`**) | Accueillir chaque chantier restant sans toucher à l'arborescence |
+| Modules placeholders `_future` | `apps/api/src/modules/_future/` (news, billing ; **`_future/dealplace` remplacé au CP2.1, `_future/conversations` au CP2.3, `_future/deals` au CP2.4, `_future/pages` au Lot 3 par les modules réels**) | Accueillir chaque chantier restant sans toucher à l'arborescence |
 | `page_id` nullable sur les publications | schéma DB (étape 2) | Pages restaurants/entreprises émettrices de contenu |
 | Gateway WebSocket | module `realtime` (étape 5) | Conversations 1-to-1 (CP2.3) et tout temps réel futur |
 | Adapters remplaçables (media/geocoding/push/email) | `apps/api/src/adapters/` (posés aux étapes 2-5 du Lot 1) | Photos de listings (**utilisé au CP2.1**), géoloc des annonces, notifications de deals |
@@ -139,8 +139,9 @@ faits : le Lot 2 est COMPLET (validation product owner du CP2.5 à venir).
 
 ## 3. Autres lots (une ligne chacun)
 
-- **Pages restaurants / entreprises** : pages possédées par des utilisateurs
-  (ancrage `page_id` + `_future/pages`), menus/infos, publications de page.
+- **Pages restaurants / entreprises** : ✅ LIVRÉES au Lot 3 (module réel
+  `modules/pages` — identité, horaires, plats/menus, cartes PDF, offres,
+  événements, abonnés, publications de page — D69-D77).
 - **News IA** : onglet News alimenté par scraping + agent IA de rédaction
   (ancrage `_future/news`, onglet placeholder mobile).
 - **Monétisation** : premium/Stripe, Google Ads réel, offres exceptionnelles

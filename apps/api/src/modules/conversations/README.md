@@ -64,3 +64,14 @@ lectures par lot anti-N+1, `createMessage` atomique, liste backoffice
 `listAdmin` + `setMessageStatus` — CP2.5). Seed : 3 conversations
 (9 messages, dont 1 masqué — fil du deal en litige) — le fil Valérie ↔ Kévin
 laisse 1 conversation non lue à Valérie pour la démo du badge.
+
+## Extension Lot 3 — fils de page (D75)
+
+La cible d'une conversation devient annonce OU page (exactement une —
+CHECK SQL) : `POST /conversations` accepte `{ pageId, body }` (bouton
+« Message » d'une page — page `active` uniquement 404, jamais la sienne
+400, get-or-create sur (page, initiateur)) et
+`GET /conversations/page/:pageId` sert mon fil existant. La forme
+CONVERSATION expose `listing` NULLABLE et `page` (référence légère —
+repli « Page supprimée »). Non-lus, badge et event `message.created`
+inchangés.

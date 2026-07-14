@@ -32,6 +32,7 @@ MapMarker _post(String id, double lat, double lng) {
     createdAt: DateTime(2026, 1, 1),
     urlSlug: 'p-$id',
     author: _auteur,
+    page: null,
   );
   return MapMarker.depuisPost(item, LatLng(lat, lng));
 }

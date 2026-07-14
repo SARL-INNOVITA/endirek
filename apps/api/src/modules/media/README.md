@@ -33,3 +33,12 @@ Règle : la même interface de stockage sert tous les drivers ; aucun code
 métier ne dépend du driver actif.
 
 **TODO (lot ultérieur)** : upload de vidéos (transcodage/poster frame).
+
+## Extension Lot 3 — documents PDF (D77)
+
+- `POST /api/v1/media/upload-document` (authentifié, multipart champ
+  `file`) : PDF UNIQUEMENT, validé par MAGIC BYTES (`%PDF-`) — jamais par le
+  mimetype déclaré ; même limite `MEDIA_MAX_FILE_SIZE_MB` que les images ;
+  stocké TEL QUEL par l'adapter (nom aléatoire, extension pdf). Réponse :
+  `{ url, fileSizeBytes, mediaType: 'document' }`. Alimente la section
+  « Nos cartes » des pages restaurant (`POST /pages/:id/documents`).

@@ -16,6 +16,7 @@ import {
   DEALS_REPOSITORY,
   LISTINGS_REPOSITORY,
   NOTIFICATIONS_REPOSITORY,
+  PAGES_REPOSITORY,
   POSTS_REPOSITORY,
   REACTIONS_REPOSITORY,
   REPORTS_REPOSITORY,
@@ -29,6 +30,7 @@ import {
   DealReview,
   Listing,
   Notification,
+  Page,
   Post,
   Reaction,
   Report,
@@ -40,6 +42,7 @@ import {
   ListingsRepository,
   NotificationsRepository,
   PageParams,
+  PagesRepository,
   PostsRepository,
   ReactionsRepository,
   ReportsRepository,
@@ -93,6 +96,11 @@ export interface AccountExport {
   deals: Deal[];
   dealNotes: DealNote[];
   dealReviews: DealReview[];
+  /** Pages professionnelles de l'utilisateur, TOUS statuts (y compris
+   * masquées et soft-supprimées). Ajouté au Lot 3. */
+  pages: Page[];
+  /** Pages que l'utilisateur suit (référence minimale). Ajouté au Lot 3. */
+  followedPages: Array<{ id: string; name: string; urlSlug: string }>;
   comments: Comment[];
   reactions: Reaction[];
   follows: {
@@ -138,6 +146,8 @@ export class UsersService {
     private readonly listingsRepository: ListingsRepository,
     @Inject(DEALS_REPOSITORY)
     private readonly dealsRepository: DealsRepository,
+    @Inject(PAGES_REPOSITORY)
+    private readonly pagesRepository: PagesRepository,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -317,6 +327,22 @@ export class UsersService {
       limit: EXPORT_PAGE_LIMIT,
       offset: 0,
     });
+
+    // Pages (Lot 3) : MES pages TOUS statuts + les pages que je suis
+    // (référence minimale — le contenu des pages suivies appartient à leurs
+    // propriétaires, pas à l'exporté).
+    const pages = await this.pagesRepository.listByOwner(userId, {
+      statuses: ['active', 'hidden', 'deleted'],
+    });
+    const followedPageIds =
+      await this.pagesRepository.listFollowedPageIds(userId);
+    const followedPagesEntities =
+      await this.pagesRepository.findByIds(followedPageIds);
+    const followedPages = followedPagesEntities.map((page) => ({
+      id: page.id,
+      name: page.name,
+      urlSlug: page.urlSlug,
+    }));
     const dealNotes: DealNote[] = [];
     const dealReviews: DealReview[] = [];
     for (const deal of dealsPage.items) {
@@ -345,6 +371,8 @@ export class UsersService {
       deals: dealsPage.items,
       dealNotes,
       dealReviews,
+      pages,
+      followedPages,
       comments,
       reactions,
       follows: {

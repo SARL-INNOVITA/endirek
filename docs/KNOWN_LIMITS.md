@@ -237,6 +237,45 @@ messages). Limites restantes :
   activation et `moderation_level`, mais ne renomme pas un slug ni la famille
   d'une catégorie / la catégorie parente d'une sous-catégorie.
 
+## 2 septies. Limites des pages restaurants & entreprises (Lot 3)
+
+- **Changement de propriétaire de page non implémenté** : le « changement de
+  compte » du module Pages du PRD §13 (transfert d'une page à un autre
+  utilisateur) reste V2 — au Lot 3, une page appartient définitivement à son
+  créateur.
+- **Pas de réservation restaurant** : jamais au MVP (PRD §12, décision
+  produit ferme).
+- **Offres exceptionnelles = monétisation future** : seuls les types
+  « Offre du jour » et « Événement » sont livrés ; l'« offre
+  exceptionnelle » animée/payante du PRD relève du chantier monétisation.
+- **URL web publique des pages non rendue** : `url_slug` existe et est
+  servi (`GET /pages/slug/:slug`), mais le rendu web partageable/SEO est un
+  chantier transverse (comme pour les posts et annonces).
+- **Post de page = INSTANTANÉ** : publier un menu/une offre/un événement
+  compose le post à partir de l'entité AU MOMENT de la publication ;
+  modifier ensuite l'entité ne met pas le post à jour (republier si besoin).
+- **Menu/offre publiés après 23 h Réunion** : la fenêtre carte (jusqu'à
+  23 h le jour même — D73) est déjà close, le post reste feed-only
+  (comportement assumé).
+- **Pas de notification aux abonnés d'une page** lors d'une publication
+  (anti-flood — le feed, le bonus d'abonnement et la carte s'en chargent).
+- **Pas de marqueurs de PAGES sur la carte** : seules leurs PUBLICATIONS
+  (menu/offre/événement) y apparaissent. Les modes carte complets
+  « Offres & restos » (restaurants permanents, filtre « ouvert
+  maintenant ») et « Événements » du PRD §7 restent à construire.
+- **Horaires** : pas de plage à cheval sur minuit (ouverture < fermeture le
+  même jour) ; fuseau unique La Réunion (UTC+4 fixe) — pas de multi-fuseaux.
+- **Prix des menus = ceux des plats** : pas de prix spécifique par menu du
+  jour (le mockup n'en montre pas) ; modifier le prix d'un plat vaut pour
+  tous les menus qui l'affichent.
+- **Documents « Nos cartes »** : détacher un document supprime la ligne mais
+  ne purge pas le fichier uploadé (même limite que les autres uploads
+  orphelins — §2 ter). Les PDF du SEED pointent vers un PDF public de
+  démonstration (équivalent picsum), remplacés par de vrais uploads à
+  l'usage.
+- **Pas d'analytics pages** (menus publiés, cartes téléchargées,
+  itinéraires... — PRD §15) : chantier transverse analytics.
+
 ## 3. Pas de push réel
 
 `PUSH_DRIVER=mock` : aucune notification push n'est envoyée (pas de projet
@@ -288,8 +327,10 @@ des tests backoffice sur les actions critiques.
   limites restantes.
 - L'onglet Carte du mobile est **réel depuis l'étape 5** (mode « Météo &
   trafic » : posts géolocalisés + caméras actives, clustering, cartes de
-  preview). Les modes carte « Offres & restos » et « Événements » relèvent
-  des lots suivants — seul « Météo & trafic » est réel au Lot 1.
+  preview) et affiche depuis le Lot 3 les publications de page
+  (menu/offre/événement). Les modes carte complets « Offres & restos »
+  (restaurants permanents) et « Événements » du PRD §7 restent à venir
+  (voir §2 septies).
 - Email : driver `mock` tant que Brevo n'est pas fourni — et surtout, les
   flux de vérification d'email / reset de mot de passe ne sont **pas
   implémentés** au Lot 1 (voir §2 bis).

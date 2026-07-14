@@ -1,4 +1,4 @@
-# ENDIREK — Base de données (Lot 1 + Dealplace, Lot 2 complet)
+# ENDIREK — Base de données (Lots 1, 2 et 3)
 
 Documentation du schéma de données posé à **l'étape 2 du Lot 1**, étendu au
 fil du **Lot 2** (Dealplace : taxonomie + listings, profil, conversations,
@@ -466,6 +466,39 @@ d'avis **dérivés à la lecture** — rien de stocké.
 
 ---
 
+## 2 quinquies. Tables pages — Lot 3 (9 tables, migration 0009)
+
+Pages restaurants & entreprises (PRD §12, décisions D69-D77). La migration
+`0009_pages.sql` est REJOUABLE (IF NOT EXISTS, contraintes/triggers recréés,
+INSERT de référence en ON CONFLICT DO NOTHING).
+
+| Table | Rôle |
+|---|---|
+| `pages` | Identité professionnelle : owner_id (FK users), page_type CHECK ('restaurant','business'), name (2-80), url_slug UNIQUE, bio (≤500), avatar/cover, city + location (centre de commune), phone, attributes text[], vacation_until/vacation_message (congés — D70), verified (badge backoffice), status CHECK ('active','hidden','deleted'), deleted_at |
+| `page_hours` | Plages d'ouverture : weekday CHECK 0-6 (0=lundi), opens_minute/closes_minute (minutes locales Réunion, opens < closes), position — remplacées en bloc |
+| `page_documents` | « Nos cartes » (restaurant) : label (1-80), url (upload PDF — D77), file_size_bytes, position |
+| `dishes` | Plats prédéfinis (restaurant) : name (1-80), description (≤300), image_url, price_takeaway_cents/price_dinein_cents (CENTIMES, CHECK au moins un des deux), position, status CHECK ('active','deleted') |
+| `page_menus` | Menu du jour programmé par DATE : UNIQUE (page_id, menu_date date) |
+| `page_menu_items` | Plats ordonnés d'un menu : UNIQUE (menu_id, dish_id), ON DELETE CASCADE des deux côtés |
+| `page_offers` | Offres : title (1-120), description (≤1000), image_url, starts_at/ends_at (CHECK cohérence), status soft |
+| `page_events` | Événements : idem offres + starts_at NOT NULL |
+| `page_follows` | Abonnés : PK (page_id, user_id), compteur calculé à la lecture (D74) |
+
+Extensions posées par 0009 sur les tables existantes :
+- `posts.page_id` : la FK vers `pages` (anticipée SANS contrainte en 0001)
+  est ACTIVÉE + index ; nouvelle colonne `posts.map_visible_from`
+  (visibilité carte différée — J-3 des événements, D73) ;
+- `post_types.page_only` (boolean) + 3 lignes de référence `menu` /
+  `offer` / `event` (réservées aux pages, shows_on_map, durée NULL —
+  fenêtres calculées au service) ;
+- `conversations.listing_id` devient NULLABLE + `conversations.page_id`
+  (FK pages) avec CHECK « exactement une cible » et UNIQUE partiel
+  (page_id, initiator_id) — fils de page D75 ;
+- `reports.target_type` étendu à `'page'` (D76).
+
+Triggers `set_updated_at` sur `pages`, `dishes`, `page_menus`,
+`page_offers`, `page_events`.
+
 ## 3. Décisions de conception
 
 - **« reported » n'est PAS un statut de post.** `posts.status` ne contient que
@@ -673,20 +706,15 @@ Au démarrage, l'API loggue :
 ## 8. Tables FUTURES — documentées, PAS encore créées
 
 Aucune de ces tables n'existe dans les migrations : elles sont uniquement
-anticipées (ancrages dans `apps/api/src/modules/_future/` et
-[TODO_LOT_2.md](TODO_LOT_2.md)). **Toutes les tables du Lot 2 ont quitté
-cette liste** : Dealplace listings/taxonomie au CP2.1 (§2 bis),
-`conversations`/`messages` au CP2.3 (§2 ter), `deals`/`deal_items`/
-`deal_item_steps`/`deal_adjustments`/`deal_notes`/`deal_reviews` au CP2.4
-(§2 quater — les noms réels diffèrent des anticipations `deal_elements`/
-`deal_sub_items`/`reviews`).
+anticipées (ancrages dans `apps/api/src/modules/_future/`). **Toutes les
+tables des Lots 2 et 3 ont quitté cette liste** : Dealplace au CP2.1
+(§2 bis), `conversations`/`messages` au CP2.3 (§2 ter), deals au CP2.4
+(§2 quater), pages au Lot 3 (§2 quinquies — les noms réels diffèrent des
+anticipations `restaurant_menus` → `page_menus`/`page_menu_items`).
 
 | Table future | Rôle (une ligne) | Lot / CP |
 |---|---|---|
-| `pages` | Pages restaurants/entreprises possédées par des utilisateurs (cible de la future FK `posts.page_id`) | Lot 3 |
 | `news_sources` | Sources d'actualité locales à scraper pour le module News | Lot 4 (News IA) |
 | `news_events` | Événements d'actualité détectés/agrégés à partir des sources | Lot 4 (News IA) |
 | `generated_articles` | Articles rédigés par l'agent IA à partir des news_events | Lot 4 (News IA) |
-| `restaurant_menus` | Menus des pages restaurants | Lot 3 |
-| `dishes` | Plats composant les menus des restaurants | Lot 3 |
 | `billing` / premium | Abonnements premium, paiements (Stripe ou équivalent), publicité | Transverse (module `_future/billing`) |

@@ -1,8 +1,8 @@
 /**
- * Seed Lot 2 — CP2.3/CP2.5 : conversations 1-to-1 de démonstration.
+ * Seed Lot 2 — CP2.3/CP2.5 (+ Lot 3) : conversations 1-to-1 de démonstration.
  *
- * 3 conversations liées à des annonces du seed (9 messages au total),
- * pensées pour la démo :
+ * 4 conversations (11 messages au total) : 3 liées à des annonces du seed,
+ * 1 liée à une PAGE (Lot 3 — D75), pensées pour la démo :
  *
  * 1. Valérie (n°4) contacte Kévin (n°11) sur son « panier péi » (annonce
  *    n°4) — 4 messages ; le DERNIER (de Kévin) n'est PAS ENCORE LU par
@@ -13,6 +13,9 @@
  *    fil du deal seed n°3 EN LITIGE) — 3 messages dont le DERNIER est MASQUÉ
  *    par la modération (CP2.5, D67) : les participants voient « Message
  *    masqué par la modération. », le backoffice voit le corps réel.
+ * 4. Laurence (n°10) écrit à la PAGE restaurant « Bon Goût » (page n°1,
+ *    propriétaire David n°13) via le bouton « Message » — 2 messages, tout
+ *    est lu (Lot 3 — D75 : fil lié à une page, même mécanique de lecture).
  *
  * Reconstruits À CHAQUE appel (dates relatives minutesAgo recalculées,
  * objets neufs). `lastMessageAt` = date du dernier message de chaque fil
@@ -37,14 +40,17 @@ interface MessageSpec {
   status?: MessageStatus;
 }
 
-/** Spécification déclarative d'une conversation seed. */
+/** Spécification déclarative d'une conversation seed — exactement UNE cible
+ * parmi listingN / pageN (D75). */
 interface ConversationSpec {
   n: number;
-  /** Numéro d'annonce seed (listings.seed.ts). */
-  listingN: number;
-  /** Numéro d'utilisateur seed du demandeur (≠ propriétaire de l'annonce). */
+  /** Numéro d'annonce seed (listings.seed.ts) — absent si fil de page. */
+  listingN?: number;
+  /** Numéro de page seed (pages.seed.ts) — absent si fil d'annonce (Lot 3). */
+  pageN?: number;
+  /** Numéro d'utilisateur seed du demandeur (≠ propriétaire de la cible). */
   initiatorN: number;
-  /** Propriétaire de l'annonce (dénormalisé — DOIT égaler son ownerN). */
+  /** Propriétaire de la cible (dénormalisé — DOIT égaler son ownerN). */
   ownerN: number;
   /** Ancienneté de création en minutes (= premier message). */
   ageMinutes: number;
@@ -89,6 +95,17 @@ const CONVERSATION_SPECS: ConversationSpec[] = [
     ageMinutes: 5760,
     initiatorReadAgeMinutes: 2800,
     ownerReadAgeMinutes: 2800,
+  },
+  {
+    // Laurence → page « Bon Goût » (page n°1, propriétaire David n°13) —
+    // fil de PAGE (Lot 3, D75). Tout est lu des deux côtés.
+    n: 4,
+    pageN: 1,
+    initiatorN: 10,
+    ownerN: 13,
+    ageMinutes: 400,
+    initiatorReadAgeMinutes: 300,
+    ownerReadAgeMinutes: 300,
   },
 ];
 
@@ -180,11 +197,36 @@ const MESSAGE_SPECS: MessageSpec[] = [
     // placeholder, le backoffice voit ce corps réel.
     status: 'hidden',
   },
+  // Conversation 4 — Laurence ↔ page « Bon Goût » (Lot 3 — D75).
+  {
+    n: 10,
+    conversationN: 4,
+    senderN: 10,
+    body:
+      'Bonjour ! Proposez-vous des plats végétariens au menu cette '
+      + 'semaine ? Et peut-on réserver pour 6 personnes vendredi midi ?',
+    ageMinutes: 400,
+  },
+  {
+    n: 11,
+    conversationN: 4,
+    senderN: 13,
+    body:
+      'Bonjour Laurence ! Oui, le bowl végétarien est au menu presque tous '
+      + 'les jours. Pour vendredi midi 6 personnes, pas de souci — passez '
+      + 'vers 12 h, on vous garde la grande table.',
+    ageMinutes: 350,
+  },
 ];
 
-/** Les 3 conversations de démonstration — reconstruites à chaque appel. */
+/** Les 4 conversations de démonstration — reconstruites à chaque appel. */
 export function buildSeedConversations(): Conversation[] {
   return CONVERSATION_SPECS.map((spec) => {
+    if ((spec.listingN === undefined) === (spec.pageN === undefined)) {
+      throw new Error(
+        `Seed conversations : la conversation n°${spec.n} doit cibler une annonce OU une page (exactement une).`,
+      );
+    }
     const createdAt = minutesAgo(spec.ageMinutes);
     // Dernier message du fil = plus petit ageMinutes de ses messages.
     const lastAge = Math.min(
@@ -194,7 +236,9 @@ export function buildSeedConversations(): Conversation[] {
     );
     return {
       id: seedUuid('conversation', spec.n),
-      listingId: seedUuid('listing', spec.listingN),
+      listingId:
+        spec.listingN === undefined ? null : seedUuid('listing', spec.listingN),
+      pageId: spec.pageN === undefined ? null : seedUuid('page', spec.pageN),
       initiatorId: seedUuid('user', spec.initiatorN),
       ownerId: seedUuid('user', spec.ownerN),
       initiatorLastReadAt:
@@ -212,7 +256,7 @@ export function buildSeedConversations(): Conversation[] {
   });
 }
 
-/** Les 9 messages de démonstration — reconstruits à chaque appel. */
+/** Les 11 messages de démonstration — reconstruits à chaque appel. */
 export function buildSeedMessages(): Message[] {
   return MESSAGE_SPECS.map((spec) => ({
     id: seedUuid('message', spec.n),

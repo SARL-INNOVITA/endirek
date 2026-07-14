@@ -42,4 +42,22 @@ class MediaRepository {
       position: 0,
     );
   }
+
+  /// Téléverse un DOCUMENT PDF (POST /media/upload-document — Lot 3,
+  /// section « Nos cartes » des pages) et renvoie `{ url, fileSizeBytes }`,
+  /// prêts pour POST /pages/:id/documents.
+  Future<({String url, int fileSizeBytes})> uploaderDocument(
+    String chemin, {
+    required String nomFichier,
+  }) async {
+    final FormData corps = FormData.fromMap({
+      'file': await MultipartFile.fromFile(chemin, filename: nomFichier),
+    });
+    final reponse = await _api.post('/media/upload-document', data: corps);
+    final data = reponse.data as Map<String, dynamic>;
+    return (
+      url: data['url'] as String,
+      fileSizeBytes: (data['fileSizeBytes'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

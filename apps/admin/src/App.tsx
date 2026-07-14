@@ -30,6 +30,7 @@ import CamerasView from './CamerasView'
 import DealplaceView from './DealplaceView'
 import HealthCard from './HealthCard'
 import LoginView from './LoginView'
+import PagesView from './PagesView'
 import PostsView from './PostsView'
 import ReportsView from './ReportsView'
 import SettingsView from './SettingsView'
@@ -43,7 +44,14 @@ type Session =
   | { kind: 'authenticated'; admin: FullProfile }
 
 /** Onglets du backoffice connecté. */
-type Tab = 'users' | 'posts' | 'reports' | 'cameras' | 'dealplace' | 'settings'
+type Tab =
+  | 'users'
+  | 'posts'
+  | 'reports'
+  | 'cameras'
+  | 'dealplace'
+  | 'pages'
+  | 'settings'
 
 const TAB_LABELS: Record<Tab, string> = {
   users: 'Utilisateurs',
@@ -51,6 +59,7 @@ const TAB_LABELS: Record<Tab, string> = {
   reports: 'Signalements',
   cameras: 'Caméras',
   dealplace: 'Dealplace',
+  pages: 'Pages',
   settings: 'Paramètres',
 }
 
@@ -60,6 +69,7 @@ const TABS: Tab[] = [
   'reports',
   'cameras',
   'dealplace',
+  'pages',
   'settings',
 ]
 
@@ -149,7 +159,7 @@ export default function App() {
             <h1 className="app-title">ENDIREK</h1>
             <p className="app-subtitle">
               Backoffice · utilisateurs, publications, signalements, caméras,
-              Dealplace & paramètres
+              Dealplace, pages & paramètres
             </p>
           </div>
 
@@ -211,6 +221,7 @@ export default function App() {
         {session.kind === 'authenticated' && tab === 'dealplace' && (
           <DealplaceView />
         )}
+        {session.kind === 'authenticated' && tab === 'pages' && <PagesView />}
         {session.kind === 'authenticated' && tab === 'settings' && <SettingsView />}
       </main>
 

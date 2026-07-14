@@ -60,7 +60,7 @@ export type ReactionTargetType = 'post' | 'comment';
 
 /** Cible d'un signalement (association polymorphe, intégrité au niveau
  * service). 'listing' (annonce Dealplace) ajouté au CP2.5 — D65. */
-export type ReportTargetType = 'post' | 'comment' | 'user' | 'listing';
+export type ReportTargetType = 'post' | 'comment' | 'user' | 'listing' | 'page';
 
 /** Motifs de signalement documentés (TEXT côté SQL, codes pilotés côté app). */
 export type ReportReasonCode =
@@ -266,6 +266,9 @@ export interface PostType {
   showsOnMap: boolean;
   /** Durée de vie carte par défaut (minutes) — null pour les types feed-only. */
   defaultMapDurationMinutes: number | null;
+  /** Type réservé aux PAGES (Lot 3 — D73) : publiable uniquement via
+   * POST /pages/:id/posts, masqué du composer utilisateur. */
+  pageOnly: boolean;
   isActive: boolean;
   position: number;
   createdAt: Date;
@@ -290,8 +293,8 @@ export interface ReactionType {
 export interface Post {
   id: string;
   authorId: string;
-  /** Anticipation pages restaurants/entreprises (Lot 3) — AUCUNE FK côté SQL
-   * tant que la table `pages` n'existe pas ; toujours null au Lot 1. */
+  /** Post publié AU NOM d'une page (Lot 3 — D73, FK posée en 0009).
+   * null = post d'utilisateur ; authorId reste le compte qui a publié. */
   pageId: string | null;
   typeSlug: string;
   title: string | null;
@@ -304,6 +307,9 @@ export interface Post {
   urlSlug: string;
   /** Fin de visibilité carte — null si le post n'est pas/plus lié à la carte. */
   mapExpiresAt: Date | null;
+  /** Début de visibilité carte (Lot 3 — D73) : null = visible dès la
+   * création ; posé à J-3 pour les posts d'événement de page. */
+  mapVisibleFrom: Date | null;
   /** Dénormalisé — recalculé par le mock depuis `reactions`. */
   reactionCount: number;
   /** Dénormalisé — recalculé par le mock depuis `comments` (statut active). */
@@ -425,13 +431,17 @@ export interface Notification {
 // ────────────────────────────────────────────────────────────────────────────
 
 /** Table `conversations` — messagerie privée 1-to-1 LIÉE À UNE ANNONCE
- * (CP2.3, décision D63) : une conversation par (listing, initiateur).
- * `ownerId` = propriétaire de l'annonce (dénormalisé à la création).
- * Lecture par participant : un message est « non lu » s'il vient de l'AUTRE
- * participant et est postérieur à MON `*LastReadAt` (null = jamais lu). */
+ * (CP2.3, décision D63) OU À UNE PAGE (Lot 3, décision D75) : exactement UNE
+ * cible parmi `listingId` / `pageId` (CHECK SQL). Une conversation par
+ * (cible, initiateur). `ownerId` = propriétaire de la cible (dénormalisé à
+ * la création). Lecture par participant : un message est « non lu » s'il
+ * vient de l'AUTRE participant et est postérieur à MON `*LastReadAt`
+ * (null = jamais lu). */
 export interface Conversation {
   id: string;
-  listingId: string;
+  listingId: string | null;
+  /** Fil lié à une page (Lot 3 — D75, bouton « Message » de la page). */
+  pageId: string | null;
   initiatorId: string;
   ownerId: string;
   initiatorLastReadAt: Date | null;
@@ -608,5 +618,152 @@ export interface DealReview {
   ratingConformity: number;
   ratingKindness: number;
   comment: string | null;
+  createdAt: Date;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pages restaurants & entreprises (Lot 3 — D69-D76)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Type d'une page professionnelle (D69). */
+export type PageType = 'restaurant' | 'business';
+
+/** Statut d'une page — miroir des annonces (D57/D69) : hidden = masquée par
+ * la modération (404 public sauf propriétaire/modo), deleted = soft-delete
+ * propriétaire, jamais restaurée. */
+export type PageStatus = 'active' | 'hidden' | 'deleted';
+
+/** Statut d'un plat — suppression douce uniquement (D71). */
+export type DishStatus = 'active' | 'deleted';
+
+/** Statut d'une offre ou d'un événement de page — suppression douce (D72). */
+export type PageContentStatus = 'active' | 'deleted';
+
+/** Table `pages` — l'identité professionnelle (Lot 3 — D69).
+ * Une page appartient à UN utilisateur (plusieurs pages par compte). Le
+ * statut d'ouverture (ouvert/fermé/congés) est DÉRIVÉ à la lecture depuis
+ * `page_hours` + `vacationUntil` (heure Réunion UTC+4), jamais stocké (D70). */
+export interface Page {
+  id: string;
+  ownerId: string;
+  pageType: PageType;
+  name: string;
+  /** Identifiant public unique (URL web partageable) — immuable. */
+  urlSlug: string;
+  bio: string;
+  avatarUrl: string | null;
+  coverUrl: string | null;
+  /** Commune du référentiel La Réunion — l'adresse exacte n'est jamais
+   * stockée (location = centre de la commune, comme les annonces — D54). */
+  city: string;
+  location: GeoPoint | null;
+  phone: string | null;
+  /** Chips libres du mockup 08 (« Créole », « Sur place »...) — 5 max. */
+  attributes: string[];
+  /** En congés jusqu'à cette date (D70) — prioritaire sur les horaires. */
+  vacationUntil: Date | null;
+  vacationMessage: string | null;
+  /** Badge ✓ accordé au backoffice (validation légère a posteriori — D69). */
+  verified: boolean;
+  status: PageStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
+/** Table `page_hours` — plage d'ouverture hebdomadaire (D70).
+ * weekday : 0 = lundi ... 6 = dimanche. Minutes locales Réunion depuis
+ * minuit ; opensMinute < closesMinute (pas de plage à cheval sur minuit). */
+export interface PageHour {
+  id: string;
+  pageId: string;
+  weekday: number;
+  opensMinute: number;
+  closesMinute: number;
+  position: number;
+}
+
+/** Table `page_documents` — « Nos cartes » d'un restaurant (D71) : documents
+ * PDF uploadés via /media/upload-document. */
+export interface PageDocument {
+  id: string;
+  pageId: string;
+  label: string;
+  url: string;
+  fileSizeBytes: number;
+  position: number;
+  createdAt: Date;
+}
+
+/** Table `dishes` — plat prédéfini d'une page restaurant (D71).
+ * Prix en CENTIMES d'euro (12,50 € = 1250) ; au moins un des deux prix. */
+export interface Dish {
+  id: string;
+  pageId: string;
+  name: string;
+  description: string;
+  imageUrl: string | null;
+  priceTakeawayCents: number | null;
+  priceDineInCents: number | null;
+  position: number;
+  status: DishStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `page_menus` — menu du jour programmé PAR DATE (D71) :
+ * un menu par (page, date). */
+export interface PageMenu {
+  id: string;
+  pageId: string;
+  /** Date calendaire du menu au format 'YYYY-MM-DD' (colonne SQL `date`). */
+  menuDate: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `page_menu_items` — plats ordonnés d'un menu programmé (D71). */
+export interface PageMenuItem {
+  id: string;
+  menuId: string;
+  dishId: string;
+  position: number;
+}
+
+/** Table `page_offers` — offre mise en avant sur la page (D72).
+ * Période optionnelle ; `isCurrent` est dérivé à la lecture. */
+export interface PageOffer {
+  id: string;
+  pageId: string;
+  title: string;
+  description: string;
+  imageUrl: string | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  status: PageContentStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `page_events` — événement de la page (D72).
+ * Fin effective = endsAt ?? startsAt + 6 h (timing dérivé à la lecture). */
+export interface PageEvent {
+  id: string;
+  pageId: string;
+  title: string;
+  description: string;
+  imageUrl: string | null;
+  startsAt: Date;
+  endsAt: Date | null;
+  status: PageContentStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Table `page_follows` — abonnement d'un utilisateur à une page (D74).
+ * PK composite (pageId, userId) ; compteur d'abonnés calculé à la lecture. */
+export interface PageFollow {
+  pageId: string;
+  userId: string;
   createdAt: Date;
 }

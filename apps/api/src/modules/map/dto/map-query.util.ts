@@ -38,10 +38,18 @@ export function toStringList({ value }: TransformFnParams): string[] | undefined
  * filtré à vide par le service (branche défensive de loadMapPosts). Dans les
  * deux cas : mettre à jour cette liste EN MÊME TEMPS que showsOnMap.
  *
- * Au Lot 1 l'invariant est respecté (weather/traffic/danger = les trois seuls
- * post_types seed avec showsOnMap=true) ; aucun changement de comportement.
+ * Lot 3 : les trois types de posts de PAGE (menu/offer/event — D73,
+ * showsOnMap=true dans la migration 0009) rejoignent la liste, en respect de
+ * l'invariant ci-dessus.
  */
-export const MAP_POST_TYPES = ['weather', 'traffic', 'danger'] as const;
+export const MAP_POST_TYPES = [
+  'weather',
+  'traffic',
+  'danger',
+  'menu',
+  'offer',
+  'event',
+] as const;
 
 /** Catégories de caméra de la carte (onglets météo / trafic). */
 export const MAP_CAMERA_CATEGORIES = ['weather', 'traffic'] as const;

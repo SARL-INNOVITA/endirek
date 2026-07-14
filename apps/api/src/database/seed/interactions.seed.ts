@@ -323,12 +323,12 @@ export function buildSeedSavedPosts(): SavedPost[] {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Signalements — 3 ouverts (1 post, 1 commentaire, 1 annonce — CP2.5, D65),
-// 1 traité (le post masqué du seed posts), 1 rejeté. handled_by = la
-// modératrice (utilisateur n°2).
+// Signalements — 4 ouverts (1 post, 1 commentaire, 1 annonce — CP2.5/D65,
+// 1 page — Lot 3/D76), 1 traité (le post masqué du seed posts), 1 rejeté.
+// handled_by = la modératrice (utilisateur n°2).
 // ────────────────────────────────────────────────────────────────────────────
 
-/** 5 signalements de démonstration (3 open, 1 action_taken, 1 dismissed) —
+/** 6 signalements de démonstration (4 open, 1 action_taken, 1 dismissed) —
  * reconstruits à chaque appel (dates relatives recalculées, objets neufs). */
 export function buildSeedReports(): Report[] {
   return [
@@ -406,6 +406,24 @@ export function buildSeedReports(): Report[] {
       handledAt: null,
       resolutionNote: null,
       createdAt: minutesAgo(95),
+    },
+    // Ouvert, sur une PAGE (Lot 3 — D76) : la page entreprise « Ti Kaz
+    // Services » (page n°2), signalée par Marcel — la file « Pages » du
+    // backoffice a un cas au boot.
+    {
+      id: seedUuid('report', 6),
+      reporterId: seedUuid('user', 15),
+      targetType: 'page',
+      targetId: seedUuid('page', 2),
+      reasonCode: 'other',
+      message:
+        'Cette page se présente comme une entreprise enregistrée mais je ne '
+        + 'trouve aucune trace de la société — à vérifier.',
+      status: 'open',
+      handledBy: null,
+      handledAt: null,
+      resolutionNote: null,
+      createdAt: minutesAgo(60),
     },
   ];
 }

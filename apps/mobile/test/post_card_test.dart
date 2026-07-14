@@ -35,6 +35,7 @@ FeedPost postFactice() {
     commentCount: 3,
     shareCount: 0,
     saveCount: 1,
+    page: null,
     author: const PostAuthor(
       id: 'user-test-1',
       displayName: 'Maya Hoarau',

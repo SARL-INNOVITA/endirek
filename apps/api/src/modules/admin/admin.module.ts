@@ -3,12 +3,15 @@ import { CamerasModule } from '../cameras/cameras.module';
 import { DealplaceModule } from '../dealplace/dealplace.module';
 import { DealsModule } from '../deals/deals.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PagesModule } from '../pages/pages.module';
 import { PostsModule } from '../posts/posts.module';
 import { AdminCamerasController } from './admin-cameras.controller';
 import { AdminCommentsController } from './admin-comments.controller';
 import { AdminCommentsService } from './admin-comments.service';
 import { AdminConversationsController } from './admin-conversations.controller';
 import { AdminConversationsService } from './admin-conversations.service';
+import { AdminPagesController } from './admin-pages.controller';
+import { AdminPagesService } from './admin-pages.service';
 import { AdminDealplaceTaxonomyController } from './admin-dealplace-taxonomy.controller';
 import { AdminDealplaceTaxonomyService } from './admin-dealplace-taxonomy.service';
 import { AdminDealsController } from './admin-deals.controller';
@@ -66,6 +69,7 @@ import { AdminUsersService } from './admin-users.service';
     NotificationsModule,
     DealplaceModule,
     DealsModule,
+    PagesModule,
   ],
   controllers: [
     AdminUsersController,
@@ -79,6 +83,7 @@ import { AdminUsersService } from './admin-users.service';
     AdminDealplaceTaxonomyController,
     AdminDealsController,
     AdminConversationsController,
+    AdminPagesController,
   ],
   providers: [
     AdminUsersService,
@@ -90,6 +95,7 @@ import { AdminUsersService } from './admin-users.service';
     AdminListingsService,
     AdminDealplaceTaxonomyService,
     AdminConversationsService,
+    AdminPagesService,
   ],
 })
 export class AdminModule {}

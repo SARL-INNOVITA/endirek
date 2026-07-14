@@ -17,6 +17,10 @@ import type {
   ListingValueKind,
   MessageStatus,
   ModerationLevel,
+  PageEventTiming,
+  PageOpenStatus,
+  PageStatus,
+  PageType,
   PostStatus,
   PostType,
   ReportReasonCode,
@@ -180,6 +184,48 @@ export const MESSAGE_STATUS_LABELS: Record<MessageStatus, string> = {
   hidden: 'Masqué',
 }
 
+// ─── Pages restaurants & entreprises (Lot 3) ─────────────────────────────────
+
+/** Type de page professionnelle : restaurant / entreprise. */
+export const PAGE_TYPE_LABELS: Record<PageType, string> = {
+  restaurant: 'Restaurant',
+  business: 'Entreprise',
+}
+
+/** Statuts de page (miroir des annonces — au FÉMININ : une page). */
+export const PAGE_STATUS_LABELS: Record<PageStatus, string> = {
+  active: 'Active',
+  hidden: 'Masquée',
+  deleted: 'Supprimée',
+}
+
+const PAGE_STATUS_BADGE_CLASSES: Record<PageStatus, string> = {
+  active: 'badge badge--success',
+  hidden: 'badge badge--warning',
+  deleted: 'badge badge--neutral',
+}
+
+/** Libellés du statut d'ouverture dérivé (openStatus.state). */
+export const PAGE_OPEN_STATE_LABELS: Record<PageOpenStatus['state'], string> = {
+  open: 'Ouvert',
+  closed: 'Fermé',
+  vacation: 'En congés',
+}
+
+/** Vert (ouvert), gris (fermé), orange (en congés). */
+const PAGE_OPEN_STATE_BADGE_CLASSES: Record<PageOpenStatus['state'], string> = {
+  open: 'badge badge--success',
+  closed: 'badge badge--neutral',
+  vacation: 'badge badge--warning',
+}
+
+/** Position temporelle d'un événement de page. */
+export const PAGE_EVENT_TIMING_LABELS: Record<PageEventTiming, string> = {
+  upcoming: 'À venir',
+  ongoing: 'En cours',
+  past: 'Passé',
+}
+
 /**
  * Formate la valeur d'une annonce pour l'affichage : montant unique ('fixed')
  * ou fourchette ('range', valueMin–valueMax). La devise suit le montant.
@@ -280,6 +326,43 @@ export function DealStatusBadge({ status }: { status: DealStatus }) {
   return (
     <span className={DEAL_STATUS_BADGE_CLASSES[status]}>
       {DEAL_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+/** Badge de type de page (Restaurant / Entreprise) — Lot 3. */
+export function PageTypeBadge({ pageType }: { pageType: PageType }) {
+  return <span className="badge badge--info">{PAGE_TYPE_LABELS[pageType]}</span>
+}
+
+/** Badge de statut de page (Active / Masquée / Supprimée) — Lot 3. */
+export function PageStatusBadge({ status }: { status: PageStatus }) {
+  return (
+    <span className={PAGE_STATUS_BADGE_CLASSES[status]}>
+      {PAGE_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+/** Badge du statut d'ouverture dérivé (Ouvert / Fermé / En congés) — Lot 3. */
+export function PageOpenStateBadge({ state }: { state: PageOpenStatus['state'] }) {
+  return (
+    <span className={PAGE_OPEN_STATE_BADGE_CLASSES[state]}>
+      {PAGE_OPEN_STATE_LABELS[state]}
+    </span>
+  )
+}
+
+/** Coche bleue « page vérifiée » (✓ du mockup) — Lot 3. */
+export function VerifiedBadge() {
+  return (
+    <span
+      className="verified-badge"
+      role="img"
+      aria-label="Page vérifiée"
+      title="Page vérifiée"
+    >
+      ✓
     </span>
   )
 }

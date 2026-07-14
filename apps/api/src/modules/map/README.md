@@ -27,3 +27,12 @@ Périmètre Lot 1 — mode **Météo & trafic** réellement implémenté :
 Règles techniques : tuiles OSM (`MAP_TILE_URL`), clustering ou optimisation
 prévue si beaucoup de marqueurs ; l'adapter de géocodage formel
 (`GEOCODING_PROVIDER`) remplacera le helper commune-la-plus-proche.
+
+## Extension Lot 3 — publications de page sur la carte (D73)
+
+Les types `menu` / `offer` / `event` (réservés aux pages, `shows_on_map`)
+sortent sur la carte comme les alertes : `MAP_POST_TYPES` est étendu en
+conséquence (invariant documenté dans `dto/map-query.util.ts`). Les
+marqueurs respectent `posts.map_visible_from` (un événement n'apparaît
+qu'à J-3) et la page émettrice doit être `active` (page masquée = marqueurs
+retirés). `MapPostItem` expose `page` (PostPageRef) pour la preview.

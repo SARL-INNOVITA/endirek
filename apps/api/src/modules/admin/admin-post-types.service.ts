@@ -47,7 +47,11 @@ export class AdminPostTypesService {
     }
 
     const patch = this.normalizePatch(dto);
-    if (patch.showsOnMap === true && patch.requiresLocationForMap === undefined) {
+    if (
+      patch.showsOnMap === true &&
+      patch.requiresLocationForMap === undefined &&
+      !current.pageOnly
+    ) {
       patch.requiresLocationForMap = true;
     }
 
@@ -79,6 +83,13 @@ export class AdminPostTypesService {
       throw new BadRequestException('Le libelle du type est obligatoire');
     }
     if (!type.showsOnMap) {
+      return;
+    }
+    // Types de PAGE (Lot 3 — D73) : la fenêtre carte est calculée au SERVICE
+    // (23 h Réunion / J-3 → fin d'événement) et la localisation vient de la
+    // page — les règles location/durée des types utilisateur ne s'appliquent
+    // pas.
+    if (type.pageOnly) {
       return;
     }
     if (!MAP_CAPABLE_SLUGS.has(type.slug)) {

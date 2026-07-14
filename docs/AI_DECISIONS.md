@@ -3,7 +3,7 @@
 > Décisions déjà prises et validées. **Un agent IA ne doit PAS les rediscuter ni les contredire** sans accord explicite du product owner.
 > Ajouter ici toute nouvelle décision structurante prise en fin de checkpoint (avec la date).
 
-_Dernière mise à jour : correctif carte (contrainte de caméra) + Lot 2 — CP2.5 (modération avancée Dealplace) (2026-07-13)._
+_Dernière mise à jour : Lot 3 — pages restaurants & entreprises (D69-D77) (2026-07-14)._
 
 ---
 
@@ -302,3 +302,119 @@ _Dernière mise à jour : correctif carte (contrainte de caméra) + Lot 2 — CP
   non-régression : `apps/mobile/test/map_camera_constraint_test.dart`
   (reproduit le crash en portrait — échoue avec `contain`, passe avec
   `containCenter`). Complète D34/D35 (carte `flutter_map` + tuiles OSM).
+
+## Lot 3 — Pages restaurants & entreprises (2026-07-14)
+
+> Lot exécuté en UN PASSAGE (décision product owner — pas de checkpoints
+> intermédiaires). Spécification : PRD §12 (+ §5, §13, §18-19, Annexe A
+> pts 8-10 et 39-43) et mockup « 08 Page restaurant ». Migration `0009`,
+> 14ᵉ repository (`pages`), parité mock+postgres vérifiée par sondes
+> croisées (lectures ET écritures).
+
+- **D69.** **Modèle des pages.** Table `pages`, `page_type IN ('restaurant',
+  'business')`, PLUSIEURS pages par utilisateur (Annexe A pt 9). Création
+  IMMÉDIATEMENT `active` (« validation légère », Annexe A pt 10) ; le badge
+  `verified` (✓ du mockup) est accordé/retiré AU BACKOFFICE — c'est la
+  validation a posteriori. Statuts `active|hidden|deleted` miroir des
+  annonces (D57) : hidden → 404 public sauf propriétaire/modération ;
+  deleted = soft-delete propriétaire, jamais restauré (409 au backoffice).
+  Les POSTS d'une page non-active sont retirés du feed ET de la carte à la
+  lecture (les deux drivers). Identité : nom (2-80), bio (≤500),
+  avatar/couverture (upload Endirek), commune du référentiel (location =
+  centre de la commune — D54), téléphone (≤30), attributs libres (chips du
+  mockup, ≤5 × ≤30), `url_slug` unique immuable (généré). Le « changement
+  de propriétaire » du PRD §13 reste V2 (documenté KNOWN_LIMITS).
+- **D70.** **Horaires & statut d'ouverture DÉRIVÉ.** `page_hours` : 0..4
+  plages par jour (weekday 0=lundi..6=dimanche, MINUTES locales depuis
+  minuit, ouverture < fermeture — pas de plage à cheval sur minuit, pas de
+  chevauchement), remplacées EN BLOC par `PUT /pages/:id/hours`. Le statut
+  ouvert/fermé/congés du mockup est DÉRIVÉ À LA LECTURE (jamais stocké),
+  en heure de La Réunion (UTC+4 FIXE, sans DST — source unique
+  `common/time/reunion-time.ts`) : congés (`vacation_until` + message
+  optionnel ≤200, posés via PATCH page) prioritaires tant que la date n'est
+  pas passée, sinon `open` si une plage du jour couvre l'heure locale,
+  sinon `closed`. Lever les congés (date → null) efface implicitement le
+  message. Calcul PARTAGÉ au service (`computeOpenStatus`) : parité
+  garantie entre drivers.
+- **D71.** **Plats, menus par DATE, cartes PDF — restaurant UNIQUEMENT**
+  (400 sur une page entreprise, « pas de menus par défaut » du PRD).
+  `dishes` = bibliothèque de plats (nom, description ≤300, image upload,
+  prix en CENTIMES — `price_takeaway_cents`/`price_dinein_cents`, AU MOINS
+  un des deux : les euros entiers des annonces ne couvrent pas 12,50 €).
+  Suppression douce d'un plat = RETRAIT de tous les menus programmés qui le
+  référencent (transaction). `page_menus` UNIQUE (page, date calendaire) +
+  `page_menu_items` ordonnés (≤12) : `PUT /pages/:id/menus/:date` crée ou
+  REMPLACE la liste ([] = supprime le menu du jour) ;
+  `GET /pages/:id/menus?from=` sert 7 jours consécutifs (défaut :
+  aujourd'hui Réunion), jours sans menu inclus avec `items: []` (sélecteur
+  du mockup). `page_documents` (« Nos cartes », ≤5) : label + URL issue du
+  NOUVEL upload `POST /media/upload-document` (D77) + taille affichable.
+- **D72.** **Offres & événements — les DEUX types de page.** `page_offers`
+  (titre 1-120, description ≤1000, image opt., période opt. cohérente) et
+  `page_events` (idem + `starts_at` OBLIGATOIRE). Suppression douce. Dérivés
+  À LA LECTURE : `isCurrent` (offre), `timing` upcoming/ongoing/past
+  (événement — fin effective = `ends_at ?? starts_at + 6 h`). Le public voit
+  les offres NON EXPIRÉES et les événements À VENIR/EN COURS ; l'historique
+  complet (`?all=true`) est réservé au propriétaire et à la modération (403).
+- **D73.** **Les pages ÉMETTRICES de publications.** `posts.page_id` ACTIVÉ
+  (FK + index posés en 0009 — l'ancrage de 0001 devient réel) ; nouvelle
+  colonne `posts.map_visible_from` (nullable : la carte n'affiche le post
+  qu'à partir de cette date). `post_types.page_only` (bool, en table) + 3
+  types RÉSERVÉS AUX PAGES insérés en référence : `menu` (« Menu du jour »),
+  `offer` (« Offre du jour »), `event` (« Événement »), `shows_on_map=true`,
+  durée carte NULL (fenêtres calculées au SERVICE). Le composer utilisateur
+  les refuse (400) et `GET /posts/types` ne les sert pas ; `MAP_POST_TYPES`
+  (validation d'entrée carte) est étendu en conséquence. Publication PILOTÉE
+  PAR LES ENTITÉS via `POST /pages/:id/posts` (kind free|menu|offer|event) :
+  corps AUTO-COMPOSÉS (menu du jour du calendrier, offre, événement — le
+  post est un INSTANTANÉ, l'édition ultérieure de l'entité ne le met pas à
+  jour) ; `body` optionnel = intro. Fenêtres carte (PRD §6) : menu/offer →
+  23 h 00 locales Réunion le jour même (publié après 23 h : reste feed-only,
+  assumé) ; event → de J-3 (`map_visible_from`) à la fin effective.
+  location/city = ceux de la page ; publication libre = feed only (D8).
+  L'auteur (`author_id`) reste le compte propriétaire, mais FEED_POST et
+  MapPostItem exposent `page` (PostPageRef : nom/avatar/type/verified) et
+  les clients affichent l'IDENTITÉ DE PAGE. Les posts de page sont EXCLUS
+  des listes de posts de PROFIL utilisateur et de postsCount (ils vivent
+  sur `GET /pages/:id/posts`) mais restent dans le feed. Pas de notification
+  aux abonnés (anti-flood) ; event socket `map.updated` si visible carte.
+- **D74.** **Abonnés de page.** `page_follows` PK (page_id, user_id) ;
+  follow/unfollow idempotents, JAMAIS sa propre page (400) ;
+  `followersCount` calculé À LA LECTURE (abonnés au compte `active`
+  uniquement — miroir des compteurs follow) ; bonus feed
+  `FEED_WEIGHTS.followedPage = 20` pour les posts des pages suivies
+  (cumulable avec followedAuthor) ; pas de notification d'abonnement.
+- **D75.** **Conversations de page.** Le bouton « Message » du mockup ouvre
+  un fil (page, initiateur) : `conversations.listing_id` devient NULLABLE +
+  `page_id` nullable, CHECK exactement UNE cible, UNIQUE partiel (page_id,
+  initiator_id). Mécanique CP2.3 TRANSPOSÉE À L'IDENTIQUE : get-or-create
+  avec premier message obligatoire, jamais sur SA page (400), page non
+  visible → 404, `owner_id` = propriétaire de la page (dénormalisé),
+  non-lus/badge/event `message.created` inchangés. `POST /conversations`
+  accepte `{pageId}` XOR `{listingId}` (400 sinon) ; nouvelle route
+  `GET /conversations/page/:pageId`. La forme CONVERSATION expose `listing`
+  NULLABLE et `page` (référence légère, repli « Page supprimée »).
+- **D76.** **Signalement & modération des pages.** `reports.target_type`
+  étendu à `'page'` (0009 — pattern 0008/D65) ;
+  `POST /pages/:id/report` (mêmes règles : 404 invisible, 400 sa propre
+  page, 409 doublon y compris sous concurrence) ; file admin
+  `?targetType=page` avec extrait (nom, type, bio tronquée, statut).
+  Backoffice Pages (PRD §13) : `GET /admin/pages` (tous statuts, filtres
+  type/statut/vérifiée/flaggedOnly/recherche nom-commune-propriétaire,
+  `openReportsCount`), `GET /admin/pages/:id` (détail + compteurs de
+  contenus + historique offres/événements + signalements liés),
+  `PATCH .../status` (active|hidden — mêmes 400/409 que les annonces ;
+  masquer retire aussi les publications de la page du feed/carte),
+  `PATCH .../verified` (badge ✓). Les types page_only échappent aux règles
+  de cohérence carte du backoffice types de posts (fenêtres au service).
+- **D77.** **Upload de documents PDF.** `POST /media/upload-document`
+  (champ multipart « file ») : PDF UNIQUEMENT, validé par MAGIC BYTES
+  (`%PDF-`) — jamais par le mimetype déclaré ni le nom de fichier (miroir
+  de la philosophie sharp des images) ; même limite de taille
+  (MEDIA_MAX_FILE_SIZE_MB) ; stockage TEL QUEL par l'adapter existant
+  (nom aléatoire, extension pdf) ; réponse `{ url, fileSizeBytes,
+  mediaType: 'document' }`. Les URLs de `page_documents` (et les images de
+  plats/offres/événements/avatars de page) doivent provenir de l'upload
+  Endirek `/uploads/` (garde service miroir des posts — D16). Les PDF du
+  seed pointent vers un PDF public de démonstration (équivalent picsum),
+  remplacé par de vrais uploads à l'usage.

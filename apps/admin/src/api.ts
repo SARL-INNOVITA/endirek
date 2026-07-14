@@ -134,6 +134,9 @@ export interface PostType {
   requiresLocationForMap: boolean
   showsOnMap: boolean
   defaultMapDurationMinutes: number | null
+  /** Type réservé aux PAGES (Lot 3 — menu/offer/event) : publiable uniquement
+   * via POST /pages/:id/posts, absent du composer utilisateur. */
+  pageOnly: boolean
   isActive: boolean
   position: number
   createdAt?: string
@@ -172,7 +175,7 @@ export type ReportStatus = 'open' | 'reviewed' | 'action_taken' | 'dismissed'
 /** Décisions posables au traitement (le retour à 'open' n'existe pas). */
 export type ReportDecision = 'reviewed' | 'action_taken' | 'dismissed'
 
-export type ReportTargetType = 'post' | 'comment' | 'user' | 'listing'
+export type ReportTargetType = 'post' | 'comment' | 'user' | 'listing' | 'page'
 
 /** Signalement lié affiché dans le détail backoffice d'une publication. */
 export interface AdminPostReport {
@@ -217,6 +220,17 @@ export interface ReportListingTarget {
   urlSlug: string
 }
 
+/** Extrait d'une PAGE professionnelle signalée (Lot 3 — bio déjà tronquée
+ * à 140 par l'API). */
+export interface ReportPageTarget {
+  id: string
+  name: string
+  pageType: PageType
+  body: string
+  status: PageStatus
+  urlSlug: string
+}
+
 export type CommentStatus = 'active' | 'hidden' | 'deleted'
 
 export interface AdminCommentView {
@@ -235,8 +249,8 @@ export interface AdminCommentView {
 /**
  * Signalement de la file de modération. `target` se discrimine par
  * `targetType` ('post' → ReportPostTarget, 'comment' → ReportCommentTarget,
- * 'listing' → ReportListingTarget, CP2.5) ; null si la cible est introuvable
- * ou de type 'user' (Lot 2+).
+ * 'listing' → ReportListingTarget, CP2.5, 'page' → ReportPageTarget, Lot 3) ;
+ * null si la cible est introuvable ou de type 'user' (Lot 2+).
  */
 export interface AdminReport {
   id: string
@@ -250,7 +264,12 @@ export interface AdminReport {
   handledAt: string | null
   resolutionNote: string | null
   reporter: PostAuthor
-  target: ReportPostTarget | ReportCommentTarget | ReportListingTarget | null
+  target:
+    | ReportPostTarget
+    | ReportCommentTarget
+    | ReportListingTarget
+    | ReportPageTarget
+    | null
 }
 
 /** Page de la liste backoffice des publications (GET /admin/posts). */
@@ -1326,10 +1345,14 @@ export interface AdminMessage {
   createdAt: string
 }
 
-/** Carte CONVERSATION du backoffice — les DEUX participants nommés. */
+/** Carte CONVERSATION du backoffice — les DEUX participants nommés.
+ * Depuis le Lot 3, exactement UNE cible non nulle : `listing` (fil
+ * d'annonce Dealplace) ou `page` (fil de page professionnelle). */
 export interface AdminConversationCard {
   id: string
-  listing: DealListingRef
+  listing: DealListingRef | null
+  /** Page liée (Lot 3) — null pour un fil d'annonce. */
+  page: AdminConversationPageRef | null
   initiator: PostAuthor
   owner: PostAuthor
   lastMessage: AdminMessage | null
@@ -1440,5 +1463,240 @@ export function adminSetMessageStatus(
   return request<AdminMessage>(
     `/admin/dealplace/messages/${encodeURIComponent(id)}/status`,
     { method: 'PATCH', body: { status } },
+  )
+}
+
+// ─── Types du contrat d'API (Lot 3 — pages restaurants & entreprises) ────────
+
+/** Type d'une page professionnelle : restaurant ou entreprise. */
+export type PageType = 'restaurant' | 'business'
+
+/** Cycle de vie d'une page — miroir des annonces : hidden = masquée par la
+ * modération, deleted = soft-delete propriétaire, jamais restaurée. */
+export type PageStatus = 'active' | 'hidden' | 'deleted'
+
+/** Statuts posables par le backoffice ('deleted' réservé au propriétaire/RGPD). */
+export type AdminSettablePageStatus = 'active' | 'hidden'
+
+/** Statut d'ouverture DÉRIVÉ d'une page (jamais stocké) : congés
+ * prioritaires, sinon plages horaires du jour local Réunion. */
+export interface PageOpenStatus {
+  state: 'open' | 'closed' | 'vacation'
+  /** Fin des congés — non nulle seulement quand state = 'vacation'. */
+  vacationUntil: string | null
+  /** Message de congés optionnel du propriétaire. */
+  vacationMessage: string | null
+}
+
+/** Plage horaire d'une page — heures locales Réunion 'HH:MM'. */
+export interface PageHourView {
+  /** 0 = lundi … 6 = dimanche. */
+  weekday: number
+  opensAt: string
+  closesAt: string
+}
+
+/** Document « Nos cartes » d'une page (PDF). */
+export interface PageDocumentView {
+  id: string
+  label: string
+  url: string
+  fileSizeBytes: number
+  position: number
+  createdAt: string
+}
+
+/** Offre d'une page — isCurrent dérivé à la lecture (période absente =
+ * offre permanente). */
+export interface PageOfferView {
+  id: string
+  title: string
+  description: string
+  imageUrl: string | null
+  startsAt: string | null
+  endsAt: string | null
+  isCurrent: boolean
+  createdAt: string
+}
+
+/** Position temporelle d'un événement à l'instant de la lecture. */
+export type PageEventTiming = 'upcoming' | 'ongoing' | 'past'
+
+/** Événement d'une page — timing dérivé à la lecture. */
+export interface PageEventView {
+  id: string
+  title: string
+  description: string
+  imageUrl: string | null
+  startsAt: string
+  endsAt: string | null
+  timing: PageEventTiming
+  createdAt: string
+}
+
+/** Carte PAGE du backoffice (GET /admin/pages) : PAGE_CARD + statut +
+ * propriétaire nommé + compteur de signalements ouverts (pattern annonces). */
+export interface AdminPageCard {
+  id: string
+  pageType: PageType
+  name: string
+  urlSlug: string
+  avatarUrl: string | null
+  city: string
+  verified: boolean
+  followersCount: number
+  openStatus: PageOpenStatus
+  createdAt: string
+  status: PageStatus
+  owner: PostAuthor
+  /** Nombre de signalements OUVERTS sur la page. */
+  openReportsCount: number
+}
+
+/** Signalement lié affiché dans le détail backoffice d'une page (même forme
+ * que AdminListingReport côté annonces). */
+export interface AdminPageReport {
+  id: string
+  reasonCode: ReportReasonCode
+  message: string
+  status: ReportStatus
+  createdAt: string
+  reporter: PostAuthor
+}
+
+/** Détail backoffice d'une page (GET /admin/pages/:id) : forme PAGE
+ * complète + compteurs de contenus + offres/événements + signalements liés. */
+export interface AdminPageDetail {
+  id: string
+  pageType: PageType
+  name: string
+  urlSlug: string
+  avatarUrl: string | null
+  city: string
+  verified: boolean
+  followersCount: number
+  openStatus: PageOpenStatus
+  createdAt: string
+  coverUrl: string | null
+  bio: string
+  phone: string | null
+  attributes: string[]
+  location: { lat: number; lng: number } | null
+  /** Plages triées weekday puis heure d'ouverture. */
+  hours: PageHourView[]
+  /** Documents « Nos cartes » triés par position. */
+  documents: PageDocumentView[]
+  owner: PostAuthor
+  /** Publications 'active' de la page — calculé à la lecture. */
+  postsCount: number
+  status: PageStatus
+  /** Sans objet au backoffice (assemblé pour un viewer neutre : false). */
+  isOwner: boolean
+  /** Sans objet au backoffice (assemblé pour un viewer neutre : false). */
+  myFollow: boolean
+  updatedAt: string
+  /** Nombre de signalements OUVERTS sur la page. */
+  openReportsCount: number
+  /** Compteurs de contenus de la page. */
+  counts: {
+    dishes: number
+    documents: number
+    menus: number
+    offers: number
+    events: number
+  }
+  /** Tout l'historique actif des offres (permanentes et datées). */
+  offers: PageOfferView[]
+  /** Tout l'historique actif des événements. */
+  events: PageEventView[]
+  /** Signalements liés, antéchronologiques. */
+  reports: AdminPageReport[]
+}
+
+/** Page de la liste backoffice des pages (GET /admin/pages). */
+export interface PagedAdminPages {
+  items: AdminPageCard[]
+  total: number
+}
+
+/** Paramètres de GET /admin/pages — mêmes noms que la query string. */
+export interface AdminListPagesParams {
+  pageType?: PageType
+  status?: PageStatus
+  /** true = pages vérifiées seulement, false = non vérifiées. */
+  verified?: boolean
+  /** true = seulement les pages avec au moins un signalement OUVERT. */
+  flaggedOnly?: boolean
+  search?: string
+  limit: number
+  offset: number
+}
+
+/** Référence légère de la page d'une conversation (Lot 3). */
+export interface AdminConversationPageRef {
+  id: string
+  name: string
+  pageType: PageType
+  status: PageStatus
+}
+
+// ─── Administration des pages restaurants & entreprises (Lot 3) ──────────────
+
+/**
+ * GET /admin/pages?pageType=&status=&verified=&flaggedOnly=&search=&limit=&offset=
+ * — cartes ADMIN_PAGE_CARD, TOUS statuts confondus (active, hidden, deleted).
+ */
+export function adminListPages(
+  params: AdminListPagesParams,
+  signal?: AbortSignal,
+): Promise<PagedAdminPages> {
+  const query = new URLSearchParams()
+  if (params.pageType) query.set('pageType', params.pageType)
+  if (params.status) query.set('status', params.status)
+  if (params.verified !== undefined) {
+    query.set('verified', String(params.verified))
+  }
+  if (params.flaggedOnly !== undefined) {
+    query.set('flaggedOnly', String(params.flaggedOnly))
+  }
+  if (params.search) query.set('search', params.search)
+  query.set('limit', String(params.limit))
+  query.set('offset', String(params.offset))
+  return request<PagedAdminPages>(`/admin/pages?${query.toString()}`, { signal })
+}
+
+/** GET /admin/pages/:id — détail ADMIN_PAGE complet quel que soit le statut
+ * (404 si l'identifiant n'existe pas). */
+export function adminGetPage(
+  id: string,
+  signal?: AbortSignal,
+): Promise<AdminPageDetail> {
+  return request<AdminPageDetail>(`/admin/pages/${encodeURIComponent(id)}`, {
+    signal,
+  })
+}
+
+/** PATCH /admin/pages/:id/status — masquer ('hidden' : la page ET ses
+ * publications disparaissent du feed/carte) ou republier ('active').
+ * 'deleted' refusé (400) ; page supprimée → 409. */
+export function adminSetPageStatus(
+  id: string,
+  status: AdminSettablePageStatus,
+): Promise<AdminPageDetail> {
+  return request<AdminPageDetail>(
+    `/admin/pages/${encodeURIComponent(id)}/status`,
+    { method: 'PATCH', body: { status } },
+  )
+}
+
+/** PATCH /admin/pages/:id/verified — accorde ou retire le badge vérifié
+ * (idempotent) ; page supprimée → 409. */
+export function adminSetPageVerified(
+  id: string,
+  verified: boolean,
+): Promise<AdminPageDetail> {
+  return request<AdminPageDetail>(
+    `/admin/pages/${encodeURIComponent(id)}/verified`,
+    { method: 'PATCH', body: { verified } },
   )
 }

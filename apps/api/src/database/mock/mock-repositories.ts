@@ -34,6 +34,7 @@ import {
   DealItemStep,
   DealNote,
   DealReview,
+  Dish,
   Listing,
   ListingCategory,
   ListingMedia,
@@ -43,6 +44,15 @@ import {
   Message,
   MessageStatus,
   Notification,
+  Page,
+  PageContentStatus,
+  PageDocument,
+  PageEvent,
+  PageHour,
+  PageMenu,
+  PageMenuItem,
+  PageOffer,
+  PageStatus,
   Post,
   PostMedia,
   PostStatus,
@@ -60,6 +70,7 @@ import {
   AdminListConversationsParams,
   AdminListDealsParams,
   AdminListListingsParams,
+  AdminListPagesParams,
   AdminListPostsParams,
   CamerasRepository,
   CommentsRepository,
@@ -71,12 +82,17 @@ import {
   CreateDealInput,
   CreateDealItemSpec,
   CreateDealReviewInput,
+  CreateDishInput,
   CreateListingCategoryInput,
   CreateListingInput,
   CreateListingSubcategoryInput,
   CreateListingTagInput,
   CreateMessageInput,
   CreateNotificationInput,
+  CreatePageDocumentInput,
+  CreatePageEventInput,
+  CreatePageInput,
+  CreatePageOfferInput,
   CreatePostInput,
   CreateReportInput,
   CreateUserInput,
@@ -91,12 +107,16 @@ import {
   ListingTaxonomyRepository,
   ListMapMarkersParams,
   ListOwnerListingsParams,
+  ListOwnerPagesParams,
   ListPublicListingsParams,
   ListReportsParams,
   ListUsersParams,
   NotificationsRepository,
   PagedResult,
+  PageHourSpec,
+  PageMenuWithDishes,
   PageParams,
+  PagesRepository,
   PostsRepository,
   PostTypesRepository,
   ReactionsRepository,
@@ -105,10 +125,14 @@ import {
   UpdateCameraPatch,
   UpdateDealItemPatch,
   UpdateDealPatch,
+  UpdateDishPatch,
   UpdateListingCategoryPatch,
   UpdateListingPatch,
   UpdateListingSubcategoryPatch,
   UpdateListingTagPatch,
+  UpdatePageEventPatch,
+  UpdatePageOfferPatch,
+  UpdatePagePatch,
   UpdatePostPatch,
   UpdatePostTypePatch,
   UpdateUserPatch,
@@ -486,11 +510,14 @@ export class MockPostsRepository implements PostsRepository {
         `url_slug déjà utilisé : « ${input.urlSlug} » (contrainte UNIQUE).`,
       );
     }
+    if (input.pageId != null && !this.db.pages.has(input.pageId)) {
+      throw new Error(`Page introuvable : ${input.pageId} (FK pages).`);
+    }
     const now = new Date();
     const post: Post = {
       id: randomUUID(),
       authorId: input.authorId,
-      pageId: null, // Toujours null au Lot 1 (pages = Lot 3).
+      pageId: input.pageId ?? null, // Post publié au nom d'une page (Lot 3 — D73).
       typeSlug: input.typeSlug,
       title: input.title ?? null,
       body: input.body,
@@ -500,6 +527,7 @@ export class MockPostsRepository implements PostsRepository {
       status: 'active',
       urlSlug: input.urlSlug,
       mapExpiresAt: input.mapExpiresAt ?? null,
+      mapVisibleFrom: input.mapVisibleFrom ?? null,
       reactionCount: 0,
       commentCount: 0,
       shareCount: 0,
@@ -548,9 +576,24 @@ export class MockPostsRepository implements PostsRepository {
   }
 
   countByAuthor(authorId: string): Promise<number> {
+    // Les posts de PAGE sont exclus du compteur de profil (Lot 3 — D73).
     let count = 0;
     for (const post of this.db.posts.values()) {
-      if (post.authorId === authorId && post.status === 'active') {
+      if (
+        post.authorId === authorId &&
+        post.pageId === null &&
+        post.status === 'active'
+      ) {
+        count++;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
+  countByPage(pageId: string): Promise<number> {
+    let count = 0;
+    for (const post of this.db.posts.values()) {
+      if (post.pageId === pageId && post.status === 'active') {
         count++;
       }
     }
@@ -572,10 +615,35 @@ export class MockPostsRepository implements PostsRepository {
     authorId: string,
     params: ListAuthorPostsParams,
   ): Promise<PagedResult<Post>> {
+    // Les posts de PAGE sont exclus des listes de profil (Lot 3 — D73) :
+    // ils vivent sur GET /pages/:id/posts.
     const statuses = new Set(params.statuses);
     const items = [...this.db.posts.values()]
-      .filter((p) => p.authorId === authorId && statuses.has(p.status))
+      .filter(
+        (p) =>
+          p.authorId === authorId &&
+          p.pageId === null &&
+          statuses.has(p.status),
+      )
       .sort(byCreatedAtDesc);
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((p) => clone(p)),
+      total: items.length,
+    });
+  }
+
+  listByPagePaged(
+    pageId: string,
+    params: ListAuthorPostsParams,
+  ): Promise<PagedResult<Post>> {
+    // Publications d'une PAGE (Lot 3 — D73) — même sémantique que
+    // listByAuthorPaged (statuts filtrés, antéchronologique, tie-break id).
+    const statuses = new Set(params.statuses);
+    const items = [...this.db.posts.values()]
+      .filter((p) => p.pageId === pageId && statuses.has(p.status))
+      .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
     return Promise.resolve({
       items: items
         .slice(params.offset, params.offset + params.limit)
@@ -607,13 +675,24 @@ export class MockPostsRepository implements PostsRepository {
   listActiveWindow(limit: number): Promise<Post[]> {
     // Fenêtre du scoring du feed : les N posts 'active' les plus récents,
     // tie-break sur l'id pour un ordre STABLE entre deux appels (le driver
-    // postgres fera ORDER BY created_at DESC, id LIMIT n).
+    // postgres fera ORDER BY created_at DESC, id LIMIT n). Les posts d'une
+    // page NON ACTIVE sont exclus (Lot 3 — D69 : page masquée = contenus
+    // retirés du flux).
     const items = [...this.db.posts.values()]
-      .filter((p) => p.status === 'active')
+      .filter((p) => p.status === 'active' && this.isPageVisible(p))
       .sort(
         (a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id),
       );
     return Promise.resolve(items.slice(0, limit).map((p) => clone(p)));
+  }
+
+  /** Vrai si le post n'est pas un post de page OU si sa page est 'active'
+   * (feed/carte — Lot 3, D69). */
+  private isPageVisible(post: Post): boolean {
+    if (post.pageId === null) {
+      return true;
+    }
+    return this.db.pages.get(post.pageId)?.status === 'active';
   }
 
   listMediaByPostIds(postIds: string[]): Promise<PostMedia[]> {
@@ -687,6 +766,15 @@ export class MockPostsRepository implements PostsRepository {
       // Un post sans mapExpiresAt (ou expiré) n'apparaît plus sur la carte —
       // il reste néanmoins dans le feed (règle métier documentée).
       if (p.mapExpiresAt === null || p.mapExpiresAt.getTime() <= nowMs) {
+        return false;
+      }
+      // Visibilité différée (Lot 3 — D73) : un post d'événement n'apparaît
+      // sur la carte qu'à partir de mapVisibleFrom (J-3).
+      if (p.mapVisibleFrom !== null && p.mapVisibleFrom.getTime() > nowMs) {
+        return false;
+      }
+      // Page masquée/supprimée = contenus retirés de la carte (Lot 3 — D69).
+      if (!this.isPageVisible(p)) {
         return false;
       }
       if (categories && !categories.has(p.typeSlug)) {
@@ -2016,14 +2104,39 @@ export class MockConversationsRepository implements ConversationsRepository {
     return Promise.resolve(null);
   }
 
+  findByPageAndInitiator(
+    pageId: string,
+    initiatorId: string,
+  ): Promise<Conversation | null> {
+    // Miroir de findByListingAndInitiator pour les fils de PAGE (Lot 3 — D75).
+    for (const conversation of this.db.conversations.values()) {
+      if (
+        conversation.pageId === pageId &&
+        conversation.initiatorId === initiatorId
+      ) {
+        return Promise.resolve(clone(conversation));
+      }
+    }
+    return Promise.resolve(null);
+  }
+
   async create(input: CreateConversationInput): Promise<Conversation> {
     // Contraintes structurelles (miroir du SCHÉMA — les règles métier vivent
-    // au service) : FK annonce/participants, participants distincts (CHECK),
-    // unicité (listing, initiateur).
-    if (!this.db.listings.has(input.listingId)) {
+    // au service) : exactement UNE cible annonce/page (CHECK — D75), FK
+    // cible/participants, participants distincts (CHECK), unicité
+    // (cible, initiateur).
+    const listingId = input.listingId ?? null;
+    const pageId = input.pageId ?? null;
+    if ((listingId === null) === (pageId === null)) {
       throw new Error(
-        `Annonce introuvable : ${input.listingId} (FK listings).`,
+        'Une conversation exige exactement une cible : annonce OU page (CHECK).',
       );
+    }
+    if (listingId !== null && !this.db.listings.has(listingId)) {
+      throw new Error(`Annonce introuvable : ${listingId} (FK listings).`);
+    }
+    if (pageId !== null && !this.db.pages.has(pageId)) {
+      throw new Error(`Page introuvable : ${pageId} (FK pages).`);
     }
     if (!this.db.users.has(input.initiatorId)) {
       throw new Error(`Utilisateur introuvable : ${input.initiatorId}.`);
@@ -2037,16 +2150,26 @@ export class MockConversationsRepository implements ConversationsRepository {
       );
     }
     if (
-      await this.findByListingAndInitiator(input.listingId, input.initiatorId)
+      listingId !== null &&
+      (await this.findByListingAndInitiator(listingId, input.initiatorId))
     ) {
       throw new Error(
         'Conversation déjà existante pour cette annonce et ce demandeur (contrainte UNIQUE).',
       );
     }
+    if (
+      pageId !== null &&
+      (await this.findByPageAndInitiator(pageId, input.initiatorId))
+    ) {
+      throw new Error(
+        'Conversation déjà existante pour cette page et ce demandeur (contrainte UNIQUE).',
+      );
+    }
     const now = new Date();
     const conversation: Conversation = {
       id: randomUUID(),
-      listingId: input.listingId,
+      listingId,
+      pageId,
       initiatorId: input.initiatorId,
       ownerId: input.ownerId,
       initiatorLastReadAt: null,
@@ -2214,18 +2337,23 @@ export class MockConversationsRepository implements ConversationsRepository {
   ): Promise<PagedResult<Conversation>> {
     // TOUTES les conversations, même tri par ACTIVITÉ que listByParticipant
     // (lastMessageAt ?? createdAt DESC, tie-break id). Recherche insensible à
-    // la casse sur le nom affiché d'un participant ou le titre de l'annonce.
+    // la casse sur le nom affiché d'un participant, le titre de l'annonce ou
+    // le nom de la page liée (Lot 3 — D75).
     let items = [...this.db.conversations.values()];
     if (params.search !== undefined && params.search.trim() !== '') {
       const needle = params.search.trim().toLowerCase();
       items = items.filter((c) => {
         const initiator = this.db.users.get(c.initiatorId);
         const owner = this.db.users.get(c.ownerId);
-        const listing = this.db.listings.get(c.listingId);
+        const listing =
+          c.listingId !== null ? this.db.listings.get(c.listingId) : undefined;
+        const page =
+          c.pageId !== null ? this.db.pages.get(c.pageId) : undefined;
         return (
           (initiator?.displayName ?? '').toLowerCase().includes(needle) ||
           (owner?.displayName ?? '').toLowerCase().includes(needle) ||
-          (listing?.title ?? '').toLowerCase().includes(needle)
+          (listing?.title ?? '').toLowerCase().includes(needle) ||
+          (page?.name ?? '').toLowerCase().includes(needle)
         );
       });
     }
@@ -2853,5 +2981,714 @@ export class MockDealsRepository implements DealsRepository {
       this.db.dealItemSteps.set(step.id, step);
     });
     return item;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pages restaurants & entreprises (Lot 3 — D69-D76)
+// ────────────────────────────────────────────────────────────────────────────
+
+@Injectable()
+export class MockPagesRepository implements PagesRepository {
+  constructor(private readonly db: MockDatabaseService) {}
+
+  // ── Pages ──────────────────────────────────────────────────────────────────
+
+  findById(id: string): Promise<Page | null> {
+    return Promise.resolve(clone(this.db.pages.get(id) ?? null));
+  }
+
+  findByIds(ids: string[]): Promise<Page[]> {
+    // Lecture PAR LOT (posts de page d'un feed — évite les N+1) : ids
+    // inconnus ignorés, ordre non garanti (comme un WHERE id = ANY($1)).
+    const wanted = new Set(ids);
+    return Promise.resolve(
+      [...this.db.pages.values()]
+        .filter((p) => wanted.has(p.id))
+        .map((p) => clone(p)),
+    );
+  }
+
+  findByUrlSlug(urlSlug: string): Promise<Page | null> {
+    for (const page of this.db.pages.values()) {
+      if (page.urlSlug === urlSlug) {
+        return Promise.resolve(clone(page));
+      }
+    }
+    return Promise.resolve(null);
+  }
+
+  async create(input: CreatePageInput): Promise<Page> {
+    if (!this.db.users.has(input.ownerId)) {
+      throw new Error(`Propriétaire introuvable : ${input.ownerId}.`);
+    }
+    if (await this.findByUrlSlug(input.urlSlug)) {
+      throw new Error(
+        `url_slug déjà utilisé : « ${input.urlSlug} » (contrainte UNIQUE).`,
+      );
+    }
+    const now = new Date();
+    const page: Page = {
+      id: randomUUID(),
+      ownerId: input.ownerId,
+      pageType: input.pageType,
+      name: input.name,
+      urlSlug: input.urlSlug,
+      bio: input.bio ?? '',
+      avatarUrl: input.avatarUrl ?? null,
+      coverUrl: input.coverUrl ?? null,
+      city: input.city,
+      location: input.location ?? null,
+      phone: input.phone ?? null,
+      attributes: [...(input.attributes ?? [])],
+      vacationUntil: null,
+      vacationMessage: null,
+      verified: false,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    };
+    this.db.pages.set(page.id, page);
+    return clone(page);
+  }
+
+  update(id: string, patch: UpdatePagePatch): Promise<Page> {
+    const page = this.db.pages.get(id);
+    if (!page) {
+      throw new Error(`Page introuvable : ${id}.`);
+    }
+    applyPatch(page, patch);
+    if (patch.attributes !== undefined) {
+      page.attributes = [...patch.attributes];
+    }
+    this.db.touch(page);
+    return Promise.resolve(clone(page));
+  }
+
+  setStatus(id: string, status: PageStatus): Promise<Page> {
+    const page = this.db.pages.get(id);
+    if (!page) {
+      throw new Error(`Page introuvable : ${id}.`);
+    }
+    page.status = status;
+    page.deletedAt = status === 'deleted' ? new Date() : page.deletedAt;
+    this.db.touch(page);
+    return Promise.resolve(clone(page));
+  }
+
+  setVerified(id: string, verified: boolean): Promise<Page> {
+    const page = this.db.pages.get(id);
+    if (!page) {
+      throw new Error(`Page introuvable : ${id}.`);
+    }
+    // Idempotent — reposer le même badge est sans effet.
+    page.verified = verified;
+    this.db.touch(page);
+    return Promise.resolve(clone(page));
+  }
+
+  listByOwner(ownerId: string, params: ListOwnerPagesParams): Promise<Page[]> {
+    // De la plus ancienne à la plus récente (ordre de création — la première
+    // page du compte reste en tête), tie-break id : ordre STABLE.
+    const statuses = new Set(params.statuses);
+    return Promise.resolve(
+      [...this.db.pages.values()]
+        .filter((p) => p.ownerId === ownerId && statuses.has(p.status))
+        .sort((a, b) => byCreatedAtAsc(a, b) || a.id.localeCompare(b.id))
+        .map((p) => clone(p)),
+    );
+  }
+
+  listAdmin(params: AdminListPagesParams): Promise<PagedResult<Page>> {
+    // Liste BACKOFFICE : tous statuts par défaut, recherche insensible à la
+    // casse sur nom / commune / nom affiché du propriétaire. Le driver
+    // postgres fera un JOIN users + ILIKE.
+    let items = [...this.db.pages.values()];
+    if (params.pageType !== undefined) {
+      items = items.filter((p) => p.pageType === params.pageType);
+    }
+    if (params.status !== undefined) {
+      items = items.filter((p) => p.status === params.status);
+    }
+    if (params.verified !== undefined) {
+      items = items.filter((p) => p.verified === params.verified);
+    }
+    if (params.flaggedOnly === true) {
+      // Au moins un signalement OUVERT ciblant la page (miroir annonces).
+      const flagged = new Set<string>();
+      for (const report of this.db.reports.values()) {
+        if (report.targetType === 'page' && report.status === 'open') {
+          flagged.add(report.targetId);
+        }
+      }
+      items = items.filter((p) => flagged.has(p.id));
+    }
+    if (params.search !== undefined && params.search.trim() !== '') {
+      const needle = params.search.trim().toLowerCase();
+      items = items.filter((p) => {
+        const ownerName =
+          this.db.users.get(p.ownerId)?.displayName.toLowerCase() ?? '';
+        return (
+          p.name.toLowerCase().includes(needle) ||
+          p.city.toLowerCase().includes(needle) ||
+          ownerName.includes(needle)
+        );
+      });
+    }
+    // Antéchronologique, tie-break id : ordre STABLE entre deux pages.
+    items.sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id));
+    return Promise.resolve({
+      items: items
+        .slice(params.offset, params.offset + params.limit)
+        .map((p) => clone(p)),
+      total: items.length,
+    });
+  }
+
+  // ── Abonnés (D74) ──────────────────────────────────────────────────────────
+
+  follow(pageId: string, userId: string): Promise<void> {
+    if (!this.db.pages.has(pageId)) {
+      throw new Error(`Page introuvable : ${pageId} (FK pages).`);
+    }
+    if (!this.db.users.has(userId)) {
+      throw new Error(`Utilisateur introuvable : ${userId}.`);
+    }
+    // Idempotent : la PK composite absorbe le doublon (ON CONFLICT DO NOTHING).
+    const exists = this.db.pageFollows.some(
+      (f) => f.pageId === pageId && f.userId === userId,
+    );
+    if (!exists) {
+      this.db.pageFollows.push({ pageId, userId, createdAt: new Date() });
+    }
+    return Promise.resolve();
+  }
+
+  unfollow(pageId: string, userId: string): Promise<void> {
+    // Idempotent : no-op si l'abonnement n'existe pas.
+    const index = this.db.pageFollows.findIndex(
+      (f) => f.pageId === pageId && f.userId === userId,
+    );
+    if (index >= 0) {
+      this.db.pageFollows.splice(index, 1);
+    }
+    return Promise.resolve();
+  }
+
+  isFollowing(pageId: string, userId: string): Promise<boolean> {
+    return Promise.resolve(
+      this.db.pageFollows.some(
+        (f) => f.pageId === pageId && f.userId === userId,
+      ),
+    );
+  }
+
+  listFollowedPageIds(userId: string): Promise<string[]> {
+    return Promise.resolve(
+      this.db.pageFollows
+        .filter((f) => f.userId === userId)
+        .map((f) => f.pageId),
+    );
+  }
+
+  followersCountsByPageIds(
+    pageIds: string[],
+  ): Promise<Record<string, number>> {
+    // Compteur PAR page EN UN APPEL (anti N+1) — seuls les abonnés au compte
+    // ACTIF comptent (miroir des compteurs follow utilisateurs) ; les pages
+    // sans abonné sont ABSENTES du résultat.
+    const wanted = new Set(pageIds);
+    const result: Record<string, number> = {};
+    for (const follow of this.db.pageFollows) {
+      if (!wanted.has(follow.pageId)) {
+        continue;
+      }
+      if (this.db.users.get(follow.userId)?.status !== 'active') {
+        continue;
+      }
+      result[follow.pageId] = (result[follow.pageId] ?? 0) + 1;
+    }
+    return Promise.resolve(result);
+  }
+
+  // ── Horaires (D70) ─────────────────────────────────────────────────────────
+
+  replaceHours(pageId: string, hours: PageHourSpec[]): Promise<void> {
+    if (!this.db.pages.has(pageId)) {
+      throw new Error(`Page introuvable : ${pageId} (FK pages).`);
+    }
+    // Remplacement ATOMIQUE : purge puis réinsertion (équivalent transaction
+    // SQL DELETE + INSERT). Position par défaut : l'index du tableau.
+    for (const [id, hour] of this.db.pageHours) {
+      if (hour.pageId === pageId) {
+        this.db.pageHours.delete(id);
+      }
+    }
+    hours.forEach((spec, index) => {
+      const hour: PageHour = {
+        id: randomUUID(),
+        pageId,
+        weekday: spec.weekday,
+        opensMinute: spec.opensMinute,
+        closesMinute: spec.closesMinute,
+        position: spec.position ?? index,
+      };
+      this.db.pageHours.set(hour.id, hour);
+    });
+    return Promise.resolve();
+  }
+
+  listHoursByPageIds(
+    pageIds: string[],
+  ): Promise<Record<string, PageHour[]>> {
+    // Plages PAR page EN UN APPEL, triées weekday puis opensMinute (tie-break
+    // id) ; les pages sans plage sont ABSENTES du résultat.
+    const wanted = new Set(pageIds);
+    const result: Record<string, PageHour[]> = {};
+    for (const hour of this.db.pageHours.values()) {
+      if (wanted.has(hour.pageId)) {
+        (result[hour.pageId] ??= []).push(clone(hour));
+      }
+    }
+    for (const list of Object.values(result)) {
+      list.sort(
+        (a, b) =>
+          a.weekday - b.weekday ||
+          a.opensMinute - b.opensMinute ||
+          a.id.localeCompare(b.id),
+      );
+    }
+    return Promise.resolve(result);
+  }
+
+  // ── Documents « Nos cartes » (D71) ─────────────────────────────────────────
+
+  createDocument(input: CreatePageDocumentInput): Promise<PageDocument> {
+    if (!this.db.pages.has(input.pageId)) {
+      throw new Error(`Page introuvable : ${input.pageId} (FK pages).`);
+    }
+    // Position = max des positions existantes + 1 (ordre d'ajout).
+    let maxPosition = -1;
+    for (const document of this.db.pageDocuments.values()) {
+      if (document.pageId === input.pageId && document.position > maxPosition) {
+        maxPosition = document.position;
+      }
+    }
+    const document: PageDocument = {
+      id: randomUUID(),
+      pageId: input.pageId,
+      label: input.label,
+      url: input.url,
+      fileSizeBytes: input.fileSizeBytes,
+      position: maxPosition + 1,
+      createdAt: new Date(),
+    };
+    this.db.pageDocuments.set(document.id, document);
+    return Promise.resolve(clone(document));
+  }
+
+  findDocumentById(id: string): Promise<PageDocument | null> {
+    return Promise.resolve(clone(this.db.pageDocuments.get(id) ?? null));
+  }
+
+  deleteDocument(id: string): Promise<void> {
+    // Suppression DÉFINITIVE et idempotente (simple ligne d'attachement).
+    this.db.pageDocuments.delete(id);
+    return Promise.resolve();
+  }
+
+  listDocumentsByPageIds(
+    pageIds: string[],
+  ): Promise<Record<string, PageDocument[]>> {
+    const wanted = new Set(pageIds);
+    const result: Record<string, PageDocument[]> = {};
+    for (const document of this.db.pageDocuments.values()) {
+      if (wanted.has(document.pageId)) {
+        (result[document.pageId] ??= []).push(clone(document));
+      }
+    }
+    for (const list of Object.values(result)) {
+      list.sort(
+        (a, b) =>
+          a.position - b.position ||
+          byCreatedAtAsc(a, b) ||
+          a.id.localeCompare(b.id),
+      );
+    }
+    return Promise.resolve(result);
+  }
+
+  // ── Plats (D71) ────────────────────────────────────────────────────────────
+
+  createDish(input: CreateDishInput): Promise<Dish> {
+    if (!this.db.pages.has(input.pageId)) {
+      throw new Error(`Page introuvable : ${input.pageId} (FK pages).`);
+    }
+    if (
+      (input.priceTakeawayCents ?? null) === null &&
+      (input.priceDineInCents ?? null) === null
+    ) {
+      throw new Error(
+        'Un plat exige au moins un prix : à emporter ou sur place (CHECK).',
+      );
+    }
+    const now = new Date();
+    const dish: Dish = {
+      id: randomUUID(),
+      pageId: input.pageId,
+      name: input.name,
+      description: input.description ?? '',
+      imageUrl: input.imageUrl ?? null,
+      priceTakeawayCents: input.priceTakeawayCents ?? null,
+      priceDineInCents: input.priceDineInCents ?? null,
+      position: input.position ?? this.nextDishPosition(input.pageId),
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.dishes.set(dish.id, dish);
+    return Promise.resolve(clone(dish));
+  }
+
+  findDishById(id: string): Promise<Dish | null> {
+    return Promise.resolve(clone(this.db.dishes.get(id) ?? null));
+  }
+
+  findDishesByIds(ids: string[]): Promise<Dish[]> {
+    const wanted = new Set(ids);
+    return Promise.resolve(
+      [...this.db.dishes.values()]
+        .filter((d) => wanted.has(d.id))
+        .map((d) => clone(d)),
+    );
+  }
+
+  updateDish(id: string, patch: UpdateDishPatch): Promise<Dish> {
+    const dish = this.db.dishes.get(id);
+    if (!dish) {
+      throw new Error(`Plat introuvable : ${id}.`);
+    }
+    applyPatch(dish, patch);
+    if (
+      dish.priceTakeawayCents === null &&
+      dish.priceDineInCents === null
+    ) {
+      throw new Error(
+        'Un plat exige au moins un prix : à emporter ou sur place (CHECK).',
+      );
+    }
+    this.db.touch(dish);
+    return Promise.resolve(clone(dish));
+  }
+
+  softDeleteDish(id: string): Promise<Dish> {
+    const dish = this.db.dishes.get(id);
+    if (!dish) {
+      throw new Error(`Plat introuvable : ${id}.`);
+    }
+    // ATOMIQUEMENT : suppression douce + retrait de TOUS les menus programmés
+    // qui référencent le plat (équivalent transaction SQL — D71).
+    dish.status = 'deleted';
+    this.db.touch(dish);
+    for (const [itemId, item] of this.db.pageMenuItems) {
+      if (item.dishId === id) {
+        this.db.pageMenuItems.delete(itemId);
+      }
+    }
+    return Promise.resolve(clone(dish));
+  }
+
+  listDishes(pageId: string): Promise<Dish[]> {
+    return Promise.resolve(
+      [...this.db.dishes.values()]
+        .filter((d) => d.pageId === pageId && d.status === 'active')
+        .sort(
+          (a, b) =>
+            a.position - b.position ||
+            byCreatedAtAsc(a, b) ||
+            a.id.localeCompare(b.id),
+        )
+        .map((d) => clone(d)),
+    );
+  }
+
+  /** Position suivante d'un plat de la page (max + 1 — ordre d'ajout). */
+  private nextDishPosition(pageId: string): number {
+    let max = -1;
+    for (const dish of this.db.dishes.values()) {
+      if (dish.pageId === pageId && dish.position > max) {
+        max = dish.position;
+      }
+    }
+    return max + 1;
+  }
+
+  // ── Menus programmés (D71) ─────────────────────────────────────────────────
+
+  upsertMenu(
+    pageId: string,
+    menuDate: string,
+    dishIds: string[],
+  ): Promise<PageMenuWithDishes | null> {
+    if (!this.db.pages.has(pageId)) {
+      throw new Error(`Page introuvable : ${pageId} (FK pages).`);
+    }
+    for (const dishId of dishIds) {
+      if (!this.db.dishes.has(dishId)) {
+        throw new Error(`Plat introuvable : ${dishId} (FK dishes).`);
+      }
+    }
+    let menu = this.findMenu(pageId, menuDate);
+    // [] = suppression du menu du jour (les items partent en CASCADE).
+    if (dishIds.length === 0) {
+      if (menu) {
+        this.deleteMenuItems(menu.id);
+        this.db.pageMenus.delete(menu.id);
+      }
+      return Promise.resolve(null);
+    }
+    const now = new Date();
+    if (!menu) {
+      menu = {
+        id: randomUUID(),
+        pageId,
+        menuDate,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.db.pageMenus.set(menu.id, menu);
+    } else {
+      // Remplacement ATOMIQUE des items (équivalent transaction SQL).
+      this.deleteMenuItems(menu.id);
+      this.db.touch(menu);
+    }
+    // `const` pour la capture dans la closure (narrowing TS conservé).
+    const target = menu;
+    dishIds.forEach((dishId, index) => {
+      const item: PageMenuItem = {
+        id: randomUUID(),
+        menuId: target.id,
+        dishId,
+        position: index,
+      };
+      this.db.pageMenuItems.set(item.id, item);
+    });
+    return Promise.resolve(this.assembleMenu(target));
+  }
+
+  listMenusWithDishes(
+    pageId: string,
+    fromDate: string,
+    toDate: string,
+  ): Promise<PageMenuWithDishes[]> {
+    // Bornes INCLUSES — la comparaison lexicographique des 'YYYY-MM-DD' est
+    // équivalente à la comparaison de dates SQL. Les jours sans menu sont
+    // ABSENTS du résultat (l'appelant complète les trous).
+    const menus = [...this.db.pageMenus.values()]
+      .filter(
+        (m) =>
+          m.pageId === pageId &&
+          m.menuDate >= fromDate &&
+          m.menuDate <= toDate,
+      )
+      .sort(
+        (a, b) =>
+          a.menuDate.localeCompare(b.menuDate) || a.id.localeCompare(b.id),
+      );
+    return Promise.resolve(menus.map((menu) => this.assembleMenu(menu)));
+  }
+
+  /** Menu + ses plats ordonnés par position d'item. Les plats 'deleted'
+   * n'apparaissent jamais (la suppression d'un plat retire ses items — la
+   * garde reste par défense en profondeur). */
+  private assembleMenu(menu: PageMenu): PageMenuWithDishes {
+    const items = [...this.db.pageMenuItems.values()]
+      .filter((i) => i.menuId === menu.id)
+      .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+    const dishes: Dish[] = [];
+    for (const item of items) {
+      const dish = this.db.dishes.get(item.dishId);
+      if (dish && dish.status === 'active') {
+        dishes.push(clone(dish));
+      }
+    }
+    return { menu: clone(menu), dishes };
+  }
+
+  private findMenu(pageId: string, menuDate: string): PageMenu | null {
+    for (const menu of this.db.pageMenus.values()) {
+      if (menu.pageId === pageId && menu.menuDate === menuDate) {
+        return menu;
+      }
+    }
+    return null;
+  }
+
+  private deleteMenuItems(menuId: string): void {
+    for (const [id, item] of this.db.pageMenuItems) {
+      if (item.menuId === menuId) {
+        this.db.pageMenuItems.delete(id);
+      }
+    }
+  }
+
+  // ── Offres (D72) ───────────────────────────────────────────────────────────
+
+  createOffer(input: CreatePageOfferInput): Promise<PageOffer> {
+    if (!this.db.pages.has(input.pageId)) {
+      throw new Error(`Page introuvable : ${input.pageId} (FK pages).`);
+    }
+    const now = new Date();
+    const offer: PageOffer = {
+      id: randomUUID(),
+      pageId: input.pageId,
+      title: input.title,
+      description: input.description ?? '',
+      imageUrl: input.imageUrl ?? null,
+      startsAt: input.startsAt ?? null,
+      endsAt: input.endsAt ?? null,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.pageOffers.set(offer.id, offer);
+    return Promise.resolve(clone(offer));
+  }
+
+  findOfferById(id: string): Promise<PageOffer | null> {
+    return Promise.resolve(clone(this.db.pageOffers.get(id) ?? null));
+  }
+
+  updateOffer(id: string, patch: UpdatePageOfferPatch): Promise<PageOffer> {
+    const offer = this.db.pageOffers.get(id);
+    if (!offer) {
+      throw new Error(`Offre introuvable : ${id}.`);
+    }
+    applyPatch(offer, patch);
+    this.db.touch(offer);
+    return Promise.resolve(clone(offer));
+  }
+
+  setOfferStatus(id: string, status: PageContentStatus): Promise<PageOffer> {
+    const offer = this.db.pageOffers.get(id);
+    if (!offer) {
+      throw new Error(`Offre introuvable : ${id}.`);
+    }
+    offer.status = status;
+    this.db.touch(offer);
+    return Promise.resolve(clone(offer));
+  }
+
+  listOffers(pageId: string): Promise<PageOffer[]> {
+    return Promise.resolve(
+      [...this.db.pageOffers.values()]
+        .filter((o) => o.pageId === pageId && o.status === 'active')
+        .sort((a, b) => byCreatedAtDesc(a, b) || a.id.localeCompare(b.id))
+        .map((o) => clone(o)),
+    );
+  }
+
+  // ── Événements (D72) ───────────────────────────────────────────────────────
+
+  createEvent(input: CreatePageEventInput): Promise<PageEvent> {
+    if (!this.db.pages.has(input.pageId)) {
+      throw new Error(`Page introuvable : ${input.pageId} (FK pages).`);
+    }
+    const now = new Date();
+    const event: PageEvent = {
+      id: randomUUID(),
+      pageId: input.pageId,
+      title: input.title,
+      description: input.description ?? '',
+      imageUrl: input.imageUrl ?? null,
+      startsAt: new Date(input.startsAt.getTime()),
+      endsAt: input.endsAt ? new Date(input.endsAt.getTime()) : null,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.pageEvents.set(event.id, event);
+    return Promise.resolve(clone(event));
+  }
+
+  findEventById(id: string): Promise<PageEvent | null> {
+    return Promise.resolve(clone(this.db.pageEvents.get(id) ?? null));
+  }
+
+  updateEvent(id: string, patch: UpdatePageEventPatch): Promise<PageEvent> {
+    const event = this.db.pageEvents.get(id);
+    if (!event) {
+      throw new Error(`Événement introuvable : ${id}.`);
+    }
+    applyPatch(event, patch);
+    this.db.touch(event);
+    return Promise.resolve(clone(event));
+  }
+
+  setEventStatus(id: string, status: PageContentStatus): Promise<PageEvent> {
+    const event = this.db.pageEvents.get(id);
+    if (!event) {
+      throw new Error(`Événement introuvable : ${id}.`);
+    }
+    event.status = status;
+    this.db.touch(event);
+    return Promise.resolve(clone(event));
+  }
+
+  listEvents(pageId: string): Promise<PageEvent[]> {
+    // startsAt CROISSANT : le prochain événement d'abord (tie-break id).
+    return Promise.resolve(
+      [...this.db.pageEvents.values()]
+        .filter((e) => e.pageId === pageId && e.status === 'active')
+        .sort(
+          (a, b) =>
+            a.startsAt.getTime() - b.startsAt.getTime() ||
+            a.id.localeCompare(b.id),
+        )
+        .map((e) => clone(e)),
+    );
+  }
+
+  // ── Compteurs backoffice ───────────────────────────────────────────────────
+
+  countContents(pageId: string): Promise<{
+    dishes: number;
+    documents: number;
+    menus: number;
+    offers: number;
+    events: number;
+  }> {
+    let dishes = 0;
+    for (const dish of this.db.dishes.values()) {
+      if (dish.pageId === pageId && dish.status === 'active') {
+        dishes++;
+      }
+    }
+    let documents = 0;
+    for (const document of this.db.pageDocuments.values()) {
+      if (document.pageId === pageId) {
+        documents++;
+      }
+    }
+    let menus = 0;
+    for (const menu of this.db.pageMenus.values()) {
+      if (menu.pageId === pageId) {
+        menus++;
+      }
+    }
+    let offers = 0;
+    for (const offer of this.db.pageOffers.values()) {
+      if (offer.pageId === pageId && offer.status === 'active') {
+        offers++;
+      }
+    }
+    let events = 0;
+    for (const event of this.db.pageEvents.values()) {
+      if (event.pageId === pageId && event.status === 'active') {
+        events++;
+      }
+    }
+    return Promise.resolve({ dishes, documents, menus, offers, events });
   }
 }

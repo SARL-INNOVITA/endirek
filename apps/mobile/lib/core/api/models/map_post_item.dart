@@ -1,5 +1,6 @@
 import 'geo_point.dart';
 import 'post_author.dart';
+import 'post_page_ref.dart';
 
 /// Forme MAP_POST_ITEM du contrat d'API étape 5 — marqueur carte LÉGER d'une
 /// publication (GET /map/overview et /map/posts) :
@@ -11,8 +12,9 @@ import 'post_author.dart';
 /// renvoie au détail /post/:id pour le contenu complet.
 ///
 /// SÉCURITÉ : l'API ne renvoie ici que des posts « active », géolocalisés,
-/// non expirés et de type carte (weather/traffic/danger) — jamais free/
-/// question ni hidden/deleted. Le mobile n'a donc pas à re-filtrer.
+/// non expirés et de type carte (weather/traffic/danger + menu/offer/event
+/// des pages depuis le Lot 3) — jamais free/question ni hidden/deleted. Le
+/// mobile n'a donc pas à re-filtrer.
 class MapPostItem {
   const MapPostItem({
     required this.id,
@@ -24,6 +26,7 @@ class MapPostItem {
     required this.createdAt,
     required this.urlSlug,
     required this.author,
+    required this.page,
   });
 
   final String id;
@@ -41,6 +44,10 @@ class MapPostItem {
   final String urlSlug;
   final PostAuthor author;
 
+  /// PAGE auteure du post (Lot 3, posts menu/offer/event) — null pour un
+  /// post d'utilisateur. La preview card affiche l'identité de la page.
+  final PostPageRef? page;
+
   factory MapPostItem.fromJson(Map<String, dynamic> json) {
     return MapPostItem(
       id: json['id'] as String,
@@ -56,6 +63,9 @@ class MapPostItem {
       createdAt: DateTime.parse(json['createdAt'] as String),
       urlSlug: (json['urlSlug'] as String?) ?? '',
       author: PostAuthor.fromJson(json['author'] as Map<String, dynamic>),
+      page: json['page'] == null
+          ? null
+          : PostPageRef.fromJson(json['page'] as Map<String, dynamic>),
     );
   }
 }

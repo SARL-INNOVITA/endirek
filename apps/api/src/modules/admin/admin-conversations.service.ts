@@ -3,16 +3,19 @@ import { PostAuthor, toPostAuthor } from '../../common/mappers/post.mapper';
 import {
   CONVERSATIONS_REPOSITORY,
   LISTINGS_REPOSITORY,
+  PAGES_REPOSITORY,
   USERS_REPOSITORY,
 } from '../../database/database.tokens';
 import {
   Conversation,
   Message,
   MessageStatus,
+  PageType,
 } from '../../database/domain/entities';
 import {
   ConversationsRepository,
   ListingsRepository,
+  PagesRepository,
   UsersRepository,
 } from '../../database/repositories/interfaces';
 import { AdminListConversationsQueryDto } from './dto/admin-list-conversations-query.dto';
@@ -23,6 +26,14 @@ export interface AdminConversationListingRef {
   id: string;
   title: string;
   urlSlug: string;
+  status: string;
+}
+
+/** Référence légère de la page d'une conversation (backoffice — Lot 3, D75). */
+export interface AdminConversationPageRef {
+  id: string;
+  name: string;
+  pageType: PageType;
   status: string;
 }
 
@@ -38,10 +49,14 @@ export interface AdminMessageView {
   createdAt: Date;
 }
 
-/** Carte CONVERSATION du backoffice : les DEUX participants nommés. */
+/** Carte CONVERSATION du backoffice : les DEUX participants nommés.
+ * Exactement UNE cible non nulle : `listing` (fil d'annonce) ou `page`
+ * (fil de page — Lot 3, D75). */
 export interface AdminConversationCard {
   id: string;
-  listing: AdminConversationListingRef;
+  listing: AdminConversationListingRef | null;
+  /** Page liée (Lot 3 — D75) — null pour un fil d'annonce. */
+  page: AdminConversationPageRef | null;
   initiator: PostAuthor;
   owner: PostAuthor;
   /** Dernier message (corps réel) ou null (jamais le cas en pratique :
@@ -68,7 +83,8 @@ export interface PagedAdminMessages {
  * moderator et super_admin (RolesGuard sur le contrôleur).
  *
  * - la liste couvre TOUTES les conversations (tri par activité décroissante,
- *   comme la liste des participants), recherche par participant ou annonce ;
+ *   comme la liste des participants), recherche par participant, annonce ou
+ *   page (Lot 3 — D75) ;
  * - les corps de messages sont servis EN CLAIR (y compris masqués) : la
  *   modération doit lire le contenu pour statuer ;
  * - masquer un message est un SOFT (status 'hidden', réversible) : le
@@ -82,6 +98,8 @@ export class AdminConversationsService {
     private readonly conversationsRepository: ConversationsRepository,
     @Inject(LISTINGS_REPOSITORY)
     private readonly listingsRepository: ListingsRepository,
+    @Inject(PAGES_REPOSITORY)
+    private readonly pagesRepository: PagesRepository,
     @Inject(USERS_REPOSITORY)
     private readonly usersRepository: UsersRepository,
   ) {}
@@ -143,47 +161,88 @@ export class AdminConversationsService {
   // Aides privées
   // ──────────────────────────────────────────────────────────────────────────
 
-  /** Cartes backoffice : annonces, participants et derniers messages chargés
-   * PAR LOT (anti N+1). */
+  /** Cartes backoffice : annonces, pages, participants et derniers messages
+   * chargés PAR LOT (anti N+1). */
   private async assembleCards(
     conversations: Conversation[],
   ): Promise<AdminConversationCard[]> {
     if (conversations.length === 0) {
       return [];
     }
-    const listingIds = [...new Set(conversations.map((c) => c.listingId))];
+    const listingIds = [
+      ...new Set(
+        conversations
+          .map((c) => c.listingId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const pageIds = [
+      ...new Set(
+        conversations
+          .map((c) => c.pageId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
     const participantIds = [
       ...new Set(conversations.flatMap((c) => [c.initiatorId, c.ownerId])),
     ];
     const conversationIds = conversations.map((c) => c.id);
-    const [listings, participants, lastMessages] = await Promise.all([
+    const [listings, pages, participants, lastMessages] = await Promise.all([
       this.listingsRepository.findByIds(listingIds),
+      this.pagesRepository.findByIds(pageIds),
       this.usersRepository.findByIds(participantIds),
       this.conversationsRepository.lastMessagesByConversationIds(
         conversationIds,
       ),
     ]);
     const listingsById = new Map(listings.map((l) => [l.id, l]));
+    const pagesById = new Map(pages.map((pa) => [pa.id, pa]));
     const participantsById = new Map(participants.map((u) => [u.id, u]));
 
     return conversations.map((conversation) => {
-      const listing = listingsById.get(conversation.listingId) ?? null;
+      const listing =
+        conversation.listingId === null
+          ? null
+          : (listingsById.get(conversation.listingId) ?? null);
+      const page =
+        conversation.pageId === null
+          ? null
+          : (pagesById.get(conversation.pageId) ?? null);
       const last = lastMessages[conversation.id] ?? null;
       return {
         id: conversation.id,
-        listing: listing
-          ? {
-              id: listing.id,
-              title: listing.title,
-              urlSlug: listing.urlSlug,
-              status: listing.status,
-            }
-          : {
-              id: conversation.listingId,
-              title: 'Annonce supprimée',
-              urlSlug: '',
-              status: 'deleted',
-            },
+        listing:
+          conversation.listingId === null
+            ? null
+            : listing
+              ? {
+                  id: listing.id,
+                  title: listing.title,
+                  urlSlug: listing.urlSlug,
+                  status: listing.status,
+                }
+              : {
+                  id: conversation.listingId,
+                  title: 'Annonce supprimée',
+                  urlSlug: '',
+                  status: 'deleted',
+                },
+        page:
+          conversation.pageId === null
+            ? null
+            : page
+              ? {
+                  id: page.id,
+                  name: page.name,
+                  pageType: page.pageType,
+                  status: page.status,
+                }
+              : {
+                  id: conversation.pageId,
+                  name: 'Page supprimée',
+                  pageType: 'business' as PageType,
+                  status: 'deleted',
+                },
         initiator: toPostAuthor(
           conversation.initiatorId,
           participantsById.get(conversation.initiatorId) ?? null,

@@ -14,6 +14,7 @@ import {
 import { UniqueViolationError } from '../../database/repositories/errors';
 import { ReportsRepository } from '../../database/repositories/interfaces';
 import { DealplaceService } from '../dealplace/dealplace.service';
+import { PagesService } from '../pages/pages.service';
 import { PostsService } from '../posts/posts.service';
 import { CreateReportDto } from './dto/create-report.dto';
 
@@ -47,6 +48,7 @@ export class ModerationService {
     private readonly reportsRepository: ReportsRepository,
     private readonly postsService: PostsService,
     private readonly dealplaceService: DealplaceService,
+    private readonly pagesService: PagesService,
   ) {}
 
   /** Signale une publication visible (POST /posts/:id/report). */
@@ -90,6 +92,27 @@ export class ModerationService {
     }
 
     return this.createReport(viewer, 'listing', listing.id, dto);
+  }
+
+  /** Signale une page professionnelle visible (POST /pages/:id/report —
+   * Lot 3, D76). Mêmes règles que les posts et les annonces : visibilité,
+   * auto-signalement refusé, anti-doublon 409. */
+  async reportPage(
+    viewer: AuthenticatedUser,
+    pageId: string,
+    dto: CreateReportDto,
+  ): Promise<CreatedReport> {
+    const page = await this.pagesService.loadVisiblePage(viewer, pageId);
+
+    // Miroir des posts/annonces : signaler sa PROPRE page est refusé (le
+    // propriétaire dispose déjà de la suppression).
+    if (viewer.userId === page.ownerId) {
+      throw new BadRequestException(
+        'Vous ne pouvez pas signaler votre propre page',
+      );
+    }
+
+    return this.createReport(viewer, 'page', page.id, dto);
   }
 
   /** Création commune : anti-doublon amont (409) + rattrapage de la violation

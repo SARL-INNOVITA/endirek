@@ -8,12 +8,15 @@ import { PostAuthor, toPostAuthor } from '../../common/mappers/post.mapper';
 import {
   COMMENTS_REPOSITORY,
   LISTINGS_REPOSITORY,
+  PAGES_REPOSITORY,
   POSTS_REPOSITORY,
   REPORTS_REPOSITORY,
 } from '../../database/database.tokens';
 import {
   CommentStatus,
   ListingStatus,
+  PageStatus,
+  PageType,
   PostStatus,
   Report,
   ReportReasonCode,
@@ -23,6 +26,7 @@ import {
 import {
   CommentsRepository,
   ListingsRepository,
+  PagesRepository,
   PostsRepository,
   ReportsRepository,
 } from '../../database/repositories/interfaces';
@@ -65,12 +69,24 @@ export interface ReportListingTarget {
   urlSlug: string;
 }
 
+/** Extrait d'une PAGE professionnelle signalée (Lot 3 — D76). */
+export interface ReportPageTarget {
+  id: string;
+  name: string;
+  pageType: PageType;
+  /** Bio tronquée à 140 caractères. */
+  body: string;
+  status: PageStatus;
+  urlSlug: string;
+}
+
 /** Extrait de la cible d'un signalement — null si la cible est introuvable
  * (ou de type 'user' : le signalement de profils n'ouvre qu'au Lot 2+). */
 export type ReportTargetView =
   | ReportPostTarget
   | ReportCommentTarget
   | ReportListingTarget
+  | ReportPageTarget
   | null;
 
 /** Signalement de la file de modération — forme du contrat, complétée des
@@ -121,6 +137,8 @@ export class AdminReportsService {
     private readonly commentsRepository: CommentsRepository,
     @Inject(LISTINGS_REPOSITORY)
     private readonly listingsRepository: ListingsRepository,
+    @Inject(PAGES_REPOSITORY)
+    private readonly pagesRepository: PagesRepository,
     private readonly notificationsService: NotificationsService,
     private readonly assembler: FeedPostAssembler,
   ) {}
@@ -255,6 +273,22 @@ export class AdminReportsService {
         body: excerpt(listing.description),
         status: listing.status,
         urlSlug: listing.urlSlug,
+      };
+    }
+    if (report.targetType === 'page') {
+      // Page professionnelle (Lot 3 — D76) : le masquage se fait via
+      // l'action séparée PATCH /admin/pages/:id/status.
+      const page = await this.pagesRepository.findById(report.targetId);
+      if (!page) {
+        return null;
+      }
+      return {
+        id: page.id,
+        name: page.name,
+        pageType: page.pageType,
+        body: excerpt(page.bio),
+        status: page.status,
+        urlSlug: page.urlSlug,
       };
     }
     // Cible 'user' : le signalement de profils n'ouvre qu'au Lot 2+.

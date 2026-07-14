@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
+  PAGES_REPOSITORY,
   POST_TYPES_REPOSITORY,
   POSTS_REPOSITORY,
   USERS_REPOSITORY,
@@ -7,6 +8,7 @@ import {
 import { GeoPoint, Post, PostType } from '../../database/domain/entities';
 import { haversineMeters } from '../../database/mock/geo';
 import {
+  PagesRepository,
   PostsRepository,
   PostTypesRepository,
   UsersRepository,
@@ -29,7 +31,8 @@ import { PagedFeedPosts } from './posts.service';
  *   post_types) encore VISIBLES sur la carte (mapExpiresAt > now) ;
  * - POPULARITÉ : log(1 + réactions + commentaires) — croissance amortie,
  *   un post viral n'écrase pas tout ;
- * - ABONNEMENTS : bonus fixe si l'auteur est suivi par le viewer.
+ * - ABONNEMENTS : bonus fixe si l'auteur est suivi par le viewer, ou si le
+ *   post est publié par une PAGE que le viewer suit (Lot 3 — D74).
  *
  * NOTE PORTAGE POSTGRES : le driver SQL portera ce même scoring dans une
  * requête (fenêtre ORDER BY created_at DESC LIMIT windowSize, puis score en
@@ -53,6 +56,8 @@ export const FEED_WEIGHTS = {
   popularity: 8,
   /** Bonus si l'auteur du post est suivi par le viewer. */
   followedAuthor: 20,
+  /** Bonus si le post est publié par une PAGE suivie (Lot 3 — D74). */
+  followedPage: 20,
 } as const;
 
 /** Paramètres du feed (déjà validés par FeedQueryDto). */
@@ -83,6 +88,8 @@ export class FeedService {
     private readonly postTypesRepository: PostTypesRepository,
     @Inject(USERS_REPOSITORY)
     private readonly usersRepository: UsersRepository,
+    @Inject(PAGES_REPOSITORY)
+    private readonly pagesRepository: PagesRepository,
     private readonly assembler: FeedPostAssembler,
   ) {}
 
@@ -100,18 +107,26 @@ export class FeedService {
         ? { lat: params.lat as number, lng: params.lng as number }
         : null;
 
-    const [window, followedIds] = await Promise.all([
+    const [window, followedIds, followedPageIds] = await Promise.all([
       this.postsRepository.listActiveWindow(FEED_WEIGHTS.windowSize),
       this.usersRepository.listFollowedIds(viewerId),
+      this.pagesRepository.listFollowedPageIds(viewerId),
     ]);
     const typesBySlug = await this.loadTypes(window);
     const followed = new Set(followedIds);
+    const followedPages = new Set(followedPageIds);
     const now = Date.now();
 
     // Score puis tri STABLE : score DESC, tie-break createdAt DESC puis id.
     const scored = window.map((post) => ({
       post,
-      score: this.scorePost(post, { now, viewerPoint, followed, typesBySlug }),
+      score: this.scorePost(post, {
+        now,
+        viewerPoint,
+        followed,
+        followedPages,
+        typesBySlug,
+      }),
     }));
     scored.sort(
       (a, b) =>
@@ -137,6 +152,7 @@ export class FeedService {
       now: number;
       viewerPoint: GeoPoint | null;
       followed: Set<string>;
+      followedPages: Set<string>;
       typesBySlug: Map<string, PostType>;
     },
   ): number {
@@ -177,6 +193,13 @@ export class FeedService {
     // Abonnements : l'auteur est suivi par le viewer.
     if (context.followed.has(post.authorId)) {
       score += FEED_WEIGHTS.followedAuthor;
+    }
+
+    // Abonnements de page (Lot 3 — D74) : le post est publié par une page
+    // suivie. Cumulable avec followedAuthor (suivre la page ET son
+    // propriétaire est un double signal d'intérêt).
+    if (post.pageId !== null && context.followedPages.has(post.pageId)) {
+      score += FEED_WEIGHTS.followedPage;
     }
 
     return score;

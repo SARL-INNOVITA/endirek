@@ -55,7 +55,7 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | Module | Rôle | Étape Lot 1 |
 |---|---|---|
 | `health` | `GET /health` (hors préfixe `api/v1`) — sonde de vie | 1 ✅ |
-| `database` | Accès données derrière une interface unique (**13 repositories** : 9 Lot 1 + `listings`/`listing-taxonomy` du CP2.1, `conversations` du CP2.3, `deals` du CP2.4), **deux drivers `DB_DRIVER=mock\|postgres`** au comportement identique, schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ / Lot 1.5 ✅ / Lot 2 ✅ |
+| `database` | Accès données derrière une interface unique (**14 repositories** : 9 Lot 1 + `listings`/`listing-taxonomy` du CP2.1, `conversations` du CP2.3, `deals` du CP2.4, `pages` du Lot 3), **deux drivers `DB_DRIVER=mock\|postgres`** au comportement identique, schéma PostGIS + seed La Réunion — voir [DATABASE.md](DATABASE.md) | 2 ✅ / Lot 1.5 ✅ / Lots 2-3 ✅ |
 | `auth` | Email/mot de passe, JWT access+refresh, guard global ; endpoints OAuth Google/Apple en 501 | 3 ✅ |
 | `users` | Comptes, profils (photo, bio, ville), follows, export + suppression RGPD (voir [RGPD.md](RGPD.md)) | 3 ✅ |
 | `posts` | Publications typées (libre, météo, trafic, danger, question), `url_slug`, expiration carte 2 h, listes de profil | 4 ✅ |
@@ -73,7 +73,8 @@ Un module NestJS par domaine métier, montés au fil des étapes du Lot 1 :
 | `dealplace` | **Lot 2 — CP2.1** : taxonomie biens/services (référence pilotable) + annonces (listings). `GET /dealplace/taxonomy` ; annuaire public filtré `GET /dealplace/listings` ; CRUD propriétaire `POST /dealplace/listings`, `GET …/:id` (+ `/slug/:slug`), `PATCH|DELETE …/:id` (soft-delete) ; listes de profil `GET /users/me/listings`, `GET /users/:id/listings`. Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, exportée au module `admin` — comme `FeedPostAssembler`). Règles métier au service (valeur fixe/fourchette, photo obligatoire pour un bien, catégorie `forbidden` refusée, médias `/media/upload`) | Lot 2 CP2.1 ✅ |
 | `modules/conversations` | Messagerie 1-to-1 liée aux annonces (CP2.3 — D63) : fils, messages, badge, temps réel via la gateway | 2.3 ✅ |
 | `modules/deals` | Deals contractuels + avis (CP2.4 — D64) : machine à états, éléments validables, ajustements, litiges (arbitrés au backoffice depuis le CP2.5 — D66), stats du profil | 2.4 + 2.5 ✅ |
-| `modules/_future/*` | Placeholders des checkpoints/lots non démarrés (pages, news, billing — voir §6) — **TODO** | — |
+| `modules/pages` | **Lot 3 (D69-D77)** : pages restaurants & entreprises — identité + badge vérifié (backoffice), horaires avec statut d'ouverture DÉRIVÉ (heure Réunion), plats et menus programmés par DATE, cartes PDF (`/media/upload-document`), offres/événements, abonnés (`page_follows`), publications AU NOM de la page (types réservés `menu`/`offer`/`event`, fenêtres carte 23 h / J-3). Formes PAGE/PAGE_CARD assemblées par `PageAssembler` (exporté à l'admin) | Lot 3 ✅ |
+| `modules/_future/*` | Placeholders des lots non démarrés (news, billing — voir §6) — **TODO** | — |
 
 > **État réel au checkpoint 7** : le socle est en place — `health`, la couche
 > `database` (driver mock + seed La Réunion), `auth` et `users` (étape 3) —
@@ -129,7 +130,7 @@ Détail complet (comportements, variables, procédure de bascule) :
 
 La couche `apps/api/src/database/` expose un **contrat unique**
 (**13 repositories** — 9 du Lot 1 + `listings`/`listing-taxonomy` du CP2.1,
-`conversations` du CP2.3 et `deals` du CP2.4 ;
+`conversations` du CP2.3, `deals` du CP2.4 et `pages` du Lot 3 ;
 `repositories/interfaces.ts` ; entités `domain/entities.ts` ; tokens
 `database.tokens.ts`) et deux implémentations sélectionnées **au chargement du
 module** (`process.env.DB_DRIVER`, dans `database.module.ts`) :

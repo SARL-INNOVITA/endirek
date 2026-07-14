@@ -78,18 +78,50 @@ export class PostgresConversationsRepository
     return rows.length > 0 ? rowToConversation(rows[0]) : null;
   }
 
+  async findByPageAndInitiator(
+    pageId: string,
+    initiatorId: string,
+  ): Promise<Conversation | null> {
+    // (page_id, initiator_id) est UNIQUE (index partiel) : au plus une ligne.
+    const { rows } = await query(
+      this.pool,
+      `SELECT ${SQL_CONVERSATION_COLUMNS}
+         FROM conversations c
+        WHERE c.page_id = $1 AND c.initiator_id = $2`,
+      [pageId, initiatorId],
+    );
+    return rows.length > 0 ? rowToConversation(rows[0]) : null;
+  }
+
   async create(input: CreateConversationInput): Promise<Conversation> {
     // Contrôles structurels AVANT écriture, avec les MÊMES messages que le
     // mock (erreurs claires plutôt que les codes SQL bruts 23503/23505/23514).
-    const listing = await query(
-      this.pool,
-      'SELECT 1 FROM listings WHERE id = $1',
-      [input.listingId],
-    );
-    if (listing.rowCount === 0) {
+    // Exactement UNE cible : annonce OU page (CHECK conversations_subject_ck
+    // — Lot 3, D75).
+    const listingId = input.listingId ?? null;
+    const pageId = input.pageId ?? null;
+    if ((listingId === null) === (pageId === null)) {
       throw new Error(
-        `Annonce introuvable : ${input.listingId} (FK listings).`,
+        'Une conversation exige exactement une cible : annonce OU page (CHECK).',
       );
+    }
+    if (listingId !== null) {
+      const listing = await query(
+        this.pool,
+        'SELECT 1 FROM listings WHERE id = $1',
+        [listingId],
+      );
+      if (listing.rowCount === 0) {
+        throw new Error(`Annonce introuvable : ${listingId} (FK listings).`);
+      }
+    }
+    if (pageId !== null) {
+      const page = await query(this.pool, 'SELECT 1 FROM pages WHERE id = $1', [
+        pageId,
+      ]);
+      if (page.rowCount === 0) {
+        throw new Error(`Page introuvable : ${pageId} (FK pages).`);
+      }
     }
     for (const userId of [input.initiatorId, input.ownerId]) {
       const user = await query(
@@ -107,21 +139,30 @@ export class PostgresConversationsRepository
       );
     }
     if (
-      await this.findByListingAndInitiator(input.listingId, input.initiatorId)
+      listingId !== null &&
+      (await this.findByListingAndInitiator(listingId, input.initiatorId))
     ) {
       throw new Error(
         'Conversation déjà existante pour cette annonce et ce demandeur (contrainte UNIQUE).',
       );
     }
+    if (
+      pageId !== null &&
+      (await this.findByPageAndInitiator(pageId, input.initiatorId))
+    ) {
+      throw new Error(
+        'Conversation déjà existante pour cette page et ce demandeur (contrainte UNIQUE).',
+      );
+    }
 
     const { rows } = await query(
       this.pool,
-      `INSERT INTO conversations (listing_id, initiator_id, owner_id)
-       VALUES ($1, $2, $3)
+      `INSERT INTO conversations (listing_id, page_id, initiator_id, owner_id)
+       VALUES ($1, $2, $3, $4)
        RETURNING ${SQL_CONVERSATION_COLUMNS
          .replaceAll('c.', '')
          .replaceAll('\n', ' ')}`,
-      [input.listingId, input.initiatorId, input.ownerId],
+      [listingId, pageId, input.initiatorId, input.ownerId],
     );
     return rowToConversation(rows[0]);
   }
@@ -317,14 +358,17 @@ export class PostgresConversationsRepository
   ): Promise<PagedResult<Conversation>> {
     // TOUTES les conversations, même tri par ACTIVITÉ que listByParticipant
     // (mock : lastMessageAt ?? createdAt DESC, tie-break id). Recherche
-    // insensible à la casse sur le nom affiché d'un participant ou le titre
-    // de l'annonce liée (JOIN users ×2 + listings — miroir du mock).
+    // insensible à la casse sur le nom affiché d'un participant, le titre de
+    // l'annonce liée ou le nom de la page liée (Lot 3 — D75). LEFT JOIN sur
+    // les cibles : une conversation a une annonce OU une page (jamais les
+    // deux — miroir du mock).
     const conditions: string[] = [];
     const values: unknown[] = [];
     let n = 1;
     if (params.search !== undefined && params.search.trim() !== '') {
       conditions.push(
-        `(ui.display_name ILIKE $${n} OR uo.display_name ILIKE $${n} OR l.title ILIKE $${n})`,
+        `(ui.display_name ILIKE $${n} OR uo.display_name ILIKE $${n} ` +
+          `OR l.title ILIKE $${n} OR pa.name ILIKE $${n})`,
       );
       values.push(`%${params.search.trim()}%`);
       n++;
@@ -335,7 +379,8 @@ export class PostgresConversationsRepository
          FROM conversations c
          JOIN users ui ON ui.id = c.initiator_id
          JOIN users uo ON uo.id = c.owner_id
-         JOIN listings l ON l.id = c.listing_id`;
+         LEFT JOIN listings l ON l.id = c.listing_id
+         LEFT JOIN pages pa ON pa.id = c.page_id`;
     const totalRes = await query(
       this.pool,
       `SELECT count(*) AS n ${fromSql} ${whereSql}`,

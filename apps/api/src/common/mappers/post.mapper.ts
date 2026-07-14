@@ -1,5 +1,7 @@
 import {
   GeoPoint,
+  Page,
+  PageType,
   Post,
   PostMedia,
   PostMediaType,
@@ -43,6 +45,17 @@ export interface EmojiCount {
   count: number;
 }
 
+/** Référence LÉGÈRE de la page émettrice d'un post (Lot 3 — D73) : de quoi
+ * afficher l'identité de page dans le feed/la carte et naviguer vers elle.
+ * null sur un post d'utilisateur. */
+export interface PostPageRef {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  pageType: PageType;
+  verified: boolean;
+}
+
 /** Forme FEED_POST du contrat — la projection UNIQUE d'une publication vers
  * l'extérieur (feed, détail, listes de profil, admin...). */
 export interface FeedPost {
@@ -62,6 +75,10 @@ export interface FeedPost {
   shareCount: number;
   saveCount: number;
   author: PostAuthor;
+  /** Page émettrice (Lot 3 — D73) — null pour un post d'utilisateur. Quand
+   * elle est présente, les clients affichent l'IDENTITÉ DE PAGE (nom, avatar,
+   * badge ✓) à la place de l'auteur. */
+  page: PostPageRef | null;
   media: FeedPostMedia[];
   /** Emoji de la réaction du viewer sur ce post — null s'il n'a pas réagi. */
   viewerReaction: string | null;
@@ -96,6 +113,30 @@ export function toPostAuthor(userId: string, user: User | null): PostAuthor {
   };
 }
 
+/**
+ * Projette une page vers la forme PAGE émettrice d'un post. `page` null
+ * (ligne absente — une page soft-supprimée reste en base) → repli défensif
+ * « Page supprimée » pour ne jamais casser un feed (miroir de toPostAuthor).
+ */
+export function toPostPageRef(pageId: string, page: Page | null): PostPageRef {
+  if (!page) {
+    return {
+      id: pageId,
+      name: 'Page supprimée',
+      avatarUrl: null,
+      pageType: 'business',
+      verified: false,
+    };
+  }
+  return {
+    id: page.id,
+    name: page.name,
+    avatarUrl: page.avatarUrl,
+    pageType: page.pageType,
+    verified: page.verified,
+  };
+}
+
 /** Projette une entité PostMedia vers la forme MEDIA du contrat. */
 export function toFeedPostMedia(media: PostMedia): FeedPostMedia {
   return {
@@ -122,6 +163,8 @@ export function toReactionsTop(counts: Record<string, number>): EmojiCount[] {
 /** Données contextuelles d'un FEED_POST (calculées par lot par l'assembler). */
 export interface FeedPostContext {
   author: PostAuthor;
+  /** Page émettrice (Lot 3 — D73) — null pour un post d'utilisateur. */
+  page: PostPageRef | null;
   media: FeedPostMedia[];
   viewerReaction: string | null;
   viewerSaved: boolean;
@@ -147,6 +190,7 @@ export function toFeedPost(post: Post, context: FeedPostContext): FeedPost {
     shareCount: post.shareCount,
     saveCount: post.saveCount,
     author: context.author,
+    page: context.page,
     media: context.media,
     viewerReaction: context.viewerReaction,
     viewerSaved: context.viewerSaved,

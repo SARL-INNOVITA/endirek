@@ -3,7 +3,7 @@
 > Comment lancer, tester et vérifier le projet. **Aucun secret réel dans ce fichier** : uniquement des comptes de développement du seed.
 > Mettre à jour ce fichier dès qu'une commande, une procédure ou un compte de test change.
 
-_Dernière mise à jour : Lot 2 — CP2.5 (modération avancée Dealplace) (2026-07-12)._
+_Dernière mise à jour : Lot 3 — pages restaurants & entreprises (2026-07-14)._
 
 Prérequis : **Node ≥ 22** + npm (dans le PATH), **Flutter ≥ 3.44** + SDK Android. `DB_DRIVER=mock` reste le défaut et le fallback API ; **`DB_DRIVER=postgres` est fonctionnel** (Docker requis — voir §8 bis). Toutes les commandes `npm` se lancent depuis la **racine du monorepo** `ENDIREK/`.
 
@@ -48,7 +48,7 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3001   # émulateur → A
 ```
 > `10.0.2.2` = localhost de la machine hôte vu depuis l'émulateur Android. Émulateur disponible : `Pixel_3a_API_34`.
 
-> **Dépendances mobiles du checkpoint 5** (déjà dans `apps/mobile/pubspec.yaml`, installées par `flutter pub get`) : `flutter_map` (carte + tuiles OSM), `latlong2` (coordonnées), `socket_io_client` (temps réel). Aucune autre dépendance à ajouter.
+> **Dépendances mobiles du checkpoint 5** (déjà dans `apps/mobile/pubspec.yaml`, installées par `flutter pub get`) : `flutter_map` (carte + tuiles OSM), `latlong2` (coordonnées), `socket_io_client` (temps réel). Le Lot 3 ajoute `url_launcher` (itinéraire + ouverture des PDF) et `file_picker` (sélection des cartes PDF). Aucune autre dépendance à ajouter.
 
 ---
 
@@ -355,15 +355,101 @@ note d'arbitrage est montrée aux DEUX parties, jamais l'identité du
 modérateur ; l'issue `completed` OUVRE les avis ; après une reprise
 (`resumed`), un nouveau litige efface les traces de l'arbitrage précédent.
 
+## 4 nonies. Vérifier les pages restaurants & entreprises (Lot 3)
+
+Toutes ces routes exigent un Bearer token (§6). Parité mock/postgres
+(migration `0009`). Seed : **page 1 « Bon Goût »** (restaurant VÉRIFIÉ de
+David Payet, Saint-Denis — horaires, 6 plats, menus de la semaine GLISSANTE
+sauf lundi, 2 cartes PDF, 1 offre, 1 événement à venir, 3 abonnés, 3
+publications de page visibles carte) et **page 2 « Ti Kaz Services »**
+(entreprise d'Émilie Técher, Saint-Benoît — 1 offre permanente, 1 événement
+passé, 2 abonnés, 1 publication libre, 1 signalement ouvert). Conversation
+n°4 = Laurence ↔ page Bon Goût.
+
+```bash
+# Mes pages / pages d'un profil / détail (openStatus DÉRIVÉ — heure Réunion)
+curl "http://localhost:3001/api/v1/users/me/pages" -H "Authorization: Bearer <TOKEN>"
+curl "http://localhost:3001/api/v1/pages/<PAGE_ID>" -H "Authorization: Bearer <TOKEN>"
+
+# Créer une page (active immédiatement — D69 ; commune du référentiel)
+curl -X POST "http://localhost:3001/api/v1/pages" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"pageType":"restaurant","name":"Chez Momon","city":"Saint-Pierre","bio":"Cuisine créole."}'
+
+# Horaires (REMPLACE tout — minutes locales, 4 plages max/jour) et congés
+curl -X PUT "http://localhost:3001/api/v1/pages/<PAGE_ID>/hours" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"hours":[{"weekday":1,"opensAt":"11:30","closesAt":"14:30"}]}'
+curl -X PATCH "http://localhost:3001/api/v1/pages/<PAGE_ID>" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"vacationUntil":"2026-08-15T00:00:00.000Z","vacationMessage":"Retour le 15 août !"}'
+
+# Restaurant : plats (prix en CENTIMES, au moins un des deux) et menus par DATE
+curl -X POST "http://localhost:3001/api/v1/pages/<PAGE_ID>/dishes" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"name":"Rougail saucisses","priceTakeawayCents":700,"priceDineInCents":1200}'
+curl "http://localhost:3001/api/v1/pages/<PAGE_ID>/menus" -H "Authorization: Bearer <TOKEN>"
+curl -X PUT "http://localhost:3001/api/v1/pages/<PAGE_ID>/menus/2026-07-15" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"dishIds":["<DISH_ID>"]}'
+
+# « Nos cartes » : upload PDF (magic bytes %PDF-) puis attache (5 max)
+curl -X POST "http://localhost:3001/api/v1/media/upload-document" \
+  -H "Authorization: Bearer <TOKEN>" -F "file=@carte.pdf"
+curl -X POST "http://localhost:3001/api/v1/pages/<PAGE_ID>/documents" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"label":"Carte principale","url":"<URL_UPLOAD>","fileSizeBytes":13264}'
+
+# Offres / événements (public : non expirées / à venir ; ?all=true = proprio)
+curl "http://localhost:3001/api/v1/pages/<PAGE_ID>/offers" -H "Authorization: Bearer <TOKEN>"
+curl -X POST "http://localhost:3001/api/v1/pages/<PAGE_ID>/events" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"title":"Soirée musique live","startsAt":"2026-07-17T15:00:00.000Z"}'
+
+# S'abonner / publier au nom de la page (D73 — corps auto-composés)
+curl -X POST "http://localhost:3001/api/v1/pages/<PAGE_ID>/follow" -H "Authorization: Bearer <TOKEN>"
+curl -X POST "http://localhost:3001/api/v1/pages/<PAGE_ID>/posts" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"kind":"menu"}'
+curl "http://localhost:3001/api/v1/pages/<PAGE_ID>/posts" -H "Authorization: Bearer <TOKEN>"
+
+# Messagerie de page (D75) et signalement (D76)
+curl -X POST "http://localhost:3001/api/v1/conversations" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"pageId":"<PAGE_ID>","body":"Bonjour, ouvert ce soir ?"}'
+curl -X POST "http://localhost:3001/api/v1/pages/<PAGE_ID>/report" \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"reasonCode":"other","message":"Page suspecte."}'
+
+# ── Backoffice (rôle moderator/super_admin — 403 sinon) ──
+curl "http://localhost:3001/api/v1/admin/pages?flaggedOnly=true" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl "http://localhost:3001/api/v1/admin/pages/<PAGE_ID>" -H "Authorization: Bearer <TOKEN_ADMIN>"
+curl -X PATCH "http://localhost:3001/api/v1/admin/pages/<PAGE_ID>/status" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" -H "Content-Type: application/json" \
+  -d '{"status":"hidden"}'
+curl -X PATCH "http://localhost:3001/api/v1/admin/pages/<PAGE_ID>/verified" \
+  -H "Authorization: Bearer <TOKEN_ADMIN>" -H "Content-Type: application/json" \
+  -d '{"verified":true}'
+curl "http://localhost:3001/api/v1/admin/reports?targetType=page" -H "Authorization: Bearer <TOKEN_ADMIN>"
+```
+
+Rappels Lot 3 : les types de posts `menu`/`offer`/`event` sont RÉSERVÉS aux
+pages (absents du composer, publiés via `POST /pages/:id/posts`) ; menu et
+offre expirent de la carte à 23 h Réunion, un événement est visible de J-3 à
+sa fin ; masquer une page retire aussi ses publications du feed/carte ; les
+menus/plats/cartes sont réservés aux restaurants (400 sur une entreprise).
+
 ## 5. Log de boot attendu (seed mock)
 
 ```
-Mock DB prête : 15 utilisateurs, 32 follows, 42 posts (dont 13 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 5 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags), 3 conversations (9 messages), 3 deals (2 avis)
+Mock DB prête : 15 utilisateurs, 32 follows, 46 posts (dont 16 visibles carte), 60 commentaires, 155 réactions, 12 caméras, 6 signalements, 12 notifications, 8 annonces Dealplace (20 catégories, 79 sous-catégories, 10 tags), 4 conversations (11 messages), 3 deals (2 avis), 2 pages (6 plats, 6 menus, 2 offres, 2 événements, 5 abonnés)
 ```
 Le suffixe Dealplace (annonces + taxonomie) a été ajouté au CP2.1 ; le CP2.5
-porte le seed à 5 signalements (dont 1 sur annonce), 3 conversations
-(9 messages dont 1 masqué) et 3 deals (dont 1 en litige à arbitrer). Si ce
-log change après une modification non liée au seed, c'est un signal de
+a porté le seed à 3 deals (dont 1 en litige à arbitrer) ; le Lot 3 le porte à
+46 posts (42 posts utilisateur + 4 publications DE PAGE, dont 16 visibles
+carte — menu/offre/événement de Bon Goût inclus), 6 signalements (+1 sur une
+page), 4 conversations/11 messages (+1 fil de page) et 2 pages complètes.
+Si ce log change après une modification non liée au seed, c'est un signal de
 régression à investiguer.
 
 ---
@@ -428,7 +514,7 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
 Migrations (première base ou après `docker compose -f infra/docker-compose.yml down -v`) —
 Lot 1 (`0001`, `0002`) **puis** Dealplace CP2.1 (`0003`, `0004`) **puis**
 profil Dealplace CP2.2 (`0005`), conversations CP2.3 (`0006`), deals CP2.4
-(`0007`) **puis** modération CP2.5 (`0008`) :
+(`0007`), modération CP2.5 (`0008`) **puis** pages Lot 3 (`0009`) :
 
 ```bash
 docker cp apps/api/db/migrations/0001_lot1_init.sql endirek-postgres:/tmp/0001_lot1_init.sql
@@ -439,6 +525,7 @@ docker cp apps/api/db/migrations/0005_dealplace_profile.sql endirek-postgres:/tm
 docker cp apps/api/db/migrations/0006_conversations.sql endirek-postgres:/tmp/0006_conversations.sql
 docker cp apps/api/db/migrations/0007_deals.sql endirek-postgres:/tmp/0007_deals.sql
 docker cp apps/api/db/migrations/0008_moderation.sql endirek-postgres:/tmp/0008_moderation.sql
+docker cp apps/api/db/migrations/0009_pages.sql endirek-postgres:/tmp/0009_pages.sql
 
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0001_lot1_init.sql
@@ -456,7 +543,12 @@ docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0007_deals.sql
 docker compose -f infra/docker-compose.yml exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0008_moderation.sql
+docker compose -f infra/docker-compose.yml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U endirek -d endirek -f /tmp/0009_pages.sql
 ```
+
+> Sous Git Bash (MSYS), préfixer les commandes `psql -f /tmp/...` de
+> `MSYS_NO_PATHCONV=1` (sinon le chemin `/tmp/...` est réécrit par MSYS).
 
 État validé : conteneur `endirek-postgres` healthy, PostGIS 3.4 actif, 13 tables
 métier Lot 1 + `spatial_ref_sys`, 5 `post_types`, 6 `reaction_types` ; CP2.1
@@ -467,11 +559,18 @@ colonne `users.dealplace_seeking` (migration `0005`, rejouable) ; CP2.3 ajoute
 les tables `conversations` et `messages` (migration `0006`, rejouable) ; CP2.4
 ajoute les 6 tables deals + avis (migration `0007`, rejouable) ; CP2.5 étend
 `reports.target_type` à `'listing'`, ajoute `messages.status` et les colonnes
-d'arbitrage des litiges sur `deals` (migration `0008`, rejouable).
+d'arbitrage des litiges sur `deals` (migration `0008`, rejouable) ; le Lot 3
+ajoute les 9 tables pages (`pages`, `page_hours`, `page_documents`, `dishes`,
+`page_menus`, `page_menu_items`, `page_offers`, `page_events`,
+`page_follows`), active la FK `posts.page_id`, ajoute `posts.map_visible_from`
+et `post_types.page_only` (+ 3 types réservés aux pages), rend
+`conversations.listing_id` nullable avec `page_id` (CHECK exactement une
+cible) et étend `reports.target_type` à `'page'` (migration `0009`,
+rejouable).
 
 > Les migrations sont aussi applicables via le raccourci `npm run db:migrate`
 > (copie + `psql -f` de **tout** le dossier `migrations/` dans l'ordre
-> lexicographique — `0001`→`0008` — dans le conteneur, voir §8 bis).
+> lexicographique — `0001`→`0009` — dans le conteneur, voir §8 bis).
 > **⚠️ Uniquement sur une base VIERGE** : `0001` n'est pas rejouable
 > (`CREATE TABLE` sans `IF NOT EXISTS`) — sur une base déjà migrée, appliquer
 > uniquement les NOUVELLES migrations via `docker cp` + `psql -f` (ci-dessus).

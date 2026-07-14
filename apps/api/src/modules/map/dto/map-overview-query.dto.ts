@@ -31,7 +31,8 @@ export class MapOverviewQueryDto extends MapBboxQueryDto {
   @IsArray({ message: 'types doit être une liste' })
   @IsIn(MAP_POST_TYPES, {
     each: true,
-    message: 'types accepte seulement weather, traffic ou danger',
+    message:
+      'types accepte seulement weather, traffic, danger, menu, offer ou event',
   })
   types?: string[];
 

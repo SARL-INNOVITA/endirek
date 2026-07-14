@@ -100,6 +100,10 @@ class ApiClient {
     return _executer(() => _dio.patch<dynamic>(chemin, data: data));
   }
 
+  Future<Response<dynamic>> put(String chemin, {Object? data}) {
+    return _executer(() => _dio.put<dynamic>(chemin, data: data));
+  }
+
   Future<Response<dynamic>> delete(String chemin, {Object? data}) {
     return _executer(() => _dio.delete<dynamic>(chemin, data: data));
   }

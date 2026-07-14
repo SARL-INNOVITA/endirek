@@ -20,10 +20,12 @@ import {
 } from '../../repositories/interfaces';
 import { query, rowToPostType } from '../pg-helpers';
 
-/** Colonnes de `post_types` (aucune géométrie). */
+/** Colonnes de `post_types` (aucune géométrie). `page_only` (Lot 3 — D73)
+ * n'est pas patchable : type réservé aux pages, posé par migration. */
 const SQL_POST_TYPE_COLUMNS = `
   slug, label_fr, icon, color, requires_location_for_map, shows_on_map,
-  default_map_duration_minutes, is_active, position, created_at, updated_at
+  default_map_duration_minutes, page_only, is_active, position, created_at,
+  updated_at
 `.trim();
 
 /** Correspondance clé de patch (camelCase) → colonne SQL (snake_case). Le slug

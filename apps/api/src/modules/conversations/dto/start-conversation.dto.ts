@@ -1,21 +1,33 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, IsUUID, Length } from 'class-validator';
+import { IsOptional, IsString, IsUUID, Length } from 'class-validator';
 
 /** Corps de POST /conversations — démarre (ou reprend) MA conversation sur
- * une annonce en envoyant le PREMIER message (get-or-create, décision D63 :
- * pas de fil vide). */
+ * une annonce (D63) OU une page (Lot 3 — D75) en envoyant le PREMIER message
+ * (get-or-create : pas de fil vide). Exactement UNE cible parmi
+ * listingId / pageId — la règle croisée est vérifiée au SERVICE (400). */
 export class StartConversationDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       "Identifiant de l'annonce visée — annonce 'active' uniquement (404 " +
-      'sinon), jamais la sienne (400)',
+      'sinon), jamais la sienne (400). Exclusif avec pageId.',
   })
+  @IsOptional()
   @IsUUID(undefined, {
     message: "listingId doit être un identifiant d'annonce valide",
   })
-  @IsNotEmpty({ message: 'listingId est obligatoire' })
-  listingId!: string;
+  listingId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Identifiant de la page visée (Lot 3 — D75) — page 'active' uniquement " +
+      '(404 sinon), jamais la sienne (400). Exclusif avec listingId.',
+  })
+  @IsOptional()
+  @IsUUID(undefined, {
+    message: 'pageId doit être un identifiant de page valide',
+  })
+  pageId?: string;
 
   @ApiProperty({
     description: 'Premier message du fil (1 à 2000 caractères après trim)',

@@ -26,6 +26,7 @@ Contenu de l'export (`format: 'endirek-export'`, `version: 1`,
 | `posts` | Toutes les publications de l'utilisateur |
 | `listings` | Toutes ses annonces Dealplace, **tous statuts** (actives, masquées, soft-supprimées) — ajouté au CP2.2 |
 | `deals` / `dealNotes` / `dealReviews` | Ses deals (toutes phases), SES notes de suivi et les avis le concernant (émis et reçus) — ajouté au CP2.4 |
+| `pages` / `followedPages` | Ses pages professionnelles, **tous statuts** (actives, masquées, soft-supprimées), et les pages qu'il suit (référence minimale : id + nom + slug — le contenu des pages suivies appartient à leurs propriétaires) — ajouté au Lot 3 |
 | `comments` | Tous ses commentaires |
 | `reactions` | Toutes ses réactions |
 | `follows` | Abonnements émis et reçus — les tiers y sont réduits à une **référence minimale** (id + nom affiché) : l'export d'un utilisateur n'embarque pas les données personnelles des autres |
@@ -63,9 +64,16 @@ Droit à l'**effacement** (article 17), implémenté en
   de modération : la ligne reste conservée pour cohérence du fil et audit,
   et une racine non active avec réponses actives reste affichée comme
   emplacement vide.
+- **Les annonces Dealplace et les PAGES professionnelles du compte sont
+  conservées telles quelles** (comme les posts) : leurs contenus ne portent
+  pas de donnée personnelle au-delà du propriétaire, qui apparaît anonymisé.
+  Une page d'un compte supprimé n'est plus gérable (plus de connexion) —
+  son masquage relève de la modération, sa purge de la procédure manuelle
+  ci-dessous (limite documentée au Lot 3).
 - **La ligne du compte anonymisée est conservée** : elle sert de cible aux
-  clés étrangères (posts, commentaires, follows historiques) et reste
-  visible du backoffice pour l'audit (`GET /admin/users?status=deleted`).
+  clés étrangères (posts, commentaires, follows historiques, annonces,
+  pages) et reste visible du backoffice pour l'audit
+  (`GET /admin/users?status=deleted`).
 
 ### Effets visibles
 

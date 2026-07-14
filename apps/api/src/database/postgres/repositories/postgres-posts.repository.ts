@@ -110,52 +110,52 @@ export class PostgresPostsRepository implements PostsRepository {
         `url_slug déjà utilisé : « ${input.urlSlug} » (contrainte UNIQUE).`,
       );
     }
+    if (input.pageId != null) {
+      // FK pages (Lot 3 — D73) : même message que le mock.
+      const page = await query(this.pool, 'SELECT 1 FROM pages WHERE id = $1', [
+        input.pageId,
+      ]);
+      if (page.rowCount === 0) {
+        throw new Error(`Page introuvable : ${input.pageId} (FK pages).`);
+      }
+    }
 
     const location = input.location ?? null;
-    // location écrite via ST_SetSRID(ST_MakePoint(lng, lat), 4326) — ORDRE
-    // longitude d'abord ; NULL si absente (post feed-only).
-    const locationSql =
-      location === null
-        ? 'NULL'
-        : 'ST_SetSRID(ST_MakePoint($6, $7), 4326)';
 
     // Post + médias créés ATOMIQUEMENT (équivalent transaction du mock).
     const post = await withTransaction(this.pool, async (client) => {
+      // Placeholders calculés au fil des params (la géométrie est optionnelle :
+      // lng/lat ne sont poussés que si location non nulle — pattern seeder).
       const insertParams: unknown[] = [
         input.authorId,
+        input.pageId ?? null,
         input.typeSlug,
         input.title ?? null,
         input.body,
         input.city ?? null,
-        // $6 = lng, $7 = lat (utilisés seulement si location non nulle),
-        // $8 = url_slug, $9 = map_expires_at.
       ];
-      if (location === null) {
-        insertParams.push(
-          input.urlSlug,
-          input.mapExpiresAt ?? null,
-        );
-      } else {
-        insertParams.push(
-          location.lng,
-          location.lat,
-          input.urlSlug,
-          input.mapExpiresAt ?? null,
-        );
+      // location écrite via ST_SetSRID(ST_MakePoint(lng, lat), 4326) — ORDRE
+      // longitude d'abord ; NULL si absente (post feed-only).
+      let locationSql = 'NULL';
+      if (location !== null) {
+        insertParams.push(location.lng, location.lat);
+        locationSql = `ST_SetSRID(ST_MakePoint($${insertParams.length - 1}, $${insertParams.length}), 4326)`;
       }
-      // Placeholders url_slug / map_expires_at : positions décalées selon la
-      // présence des coordonnées ($6/$7).
-      const slugPh = location === null ? '$6' : '$8';
-      const mapExpPh = location === null ? '$7' : '$9';
+      insertParams.push(input.urlSlug);
+      const slugPh = `$${insertParams.length}`;
+      insertParams.push(input.mapExpiresAt ?? null);
+      const mapExpPh = `$${insertParams.length}`;
+      insertParams.push(input.mapVisibleFrom ?? null);
+      const mapFromPh = `$${insertParams.length}`;
 
       const inserted = await client.query(
         `INSERT INTO posts (
-           author_id, type_slug, title, body, city,
-           location, url_slug, map_expires_at,
+           author_id, page_id, type_slug, title, body, city,
+           location, url_slug, map_expires_at, map_visible_from,
            visibility, status
          ) VALUES (
-           $1, $2, $3, $4, $5,
-           ${locationSql}, ${slugPh}, ${mapExpPh},
+           $1, $2, $3, $4, $5, $6,
+           ${locationSql}, ${slugPh}, ${mapExpPh}, ${mapFromPh},
            'public', 'active'
          )
          RETURNING id`,
@@ -259,12 +259,24 @@ export class PostgresPostsRepository implements PostsRepository {
   }
 
   async countByAuthor(authorId: string): Promise<number> {
-    // Alimente postsCount des profils : posts 'active' de l'auteur.
+    // Alimente postsCount des profils : posts 'active' de l'auteur. Les posts
+    // de PAGE sont exclus (Lot 3 — D73 : ils vivent sur la page).
     const { rows } = await query(
       this.pool,
       `SELECT count(*) AS n FROM posts
-         WHERE author_id = $1 AND status = 'active'`,
+         WHERE author_id = $1 AND page_id IS NULL AND status = 'active'`,
       [authorId],
+    );
+    return Number(rows[0].n);
+  }
+
+  async countByPage(pageId: string): Promise<number> {
+    // Publications 'active' d'une PAGE (Lot 3 — D73).
+    const { rows } = await query(
+      this.pool,
+      `SELECT count(*) AS n FROM posts
+         WHERE page_id = $1 AND status = 'active'`,
+      [pageId],
     );
     return Number(rows[0].n);
   }
@@ -288,11 +300,12 @@ export class PostgresPostsRepository implements PostsRepository {
   ): Promise<PagedResult<Post>> {
     // Filtre statuts, antéchronologique, tie-break id (ordre STABLE entre
     // deux pages). status = ANY($2) reproduit le Set des statuts du mock.
+    // Les posts de PAGE sont exclus des listes de profil (Lot 3 — D73).
     const items = await query(
       this.pool,
       `SELECT ${SQL_POST_SELECTION}
          FROM posts p
-        WHERE p.author_id = $1 AND p.status = ANY($2)
+        WHERE p.author_id = $1 AND p.page_id IS NULL AND p.status = ANY($2)
         ORDER BY p.created_at DESC, p.id
         LIMIT $3 OFFSET $4`,
       [authorId, params.statuses, params.limit, params.offset],
@@ -300,8 +313,35 @@ export class PostgresPostsRepository implements PostsRepository {
     const totalRes = await query(
       this.pool,
       `SELECT count(*) AS n FROM posts
-         WHERE author_id = $1 AND status = ANY($2)`,
+         WHERE author_id = $1 AND page_id IS NULL AND status = ANY($2)`,
       [authorId, params.statuses],
+    );
+    return {
+      items: items.rows.map(rowToPost),
+      total: Number(totalRes.rows[0].n),
+    };
+  }
+
+  async listByPagePaged(
+    pageId: string,
+    params: ListAuthorPostsParams,
+  ): Promise<PagedResult<Post>> {
+    // Publications d'une PAGE (Lot 3 — D73) — même sémantique que
+    // listByAuthorPaged (statuts filtrés, antéchronologique, tie-break id).
+    const items = await query(
+      this.pool,
+      `SELECT ${SQL_POST_SELECTION}
+         FROM posts p
+        WHERE p.page_id = $1 AND p.status = ANY($2)
+        ORDER BY p.created_at DESC, p.id
+        LIMIT $3 OFFSET $4`,
+      [pageId, params.statuses, params.limit, params.offset],
+    );
+    const totalRes = await query(
+      this.pool,
+      `SELECT count(*) AS n FROM posts
+         WHERE page_id = $1 AND status = ANY($2)`,
+      [pageId, params.statuses],
     );
     return {
       items: items.rows.map(rowToPost),
@@ -345,11 +385,16 @@ export class PostgresPostsRepository implements PostsRepository {
   async listActiveWindow(limit: number): Promise<Post[]> {
     // Fenêtre du scoring : N posts 'active' les plus récents, tie-break id
     // pour un ordre STABLE entre deux appels (mock : created_at DESC, id).
+    // Les posts d'une page NON ACTIVE sont exclus (Lot 3 — D69 : page
+    // masquée = contenus retirés du flux) — miroir de isPageVisible du mock.
     const { rows } = await query(
       this.pool,
       `SELECT ${SQL_POST_SELECTION}
          FROM posts p
         WHERE p.status = 'active'
+          AND (p.page_id IS NULL OR EXISTS (
+                SELECT 1 FROM pages pa
+                 WHERE pa.id = p.page_id AND pa.status = 'active'))
         ORDER BY p.created_at DESC, p.id
         LIMIT $1`,
       [limit],
@@ -366,6 +411,13 @@ export class PostgresPostsRepository implements PostsRepository {
       `p.location IS NOT NULL`,
       // map_expires_at strictement postérieur à `now` (mock : <= now exclu).
       `p.map_expires_at > $1`,
+      // Visibilité différée (Lot 3 — D73) : un post d'événement n'apparaît
+      // sur la carte qu'à partir de map_visible_from (J-3).
+      `(p.map_visible_from IS NULL OR p.map_visible_from <= $1)`,
+      // Page masquée/supprimée = contenus retirés de la carte (Lot 3 — D69).
+      `(p.page_id IS NULL OR EXISTS (
+          SELECT 1 FROM pages pa
+           WHERE pa.id = p.page_id AND pa.status = 'active'))`,
     ];
     const values: unknown[] = [params.now];
     let n = 2;

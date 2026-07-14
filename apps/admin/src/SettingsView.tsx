@@ -122,7 +122,12 @@ export default function SettingsView() {
                       onClick={() => setSelectedSlug(type.slug)}
                     >
                       <td>
-                        <TypeBadge slug={type.slug} type={type} />
+                        <TypeBadge slug={type.slug} type={type} />{' '}
+                        {type.pageOnly && (
+                          <span className="badge badge--neutral">
+                            Réservé aux pages
+                          </span>
+                        )}
                       </td>
                       <td>
                         <code>{type.slug}</code>
@@ -234,6 +239,14 @@ function PostTypeEditor({ type, onUpdated, onRefresh }: PostTypeEditorProps) {
           </dd>
         </div>
 
+        {/* Type reserve aux pages (Lot 3) : publiable uniquement via
+            POST /pages/:id/posts, absent du composer utilisateur. */}
+        {type.pageOnly && (
+          <div className="detail-badges">
+            <span className="badge badge--neutral">Réservé aux pages</span>
+          </div>
+        )}
+
         <div className="form-field">
           <label htmlFor="post-type-label">Libelle</label>
           <input
@@ -320,6 +333,10 @@ function PostTypeEditor({ type, onUpdated, onRefresh }: PostTypeEditorProps) {
               className="form-input"
               inputMode="numeric"
               value={form.defaultMapDurationMinutes}
+              // Types reserves aux pages : la fenetre carte est calculee par
+              // l'API (service du jour, periode d'offre, evenement) — la
+              // duree par defaut ne s'applique pas.
+              disabled={type.pageOnly}
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,
@@ -327,6 +344,11 @@ function PostTypeEditor({ type, onUpdated, onRefresh }: PostTypeEditorProps) {
                 }))
               }
             />
+            {type.pageOnly && (
+              <span className="form-hint">
+                Sans effet pour ce type : fenetre carte calculee par l'API.
+              </span>
+            )}
           </div>
           <div className="form-field">
             <label htmlFor="post-type-position">Ordre</label>

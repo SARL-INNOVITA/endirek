@@ -34,7 +34,11 @@ ici — voir `../feed/README.md`).
   haversine, `common/geo/nearest-commune.ts`) si location sans ville ;
 - chaque post porte un **`url_slug`** unique (slugify + suffixe aléatoire,
   retry) pour l'URL web partageable future ;
-- champ **`page_id` nullable** prévu pour les posts de pages (TODO Lot 2+).
+- champ **`page_id`** ACTIF depuis le Lot 3 (D73) : un post peut être publié
+  AU NOM d'une page (via `POST /pages/:id/posts` — les types `menu`/`offer`/
+  `event` sont réservés aux pages et absents du composer utilisateur) ; les
+  posts de page sont exclus des listes de profil et de `postsCount`, la
+  colonne `map_visible_from` permet la visibilité carte différée (J-3).
 
 ## Forme FEED_POST
 

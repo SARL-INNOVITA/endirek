@@ -67,6 +67,17 @@ import {
   ModerationLevel,
   Notification,
   NotificationType,
+  Dish,
+  DishStatus,
+  Page,
+  PageContentStatus,
+  PageDocument,
+  PageEvent,
+  PageHour,
+  PageMenu,
+  PageOffer,
+  PageStatus,
+  PageType,
   Post,
   PostMedia,
   PostMediaType,
@@ -283,6 +294,7 @@ export function rowToPostType(row: SqlRow): PostType {
       row.default_map_duration_minutes === undefined
         ? null
         : Number(row.default_map_duration_minutes),
+    pageOnly: row.page_only as boolean,
     isActive: row.is_active as boolean,
     position: Number(row.position),
     createdAt: toDate(row.created_at),
@@ -313,6 +325,7 @@ export function rowToPost(row: SqlRow): Post {
     status: row.status as PostStatus,
     urlSlug: row.url_slug as string,
     mapExpiresAt: toDateOrNull(row.map_expires_at),
+    mapVisibleFrom: toDateOrNull(row.map_visible_from),
     // Compteurs calculés à la lecture (sous-requêtes) : absents = 0.
     reactionCount: Number(row.reaction_count ?? 0),
     commentCount: Number(row.comment_count ?? 0),
@@ -561,6 +574,7 @@ export const SQL_POST_COLUMNS = `
   p.status,
   p.url_slug,
   p.map_expires_at,
+  p.map_visible_from,
   p.share_count,
   p.created_at,
   p.updated_at
@@ -629,6 +643,7 @@ export function geoPointToSql(lngPlaceholder: string, latPlaceholder: string): s
 export const SQL_CONVERSATION_COLUMNS = `
   c.id,
   c.listing_id,
+  c.page_id,
   c.initiator_id,
   c.owner_id,
   c.initiator_last_read_at,
@@ -651,7 +666,8 @@ export const SQL_MESSAGE_COLUMNS = `
 export function rowToConversation(row: SqlRow): Conversation {
   return {
     id: row.id as string,
-    listingId: row.listing_id as string,
+    listingId: (row.listing_id as string | null) ?? null,
+    pageId: (row.page_id as string | null) ?? null,
     initiatorId: row.initiator_id as string,
     ownerId: row.owner_id as string,
     initiatorLastReadAt: toDateOrNull(row.initiator_last_read_at),
@@ -813,5 +829,218 @@ export function rowToDealReview(row: SqlRow): DealReview {
     ratingKindness: Number(row.rating_kindness),
     comment: (row.comment as string | null) ?? null,
     createdAt: toDate(row.created_at),
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pages restaurants & entreprises (Lot 3 — D69-D76)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Colonnes de la table `pages` (alias `pa`) — lat/lng extraits de la
+ * géométrie comme partout (ST_X = longitude, ST_Y = latitude). */
+export const SQL_PAGE_COLUMNS = `
+  pa.id,
+  pa.owner_id,
+  pa.page_type,
+  pa.name,
+  pa.url_slug,
+  pa.bio,
+  pa.avatar_url,
+  pa.cover_url,
+  pa.city,
+  ST_Y(pa.location) AS lat,
+  ST_X(pa.location) AS lng,
+  pa.phone,
+  pa.attributes,
+  pa.vacation_until,
+  pa.vacation_message,
+  pa.verified,
+  pa.status,
+  pa.created_at,
+  pa.updated_at,
+  pa.deleted_at
+`.trim();
+
+export function rowToPage(row: SqlRow): Page {
+  return {
+    id: row.id as string,
+    ownerId: row.owner_id as string,
+    pageType: row.page_type as PageType,
+    name: row.name as string,
+    urlSlug: row.url_slug as string,
+    bio: row.bio as string,
+    avatarUrl: (row.avatar_url as string | null) ?? null,
+    coverUrl: (row.cover_url as string | null) ?? null,
+    city: row.city as string,
+    location: rowToGeoPoint(row),
+    phone: (row.phone as string | null) ?? null,
+    attributes: toStringArray(row.attributes),
+    vacationUntil: toDateOrNull(row.vacation_until),
+    vacationMessage: (row.vacation_message as string | null) ?? null,
+    verified: row.verified as boolean,
+    status: row.status as PageStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+    deletedAt: toDateOrNull(row.deleted_at),
+  };
+}
+
+/** Colonnes de la table `page_hours` (alias `h`). */
+export const SQL_PAGE_HOUR_COLUMNS = `
+  h.id,
+  h.page_id,
+  h.weekday,
+  h.opens_minute,
+  h.closes_minute,
+  h.position
+`.trim();
+
+export function rowToPageHour(row: SqlRow): PageHour {
+  return {
+    id: row.id as string,
+    pageId: row.page_id as string,
+    weekday: Number(row.weekday),
+    opensMinute: Number(row.opens_minute),
+    closesMinute: Number(row.closes_minute),
+    position: Number(row.position),
+  };
+}
+
+/** Colonnes de la table `page_documents` (alias `pd`). */
+export const SQL_PAGE_DOCUMENT_COLUMNS = `
+  pd.id,
+  pd.page_id,
+  pd.label,
+  pd.url,
+  pd.file_size_bytes,
+  pd.position,
+  pd.created_at
+`.trim();
+
+export function rowToPageDocument(row: SqlRow): PageDocument {
+  return {
+    id: row.id as string,
+    pageId: row.page_id as string,
+    label: row.label as string,
+    url: row.url as string,
+    fileSizeBytes: Number(row.file_size_bytes),
+    position: Number(row.position),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+/** Colonnes de la table `dishes` (alias `di`). */
+export const SQL_DISH_COLUMNS = `
+  di.id,
+  di.page_id,
+  di.name,
+  di.description,
+  di.image_url,
+  di.price_takeaway_cents,
+  di.price_dinein_cents,
+  di.position,
+  di.status,
+  di.created_at,
+  di.updated_at
+`.trim();
+
+export function rowToDish(row: SqlRow): Dish {
+  return {
+    id: row.id as string,
+    pageId: row.page_id as string,
+    name: row.name as string,
+    description: row.description as string,
+    imageUrl: (row.image_url as string | null) ?? null,
+    priceTakeawayCents:
+      row.price_takeaway_cents === null ||
+      row.price_takeaway_cents === undefined
+        ? null
+        : Number(row.price_takeaway_cents),
+    priceDineInCents:
+      row.price_dinein_cents === null || row.price_dinein_cents === undefined
+        ? null
+        : Number(row.price_dinein_cents),
+    position: Number(row.position),
+    status: row.status as DishStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+/** Colonnes de la table `page_menus` (alias `pm`) — `menu_date` est
+ * sérialisée en 'YYYY-MM-DD' via to_char (jamais de Date locale ambiguë). */
+export const SQL_PAGE_MENU_COLUMNS = `
+  pm.id,
+  pm.page_id,
+  to_char(pm.menu_date, 'YYYY-MM-DD') AS menu_date,
+  pm.created_at,
+  pm.updated_at
+`.trim();
+
+export function rowToPageMenu(row: SqlRow): PageMenu {
+  return {
+    id: row.id as string,
+    pageId: row.page_id as string,
+    menuDate: row.menu_date as string,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+/** Colonnes de la table `page_offers` (alias `po`). */
+export const SQL_PAGE_OFFER_COLUMNS = `
+  po.id,
+  po.page_id,
+  po.title,
+  po.description,
+  po.image_url,
+  po.starts_at,
+  po.ends_at,
+  po.status,
+  po.created_at,
+  po.updated_at
+`.trim();
+
+export function rowToPageOffer(row: SqlRow): PageOffer {
+  return {
+    id: row.id as string,
+    pageId: row.page_id as string,
+    title: row.title as string,
+    description: row.description as string,
+    imageUrl: (row.image_url as string | null) ?? null,
+    startsAt: toDateOrNull(row.starts_at),
+    endsAt: toDateOrNull(row.ends_at),
+    status: row.status as PageContentStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+/** Colonnes de la table `page_events` (alias `pe`). */
+export const SQL_PAGE_EVENT_COLUMNS = `
+  pe.id,
+  pe.page_id,
+  pe.title,
+  pe.description,
+  pe.image_url,
+  pe.starts_at,
+  pe.ends_at,
+  pe.status,
+  pe.created_at,
+  pe.updated_at
+`.trim();
+
+export function rowToPageEvent(row: SqlRow): PageEvent {
+  return {
+    id: row.id as string,
+    pageId: row.page_id as string,
+    title: row.title as string,
+    description: row.description as string,
+    imageUrl: (row.image_url as string | null) ?? null,
+    startsAt: toDate(row.starts_at),
+    endsAt: toDateOrNull(row.ends_at),
+    status: row.status as PageContentStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
   };
 }

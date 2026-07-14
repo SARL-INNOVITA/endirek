@@ -22,11 +22,20 @@ import {
   DealItemStep,
   DealNote,
   DealReview,
+  Dish,
   Follow,
   Listing,
   ListingMedia,
   Message,
   Notification,
+  Page,
+  PageDocument,
+  PageEvent,
+  PageFollow,
+  PageHour,
+  PageMenu,
+  PageMenuItem,
+  PageOffer,
   Post,
   PostMedia,
   Reaction,
@@ -90,6 +99,16 @@ export interface SeedData {
   dealAdjustments: DealAdjustment[];
   dealNotes: DealNote[];
   dealReviews: DealReview[];
+  // Pages restaurants & entreprises (Lot 3).
+  pages: Page[];
+  pageHours: PageHour[];
+  pageDocuments: PageDocument[];
+  dishes: Dish[];
+  pageMenus: PageMenu[];
+  pageMenuItems: PageMenuItem[];
+  pageOffers: PageOffer[];
+  pageEvents: PageEvent[];
+  pageFollows: PageFollow[];
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -122,6 +141,19 @@ import {
   buildSeedListings,
   buildSeedListingTagMap,
 } from './listings.seed';
+import {
+  buildSeedDishes,
+  buildSeedPageDocuments,
+  buildSeedPageEvents,
+  buildSeedPageFollows,
+  buildSeedPageHours,
+  buildSeedPageMenuItems,
+  buildSeedPageMenus,
+  buildSeedPageOffers,
+  buildSeedPagePostMedia,
+  buildSeedPagePosts,
+  buildSeedPages,
+} from './pages.seed';
 import { buildSeedPostMedia, buildSeedPosts } from './posts.seed';
 import { buildSeedFollows, buildSeedUsers } from './users.seed';
 
@@ -139,13 +171,17 @@ import { buildSeedFollows, buildSeedUsers } from './users.seed';
  * (DB_MOCK_SEED=true).
  *
  * Contenu : 15 utilisateurs réunionnais fictifs + ~30 follows (users.seed),
- * 42 posts sur les 12 communes + 12 médias (posts.seed), 60 commentaires,
- * ~155 réactions, collections + sauvegardes, 5 signalements (dont 1 sur une
- * annonce — CP2.5) et 12 notifications (interactions.seed), 12 caméras
+ * 42 posts utilisateur sur les 12 communes + 4 posts DE PAGE + 14 médias
+ * (posts.seed + pages.seed), 60 commentaires, ~155 réactions, collections +
+ * sauvegardes, 6 signalements (dont 1 sur une annonce — CP2.5 — et 1 sur
+ * une page — Lot 3) et 12 notifications (interactions.seed), 12 caméras
  * météo/trafic (cameras.seed), 8 annonces Dealplace + médias + tags
- * (listings.seed), 3 conversations + 9 messages dont 1 masqué
- * (conversations.seed), 3 deals (1 actif, 1 conclu avec avis croisés,
- * 1 en litige non arbitré — deals.seed).
+ * (listings.seed), 4 conversations + 11 messages dont 1 masqué et 1 fil de
+ * page (conversations.seed), 3 deals (1 actif, 1 conclu avec avis croisés,
+ * 1 en litige non arbitré — deals.seed), 2 pages professionnelles
+ * (1 restaurant vérifié complet + 1 entreprise) avec horaires, plats, menus
+ * de la semaine glissante, cartes PDF, offres, événements et abonnés
+ * (pages.seed).
  * Toutes les références croisées passent par seedUuid — chaque fichier
  * vérifie sa propre cohérence à la construction.
  */
@@ -153,8 +189,9 @@ export function buildSeed(): SeedData {
   return {
     users: buildSeedUsers(),
     follows: buildSeedFollows(),
-    posts: buildSeedPosts(),
-    postMedia: buildSeedPostMedia(),
+    // Posts utilisateur (n°1-42) + posts de page (n°43-46 — Lot 3, D73).
+    posts: [...buildSeedPosts(), ...buildSeedPagePosts()],
+    postMedia: [...buildSeedPostMedia(), ...buildSeedPagePostMedia()],
     comments: buildSeedComments(),
     reactions: buildSeedReactions(),
     savedCollections: buildSeedSavedCollections(),
@@ -173,5 +210,14 @@ export function buildSeed(): SeedData {
     dealAdjustments: buildSeedDealAdjustments(),
     dealNotes: buildSeedDealNotes(),
     dealReviews: buildSeedDealReviews(),
+    pages: buildSeedPages(),
+    pageHours: buildSeedPageHours(),
+    pageDocuments: buildSeedPageDocuments(),
+    dishes: buildSeedDishes(),
+    pageMenus: buildSeedPageMenus(),
+    pageMenuItems: buildSeedPageMenuItems(),
+    pageOffers: buildSeedPageOffers(),
+    pageEvents: buildSeedPageEvents(),
+    pageFollows: buildSeedPageFollows(),
   };
 }

@@ -1,5 +1,10 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { PostAuthor, toPostAuthor } from '../../common/mappers/post.mapper';
+import {
+  PostAuthor,
+  PostPageRef,
+  toPostAuthor,
+  toPostPageRef,
+} from '../../common/mappers/post.mapper';
 import {
   POST_TYPES_REPOSITORY,
   POSTS_REPOSITORY,
@@ -39,6 +44,9 @@ export interface MapPostItem {
   createdAt: Date;
   urlSlug: string;
   author: PostAuthor;
+  /** Page émettrice (Lot 3 — D73) — null pour un post d'utilisateur. La
+   * preview d'un marqueur menu/offre/événement affiche l'identité de PAGE. */
+  page: PostPageRef | null;
 }
 
 /** Vue d'ensemble de la carte (GET /map/overview) — UN SEUL appel mobile. */
@@ -158,8 +166,17 @@ export class MapService {
       now: new Date(),
     });
 
-    const authors = await this.assembler.loadAuthors([
-      ...new Set(posts.map((post) => post.authorId)),
+    const [authors, pages] = await Promise.all([
+      this.assembler.loadAuthors([
+        ...new Set(posts.map((post) => post.authorId)),
+      ]),
+      this.assembler.loadPages([
+        ...new Set(
+          posts
+            .map((post) => post.pageId)
+            .filter((id): id is string => id !== null),
+        ),
+      ]),
     ]);
 
     return posts.map((post) => ({
@@ -172,6 +189,10 @@ export class MapService {
       createdAt: post.createdAt,
       urlSlug: post.urlSlug,
       author: authors.get(post.authorId) ?? toPostAuthor(post.authorId, null),
+      page:
+        post.pageId === null
+          ? null
+          : (pages.get(post.pageId) ?? toPostPageRef(post.pageId, null)),
     }));
   }
 

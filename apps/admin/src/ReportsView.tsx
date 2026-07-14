@@ -10,7 +10,11 @@
  *   ouvre le panneau PostDetailAdmin (depuis lequel on peut la masquer) ;
  * - si la cible est une annonce Dealplace (CP2.5 — D65) : actions directes
  *   Masquer / Réactiver + bouton « Voir l'annonce » qui ouvre le panneau
- *   ListingDetailAdmin.
+ *   ListingDetailAdmin ;
+ * - si la cible est une page restaurant/entreprise (Lot 3) : actions directes
+ *   Masquer la page / Republier (PATCH /admin/pages/:id/status) + bouton
+ *   « Voir la page » qui ouvre le panneau PageDetailAdmin — miroir du
+ *   traitement des annonces.
  *
  * Rappel d'équivalence documentée côté API : le statut « open » correspond
  * au « pending » de la spécification produit.
@@ -22,28 +26,35 @@ import {
   adminListReports,
   adminSetCommentStatus,
   adminSetListingStatus,
+  adminSetPageStatus,
   toErrorMessage,
 } from './api'
 import type {
   AdminFeedPost,
   AdminCommentView,
   AdminListingCard,
+  AdminPageDetail,
   AdminReport,
   AdminSettableListingStatus,
+  AdminSettablePageStatus,
   CommentStatus,
   PagedAdminReports,
   ReportCommentTarget,
   ReportDecision,
   ReportListingTarget,
+  ReportPageTarget,
   ReportPostTarget,
   ReportStatus,
   ReportTargetType,
 } from './api'
 import ListingDetailAdmin from './ListingDetailAdmin'
+import PageDetailAdmin from './PageDetailAdmin'
 import PostDetailAdmin from './PostDetailAdmin'
 import {
   Avatar,
   ListingStatusBadge,
+  PageStatusBadge,
+  PageTypeBadge,
   PostStatusBadge,
   REPORT_REASON_LABELS,
   REPORT_STATUS_LABELS,
@@ -85,6 +96,8 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
   const [viewedPostId, setViewedPostId] = useState<string | null>(null)
   /** Annonce ouverte depuis « Voir l'annonce » (remplace le panneau — CP2.5). */
   const [viewedListingId, setViewedListingId] = useState<string | null>(null)
+  /** Page ouverte depuis « Voir la page » (remplace le panneau — Lot 3). */
+  const [viewedPageId, setViewedPageId] = useState<string | null>(null)
   // Incrémenté après un traitement ou une modération pour recharger la page.
   const [refreshCount, setRefreshCount] = useState(0)
 
@@ -176,10 +189,33 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
     setRefreshCount((count) => count + 1)
   }
 
+  /** La page signalée a été modérée (inline ou via son panneau) :
+   * l'extrait de cible reflète son nouveau statut (Lot 3). */
+  function handlePageUpdated(updated: AdminPageDetail) {
+    setSelected((current) => {
+      if (
+        !current ||
+        current.targetType !== 'page' ||
+        current.target?.id !== updated.id
+      ) {
+        return current
+      }
+      return {
+        ...current,
+        target: {
+          ...current.target,
+          status: updated.status,
+        },
+      }
+    })
+    setRefreshCount((count) => count + 1)
+  }
+
   function selectReport(report: AdminReport) {
     setSelected(report)
     setViewedPostId(null)
     setViewedListingId(null)
+    setViewedPageId(null)
   }
 
   const loading = list.kind === 'loading'
@@ -187,7 +223,10 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
   const hasPrevious = offset > 0
   const hasNext = list.kind === 'success' && offset + PAGE_SIZE < total
   const panelOpen =
-    selected !== null || viewedPostId !== null || viewedListingId !== null
+    selected !== null ||
+    viewedPostId !== null ||
+    viewedListingId !== null ||
+    viewedPageId !== null
 
   return (
     <div className={panelOpen ? 'view-layout view-layout--with-detail' : 'view-layout'}>
@@ -232,6 +271,7 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
             <option value="post">Publications</option>
             <option value="comment">Commentaires</option>
             <option value="listing">Annonces</option>
+            <option value="page">Pages</option>
             <option value="user">Profils</option>
           </select>
         </div>
@@ -337,6 +377,12 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
           onClose={() => setViewedListingId(null)}
           onListingUpdated={handleListingUpdated}
         />
+      ) : viewedPageId ? (
+        <PageDetailAdmin
+          pageId={viewedPageId}
+          onClose={() => setViewedPageId(null)}
+          onPageUpdated={handlePageUpdated}
+        />
       ) : (
         selected && (
           <ReportPanel
@@ -345,8 +391,10 @@ export default function ReportsView({ onOpenCountChanged }: ReportsViewProps) {
             onHandled={handleReportHandled}
             onViewPost={(postId) => setViewedPostId(postId)}
             onViewListing={(listingId) => setViewedListingId(listingId)}
+            onViewPage={(pageId) => setViewedPageId(pageId)}
             onCommentModerated={handleCommentUpdated}
             onListingModerated={handleListingUpdated}
+            onPageModerated={handlePageUpdated}
           />
         )
       )}
@@ -365,8 +413,11 @@ interface ReportPanelProps {
   onViewPost: (postId: string) => void
   /** Ouvre le panneau annonce (cible de type listing — CP2.5). */
   onViewListing: (listingId: string) => void
+  /** Ouvre le panneau page (cible de type page — Lot 3). */
+  onViewPage: (pageId: string) => void
   onCommentModerated: (updated: AdminCommentView) => void
   onListingModerated: (updated: AdminListingCard) => void
+  onPageModerated: (updated: AdminPageDetail) => void
 }
 
 function ReportPanel({
@@ -375,8 +426,10 @@ function ReportPanel({
   onHandled,
   onViewPost,
   onViewListing,
+  onViewPage,
   onCommentModerated,
   onListingModerated,
+  onPageModerated,
 }: ReportPanelProps) {
   const [note, setNote] = useState('')
   const [acting, setActing] = useState(false)
@@ -386,6 +439,9 @@ function ReportPanel({
   const [listingActing, setListingActing] =
     useState<AdminSettableListingStatus | null>(null)
   const [listingError, setListingError] = useState<string | null>(null)
+  const [pageActing, setPageActing] =
+    useState<AdminSettablePageStatus | null>(null)
+  const [pageError, setPageError] = useState<string | null>(null)
 
   // Repart d'une note vierge quand on passe à un autre signalement.
   useEffect(() => {
@@ -405,6 +461,10 @@ function ReportPanel({
   const listingTarget =
     report.targetType === 'listing' && report.target
       ? (report.target as ReportListingTarget)
+      : null
+  const pageTarget =
+    report.targetType === 'page' && report.target
+      ? (report.target as ReportPageTarget)
       : null
 
   /** Enregistre une décision de modération après confirmation. */
@@ -473,6 +533,33 @@ function ReportPanel({
     }
   }
 
+  /** Masque ou republie la page signalée (Lot 3 — action directe, miroir
+   * du traitement des annonces). */
+  async function applyPageStatus(status: AdminSettablePageStatus) {
+    if (!pageTarget) return
+    const question =
+      status === 'hidden'
+        ? `Masquer la page « ${pageTarget.name} » ? Elle disparaîtra du ` +
+          'public et ses publications seront retirées du feed et de la ' +
+          'carte (masquage réversible).'
+        : `Republier la page « ${pageTarget.name} » ? Elle redeviendra ` +
+          'visible, ainsi que ses publications.'
+    if (!window.confirm(question)) return
+
+    setPageActing(status)
+    setPageError(null)
+    try {
+      const updated = await adminSetPageStatus(pageTarget.id, status)
+      onPageModerated(updated)
+    } catch (caught) {
+      // 409 (page supprimée : statut définitif) porte déjà un message
+      // français propre renvoyé par l'API.
+      setPageError(toErrorMessage(caught))
+    } finally {
+      setPageActing(null)
+    }
+  }
+
   return (
     <aside className="card detail-panel" aria-label="Détail du signalement">
       <div className="detail-header">
@@ -519,10 +606,16 @@ function ReportPanel({
               {listingTarget && (
                 <p className="excerpt-title">{listingTarget.title}</p>
               )}
+              {pageTarget && (
+                <p className="excerpt-title">{pageTarget.name}</p>
+              )}
               <p className="target-extract-body">{report.target.body}</p>
               <div className="detail-badges">
+                {pageTarget && <PageTypeBadge pageType={pageTarget.pageType} />}
                 {listingTarget ? (
                   <ListingStatusBadge status={listingTarget.status} />
+                ) : pageTarget ? (
+                  <PageStatusBadge status={pageTarget.status} />
                 ) : (
                   <PostStatusBadge status={report.target.status} />
                 )}
@@ -573,6 +666,45 @@ function ReportPanel({
               {listingError && (
                 <p className="form-error" role="alert">
                   {listingError}
+                </p>
+              )}
+              {pageTarget && (
+                <div className="report-actions">
+                  <button
+                    type="button"
+                    className="button-ghost"
+                    onClick={() => onViewPage(pageTarget.id)}
+                  >
+                    Voir la page
+                  </button>
+                  {pageTarget.status === 'active' && (
+                    <button
+                      type="button"
+                      className="button-danger"
+                      disabled={pageActing !== null}
+                      onClick={() => void applyPageStatus('hidden')}
+                    >
+                      {pageActing === 'hidden' ? 'En cours…' : 'Masquer la page'}
+                    </button>
+                  )}
+                  {pageTarget.status === 'hidden' && (
+                    <button
+                      type="button"
+                      className="button-primary"
+                      disabled={pageActing !== null}
+                      onClick={() => void applyPageStatus('active')}
+                    >
+                      {pageActing === 'active' ? 'En cours…' : 'Republier'}
+                    </button>
+                  )}
+                  {pageTarget.status === 'deleted' && (
+                    <p className="muted">Page déjà supprimée.</p>
+                  )}
+                </div>
+              )}
+              {pageError && (
+                <p className="form-error" role="alert">
+                  {pageError}
                 </p>
               )}
               {commentTarget && (
@@ -704,6 +836,8 @@ function targetKindLabel(report: AdminReport): string {
       return 'Profil'
     case 'listing':
       return 'Annonce'
+    case 'page':
+      return 'Page'
   }
 }
 
@@ -717,6 +851,10 @@ function targetText(report: AdminReport): string {
   if (report.targetType === 'listing') {
     const target = report.target as ReportListingTarget
     return `${target.title} — ${target.body}`
+  }
+  if (report.targetType === 'page') {
+    const target = report.target as ReportPageTarget
+    return target.body ? `${target.name} — ${target.body}` : target.name
   }
   return report.target.body
 }

@@ -3,12 +3,15 @@ import {
   FeedPost,
   FeedPostMedia,
   PostAuthor,
+  PostPageRef,
   toFeedPost,
   toFeedPostMedia,
   toPostAuthor,
+  toPostPageRef,
   toReactionsTop,
 } from '../../common/mappers/post.mapper';
 import {
+  PAGES_REPOSITORY,
   POSTS_REPOSITORY,
   REACTIONS_REPOSITORY,
   SAVED_REPOSITORY,
@@ -16,6 +19,7 @@ import {
 } from '../../database/database.tokens';
 import { Post } from '../../database/domain/entities';
 import {
+  PagesRepository,
   PostsRepository,
   ReactionsRepository,
   SavedRepository,
@@ -43,6 +47,8 @@ export class FeedPostAssembler {
     private readonly reactionsRepository: ReactionsRepository,
     @Inject(SAVED_REPOSITORY)
     private readonly savedRepository: SavedRepository,
+    @Inject(PAGES_REPOSITORY)
+    private readonly pagesRepository: PagesRepository,
   ) {}
 
   /** Assemble une PAGE de posts vers la forme FEED_POST (ordre préservé). */
@@ -53,19 +59,29 @@ export class FeedPostAssembler {
 
     const postIds = posts.map((post) => post.id);
     const authorIds = [...new Set(posts.map((post) => post.authorId))];
+    const pageIds = [
+      ...new Set(
+        posts
+          .map((post) => post.pageId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
 
-    const [authors, mediaRows, viewerReactions, savedPostIds, emojiCounts] =
-      await Promise.all([
-        this.loadAuthors(authorIds),
-        this.postsRepository.listMediaByPostIds(postIds),
-        this.reactionsRepository.findViewerReactions(
-          viewerId,
-          'post',
-          postIds,
-        ),
-        this.savedRepository.filterSavedPostIds(viewerId, postIds),
-        this.reactionsRepository.countsByEmojiForTargets('post', postIds),
-      ]);
+    const [
+      authors,
+      pages,
+      mediaRows,
+      viewerReactions,
+      savedPostIds,
+      emojiCounts,
+    ] = await Promise.all([
+      this.loadAuthors(authorIds),
+      this.loadPages(pageIds),
+      this.postsRepository.listMediaByPostIds(postIds),
+      this.reactionsRepository.findViewerReactions(viewerId, 'post', postIds),
+      this.savedRepository.filterSavedPostIds(viewerId, postIds),
+      this.reactionsRepository.countsByEmojiForTargets('post', postIds),
+    ]);
 
     // Médias regroupés par post (déjà triés par position par le repository).
     const mediaByPost = new Map<string, FeedPostMedia[]>();
@@ -80,6 +96,10 @@ export class FeedPostAssembler {
       toFeedPost(post, {
         author:
           authors.get(post.authorId) ?? toPostAuthor(post.authorId, null),
+        page:
+          post.pageId === null
+            ? null
+            : (pages.get(post.pageId) ?? toPostPageRef(post.pageId, null)),
         media: mediaByPost.get(post.id) ?? [],
         viewerReaction: viewerReactions[post.id] ?? null,
         viewerSaved: savedSet.has(post.id),
@@ -103,5 +123,18 @@ export class FeedPostAssembler {
   async loadAuthors(authorIds: string[]): Promise<Map<string, PostAuthor>> {
     const users = await this.usersRepository.findByIds(authorIds);
     return new Map(users.map((user) => [user.id, toPostAuthor(user.id, user)]));
+  }
+
+  /**
+   * Pages émettrices par lot vers la forme PAGE d'un post (Lot 3 — D73) —
+   * réutilisé par le module map (marqueurs de posts de page). Une page
+   * disparue sort en repli « Page supprimée » côté appelant (toPostPageRef).
+   */
+  async loadPages(pageIds: string[]): Promise<Map<string, PostPageRef>> {
+    if (pageIds.length === 0) {
+      return new Map();
+    }
+    const pages = await this.pagesRepository.findByIds(pageIds);
+    return new Map(pages.map((page) => [page.id, toPostPageRef(page.id, page)]));
   }
 }

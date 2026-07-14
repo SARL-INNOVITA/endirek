@@ -99,18 +99,41 @@ export class ConversationsController {
     return this.conversationsService.findMineForListing(user, listingId);
   }
 
+  @Get('page/:pageId')
+  @ApiOperation({
+    summary: 'Ma conversation existante avec une page (Lot 3 — D75)',
+    description:
+      "404 si je n'ai pas encore ouvert de fil avec cette page — le mobile " +
+      'propose alors la saisie du premier message (POST /conversations).',
+  })
+  @ApiParam({ name: 'pageId', description: 'Identifiant de la page' })
+  @ApiResponse({ status: 200, description: 'CONVERSATION' })
+  @ApiResponse({ status: 404, description: 'Conversation introuvable' })
+  findMineForPage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('pageId') pageId: string,
+  ): Promise<ConversationView> {
+    return this.conversationsService.findMineForPage(user, pageId);
+  }
+
   @Post()
   @ApiOperation({
-    summary: 'Démarrer (ou reprendre) une conversation sur une annonce',
+    summary:
+      'Démarrer (ou reprendre) une conversation sur une annonce ou une page',
     description:
-      'Get-or-create sur (annonce, moi) + envoi du PREMIER message. ' +
-      "L'annonce doit être 'active' (404 sinon) et ne pas m'appartenir " +
+      'Get-or-create sur (cible, moi) + envoi du PREMIER message — ' +
+      'exactement UNE cible parmi listingId (D63) et pageId (Lot 3 — D75). ' +
+      "La cible doit être 'active' (404 sinon) et ne pas m'appartenir " +
       '(400). Le destinataire reçoit le message en temps réel ' +
       "(event 'message.created').",
   })
   @ApiResponse({ status: 201, description: '{ conversation, message }' })
-  @ApiResponse({ status: 400, description: 'Sa propre annonce ou corps invalide' })
-  @ApiResponse({ status: 404, description: 'Annonce introuvable' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Sa propre annonce/page, cible manquante ou double, ou corps invalide',
+  })
+  @ApiResponse({ status: 404, description: 'Annonce ou page introuvable' })
   start(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: StartConversationDto,

@@ -39,6 +39,7 @@ import {
   LISTING_TAXONOMY_REPOSITORY,
   LISTINGS_REPOSITORY,
   NOTIFICATIONS_REPOSITORY,
+  PAGES_REPOSITORY,
   POST_TYPES_REPOSITORY,
   POSTS_REPOSITORY,
   REACTIONS_REPOSITORY,
@@ -55,6 +56,7 @@ import {
   MockListingsRepository,
   MockListingTaxonomyRepository,
   MockNotificationsRepository,
+  MockPagesRepository,
   MockPostsRepository,
   MockPostTypesRepository,
   MockReactionsRepository,
@@ -71,6 +73,7 @@ import { PostgresDealsRepository } from './postgres/repositories/postgres-deals.
 import { PostgresListingsRepository } from './postgres/repositories/postgres-listings.repository';
 import { PostgresListingTaxonomyRepository } from './postgres/repositories/postgres-listing-taxonomy.repository';
 import { PostgresNotificationsRepository } from './postgres/repositories/postgres-notifications.repository';
+import { PostgresPagesRepository } from './postgres/repositories/postgres-pages.repository';
 import { PostgresPostTypesRepository } from './postgres/repositories/postgres-post-types.repository';
 import { PostgresPostsRepository } from './postgres/repositories/postgres-posts.repository';
 import { PostgresReactionsRepository } from './postgres/repositories/postgres-reactions.repository';
@@ -88,7 +91,7 @@ function bind(token: symbol, useClass: Type<unknown>): Provider {
 
 /**
  * Providers du driver MOCK : MockDatabaseService (service interne, jamais
- * exporté) + les 13 repositories mock liés à leurs tokens. Comportement
+ * exporté) + les 14 repositories mock liés à leurs tokens. Comportement
  * ACTUEL inchangé.
  */
 const mockProviders: Provider[] = [
@@ -106,11 +109,12 @@ const mockProviders: Provider[] = [
   bind(LISTINGS_REPOSITORY, MockListingsRepository),
   bind(CONVERSATIONS_REPOSITORY, MockConversationsRepository),
   bind(DEALS_REPOSITORY, MockDealsRepository),
+  bind(PAGES_REPOSITORY, MockPagesRepository),
 ];
 
 /**
  * Providers du driver POSTGRES : le pool (POSTGRES_POOL), le service de cycle
- * de vie (ping + seed) et les 13 repositories SQL liés aux MÊMES tokens que
+ * de vie (ping + seed) et les 14 repositories SQL liés aux MÊMES tokens que
  * le mock. MockDatabaseService n'est PAS présent ici — jamais instancié.
  */
 const postgresProviders: Provider[] = [
@@ -129,6 +133,7 @@ const postgresProviders: Provider[] = [
   bind(LISTINGS_REPOSITORY, PostgresListingsRepository),
   bind(CONVERSATIONS_REPOSITORY, PostgresConversationsRepository),
   bind(DEALS_REPOSITORY, PostgresDealsRepository),
+  bind(PAGES_REPOSITORY, PostgresPagesRepository),
 ];
 
 /** Sélectionne les providers selon le driver ; échoue tôt et clairement sur un

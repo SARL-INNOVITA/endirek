@@ -81,19 +81,23 @@ export class PostsService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /** Types ACTIFS triés par position (GET /posts/types) — table de référence
-   * pilotable par le backoffice, jamais hardcodée dans le code métier. */
+   * pilotable par le backoffice, jamais hardcodée dans le code métier. Les
+   * types RÉSERVÉS AUX PAGES (Lot 3 — D73 : menu/offer/event) sont exclus :
+   * le composer utilisateur ne doit jamais les proposer. */
   async listTypes(): Promise<PostTypeView[]> {
     const types = await this.postTypesRepository.listActive();
-    return types.map((type) => ({
-      slug: type.slug,
-      labelFr: type.labelFr,
-      icon: type.icon,
-      color: type.color,
-      requiresLocationForMap: type.requiresLocationForMap,
-      showsOnMap: type.showsOnMap,
-      defaultMapDurationMinutes: type.defaultMapDurationMinutes,
-      position: type.position,
-    }));
+    return types
+      .filter((type) => !type.pageOnly)
+      .map((type) => ({
+        slug: type.slug,
+        labelFr: type.labelFr,
+        icon: type.icon,
+        color: type.color,
+        requiresLocationForMap: type.requiresLocationForMap,
+        showsOnMap: type.showsOnMap,
+        defaultMapDurationMinutes: type.defaultMapDurationMinutes,
+        position: type.position,
+      }));
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -123,6 +127,13 @@ export class PostsService {
     if (!type || !type.isActive) {
       throw new BadRequestException(
         `Type de publication invalide ou inactif : « ${dto.typeSlug} »`,
+      );
+    }
+    // Les types de page (menu/offer/event — Lot 3, D73) ne passent JAMAIS
+    // par le composer utilisateur : publication via POST /pages/:id/posts.
+    if (type.pageOnly) {
+      throw new BadRequestException(
+        'Ce type de publication est réservé aux pages professionnelles',
       );
     }
 

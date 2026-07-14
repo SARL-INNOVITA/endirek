@@ -53,22 +53,23 @@ du préfixe afin de rester accessible aux sondes (Docker, Hetzner, monitoring).
 | `database` (src/database) | Persistance : contrat unique + **deux drivers `mock` et `postgres`** (SQL/PostGIS, fonctionnel depuis le Lot 1.5), seed La Réunion | **2 ✅ / Lot 1.5 ✅** |
 | `auth` | Email/mot de passe (bcrypt), JWT access+refresh, guard global + `@Public()`, OAuth Google/Apple en 501 | **3 ✅** |
 | `users` | Profils (complet/public), follows, export RGPD, suppression RGPD (voir [docs/RGPD.md](../../docs/RGPD.md)) | **3 ✅** |
-| `media` | `POST /media/upload` — images JPEG/PNG/WebP validées par décodage réel, miniatures webp (sharp), fichiers servis sur `/uploads/` | **4 ✅** |
-| `posts` | Publications (libre, météo, trafic, danger, question), détail par id et `url_slug`, listes de profil, règles carte (`mapExpiresAt`) | **4 ✅** |
+| `media` | `POST /media/upload` — images JPEG/PNG/WebP validées par décodage réel, miniatures webp (sharp), fichiers servis sur `/uploads/` ; `POST /media/upload-document` — PDF validés par magic bytes (Lot 3 — D77) | **4 + Lot 3 ✅** |
+| `posts` | Publications (libre, météo, trafic, danger, question), détail par id et `url_slug`, listes de profil, règles carte (`mapExpiresAt`, `mapVisibleFrom` — Lot 3) ; types `menu`/`offer`/`event` réservés aux pages (D73) | **4 + Lot 3 ✅** |
 | `feed` | Fil d'actualité (algorithme MVP, poids centralisés `FEED_WEIGHTS`) — implémenté dans le module `posts` (`feed.service.ts`, voir `modules/feed/README.md`) | **4 ✅** |
 | `comments` | Commentaires (niveau 0) + réponses (niveau 1) — pas de réponse à une réponse au Lot 1 ; notifications in-app `comment`/`reply` créées | **4 ✅** |
 | `reactions` | Réactions emoji sur posts et commentaires (upsert, palette validée contre `reaction_types`) | **4 ✅** |
 | `saved-posts` | Enregistrements (collection « Général » par défaut, idempotents) | **4 ✅** |
-| `map` | Carte interactive — mode Météo & trafic : `GET /map/overview` (posts + caméras en un appel), `/map/cameras`, `/map/posts`, `/map/communes` ; seuls les types `showsOnMap` non expirés sortent sur la carte | **5 ✅** |
+| `map` | Carte interactive — `GET /map/overview` (posts + caméras en un appel), `/map/cameras`, `/map/posts`, `/map/communes` ; seuls les types `showsOnMap` non expirés sortent sur la carte (dont les publications de page menu/offre/événement — Lot 3) | **5 + Lot 3 ✅** |
 | `cameras` | Caméras météo/trafic — `GET /cameras/:id` public (caméra `active` uniquement) ; numéro auto, ville déduite par géocodage, statuts | **5 ✅** |
 | `notifications` | Notifications in-app — lecture (`GET /notifications`, `/unread-count`, `PATCH /read-all`, `/:id/read`), types `comment`/`reply`/`reaction`/`report_handled` via un point d'entrée unique (persistance + émission socket) | **5 ✅** |
 | `realtime` | Gateway WebSocket **socket.io** (namespace par défaut, auth handshake JWT) — events `notification.created` / `map.updated`, CORS aligné via `RealtimeIoAdapter` | **5 ✅** |
-| `moderation` | Signalements et traitement — posts (`POST /posts/:id/report`, étape 4) et **annonces Dealplace** (`POST /dealplace/listings/:id/report`, CP2.5 — D65), anti-doublon 409 | **4 + 6 + CP2.5 ✅** |
-| `admin` | Endpoints du backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires, notifications système, **annonces & taxonomie Dealplace (CP2.1)**, **deals/litiges & conversations (CP2.5)** | **3-6 + Lot 2 ✅** |
+| `moderation` | Signalements et traitement — posts (étape 4), **annonces Dealplace** (CP2.5 — D65) et **pages** (`POST /pages/:id/report`, Lot 3 — D76), anti-doublon 409 | **4 + 6 + CP2.5 + Lot 3 ✅** |
+| `admin` | Endpoints du backoffice — utilisateurs, publications, signalements, caméras, types de posts, commentaires, notifications système, **annonces & taxonomie Dealplace (CP2.1)**, **deals/litiges & conversations (CP2.5)**, **pages (Lot 3 — statut + badge vérifié)** | **3-6 + Lots 2-3 ✅** |
 | `dealplace` | **Lot 2 — CP2.1/CP2.2** : taxonomie biens/services pilotable + annonces (annuaire filtré, CRUD propriétaire, listes de profil) | **Lot 2 ✅** |
-| `conversations` | **Lot 2 — CP2.3/CP2.5** : messagerie 1-to-1 liée aux annonces, temps réel, modération des messages | **Lot 2 ✅** |
+| `conversations` | **Lot 2 — CP2.3/CP2.5 (+ Lot 3)** : messagerie 1-to-1 liée aux annonces OU aux pages (D75), temps réel, modération des messages | **Lots 2-3 ✅** |
 | `deals` | **Lot 2 — CP2.4/CP2.5** : deals contractuels (machine à états, éléments validables, ajustements, avis) + arbitrage des litiges | **Lot 2 ✅** |
-| `_future/*` | Lots 3+ (pages, news, billing) | TODO Lot 3+ |
+| `pages` | **Lot 3 — D69-D77** : pages restaurants & entreprises — identité, horaires + statut d'ouverture dérivé, plats/menus programmés par date, cartes PDF, offres, événements, abonnés, publications au nom de la page (`PageAssembler` exporté à l'admin) | **Lot 3 ✅** |
+| `_future/*` | Lot 4 (news, billing) | TODO Lot 4+ |
 
 Chaque dossier de module contient un `README.md` détaillant son périmètre et
 ses règles métier.

@@ -1,6 +1,7 @@
 import 'geo_point.dart';
 import 'post_author.dart';
 import 'post_media.dart';
+import 'post_page_ref.dart';
 
 /// Marqueur « champ absent » pour les paramètres NULLABLES de
 /// [FeedPost.copyWith] : il distingue « ne pas toucher » (absent) de
@@ -42,6 +43,7 @@ class FeedPost {
     required this.shareCount,
     required this.saveCount,
     required this.author,
+    required this.page,
     required this.media,
     required this.viewerReaction,
     required this.viewerSaved,
@@ -68,6 +70,12 @@ class FeedPost {
   final int shareCount;
   final int saveCount;
   final PostAuthor author;
+
+  /// PAGE auteure de la publication (Lot 3) — null pour un post
+  /// d'utilisateur. Quand elle est présente, l'UI affiche l'identité de la
+  /// page à la place de l'auteur humain.
+  final PostPageRef? page;
+
   final List<PostMedia> media;
 
   /// Emoji de la réaction du viewer sur ce post — null s'il n'a pas réagi.
@@ -101,6 +109,9 @@ class FeedPost {
       shareCount: (json['shareCount'] as num?)?.toInt() ?? 0,
       saveCount: (json['saveCount'] as num?)?.toInt() ?? 0,
       author: PostAuthor.fromJson(json['author'] as Map<String, dynamic>),
+      page: json['page'] == null
+          ? null
+          : PostPageRef.fromJson(json['page'] as Map<String, dynamic>),
       media: ((json['media'] as List?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(PostMedia.fromJson)
@@ -148,6 +159,7 @@ class FeedPost {
       shareCount: shareCount ?? this.shareCount,
       saveCount: saveCount ?? this.saveCount,
       author: author,
+      page: page,
       media: media,
       viewerReaction: identical(viewerReaction, _champAbsent)
           ? this.viewerReaction

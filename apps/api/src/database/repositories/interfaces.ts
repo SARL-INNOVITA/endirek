@@ -45,6 +45,18 @@ import {
   ModerationLevel,
   Notification,
   NotificationType,
+  Page,
+  PageContentStatus,
+  PageDocument,
+  PageEvent,
+  PageHour,
+  PageMenu,
+  PageMenuItem,
+  PageOffer,
+  PageStatus,
+  PageType,
+  Dish,
+  DishStatus,
   Post,
   PostMedia,
   PostMediaType,
@@ -191,6 +203,9 @@ export type CreatePostMediaSpec = Omit<CreatePostMediaInput, 'postId'>;
  * ATOMIQUEMENT avec le post (équivalent transaction côté SQL). */
 export interface CreatePostInput {
   authorId: string;
+  /** Post publié AU NOM d'une page (Lot 3 — D73) ; absent/null = post
+   * d'utilisateur. */
+  pageId?: string | null;
   typeSlug: string;
   body: string;
   urlSlug: string;
@@ -198,6 +213,9 @@ export interface CreatePostInput {
   location?: GeoPoint | null;
   city?: string | null;
   mapExpiresAt?: Date | null;
+  /** Début de visibilité carte (Lot 3 — D73) : posé à J-3 pour les posts
+   * d'événement de page ; absent/null = visible dès la création. */
+  mapVisibleFrom?: Date | null;
   media?: CreatePostMediaSpec[];
 }
 
@@ -253,25 +271,41 @@ export interface PostsRepository {
   update(id: string, patch: UpdatePostPatch): Promise<Post>;
   setStatus(id: string, status: PostStatus): Promise<Post>;
   /** Nombre de publications 'active' d'un auteur — alimente le `postsCount`
-   * des profils (étape 3) sans matérialiser la liste des posts. */
+   * des profils (étape 3) sans matérialiser la liste des posts. Les posts de
+   * PAGE sont EXCLUS (Lot 3 — D73 : ils vivent sur la page). */
   countByAuthor(authorId: string): Promise<number>;
   /** TOUTES les publications d'un auteur, quel que soit leur statut,
-   * antéchronologiques — export RGPD (le feed public passe par listFeed). */
+   * antéchronologiques — export RGPD (le feed public passe par listFeed).
+   * Les posts de page SONT inclus (l'auteur reste le compte). */
   listByAuthor(authorId: string): Promise<Post[]>;
   /** Page antéchronologique des publications d'un auteur filtrée par statuts
-   * (listes de profil paginées — GET /users/:id/posts, /users/me/posts). */
+   * (listes de profil paginées — GET /users/:id/posts, /users/me/posts).
+   * Les posts de PAGE sont EXCLUS (Lot 3 — D73). */
   listByAuthorPaged(
     authorId: string,
+    params: ListAuthorPostsParams,
+  ): Promise<PagedResult<Post>>;
+  /** Nombre de publications 'active' d'une PAGE (Lot 3 — D73). */
+  countByPage(pageId: string): Promise<number>;
+  /** Page antéchronologique des publications d'une PAGE filtrée par statuts
+   * (GET /pages/:id/posts — Lot 3, D73). Même sémantique que
+   * listByAuthorPaged (tie-break id, jamais 'deleted'). */
+  listByPagePaged(
+    pageId: string,
     params: ListAuthorPostsParams,
   ): Promise<PagedResult<Post>>;
   /** Feed antéchronologique : posts 'active' uniquement. */
   listFeed(params: ListFeedParams): Promise<Post[]>;
   /** Fenêtre du scoring du feed : les `limit` posts 'active' les plus récents
-   * (createdAt DESC, tie-break id — ordre STABLE). Le driver postgres portera
-   * le scoring en SQL et cette fenêtre deviendra une sous-requête. */
+   * (createdAt DESC, tie-break id — ordre STABLE). Les posts d'une page NON
+   * ACTIVE sont exclus (Lot 3 — D69 : page masquée = contenus retirés du
+   * flux). Le driver postgres portera le scoring en SQL et cette fenêtre
+   * deviendra une sous-requête. */
   listActiveWindow(limit: number): Promise<Post[]>;
-  /** Marqueurs carte : location non nulle ET mapExpiresAt > now ET status
-   * 'active', dans la bbox demandée (toute l'île si absente). */
+  /** Marqueurs carte : location non nulle ET mapExpiresAt > now ET
+   * (mapVisibleFrom null OU <= now — Lot 3, D73) ET status 'active' ET page
+   * active si post de page (D69), dans la bbox demandée (toute l'île si
+   * absente). */
   listMapMarkers(params: ListMapMarkersParams): Promise<Post[]>;
   /** Liste BACKOFFICE paginée : tous statuts, filtres typeSlug/status et
    * recherche titre/corps/nom d'auteur, antéchronologique (tie-break id —
@@ -791,12 +825,16 @@ export interface ListingsRepository {
 // Conversations 1-to-1 (Lot 2 — CP2.3)
 // ────────────────────────────────────────────────────────────────────────────
 
-/** Données de création d'une conversation (le service garantit : annonce
- * visible, initiator ≠ owner, unicité gérée par get-or-create). */
+/** Données de création d'une conversation (le service garantit : cible
+ * visible, exactement UNE cible parmi listingId/pageId — D75, initiator ≠
+ * owner, unicité gérée par get-or-create). */
 export interface CreateConversationInput {
-  listingId: string;
+  listingId?: string | null;
+  /** Fil lié à une PAGE (Lot 3 — D75). */
+  pageId?: string | null;
   initiatorId: string;
-  /** Propriétaire de l'annonce au moment de la création (dénormalisé). */
+  /** Propriétaire de la cible (annonce ou page) au moment de la création
+   * (dénormalisé). */
   ownerId: string;
 }
 
@@ -811,8 +849,8 @@ export interface CreateMessageInput {
 
 /** Filtres de la liste BACKOFFICE des conversations (CP2.5 — D67). */
 export interface AdminListConversationsParams {
-  /** Recherche insensible à la casse sur le nom affiché d'un participant ou
-   * le titre de l'annonce liée. */
+  /** Recherche insensible à la casse sur le nom affiché d'un participant, le
+   * titre de l'annonce liée ou le nom de la page liée (Lot 3 — D75). */
   search?: string;
   limit: number;
   offset: number;
@@ -832,6 +870,12 @@ export interface ConversationsRepository {
   /** Conversation existante d'un demandeur pour une annonce (unicité). */
   findByListingAndInitiator(
     listingId: string,
+    initiatorId: string,
+  ): Promise<Conversation | null>;
+  /** Conversation existante d'un demandeur pour une PAGE (unicité — Lot 3,
+   * D75). */
+  findByPageAndInitiator(
+    pageId: string,
     initiatorId: string,
   ): Promise<Conversation | null>;
   create(input: CreateConversationInput): Promise<Conversation>;
@@ -1092,4 +1136,259 @@ export interface DealsRepository {
   ): Promise<PagedResult<DealReview>>;
   /** Moyennes des avis reçus — calculées à la lecture. */
   reviewAggregates(revieweeId: string): Promise<DealReviewAggregates>;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pages restaurants & entreprises (Lot 3 — D69-D76)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Données de création d'une page (le SERVICE garantit : commune du
+ * référentiel, location = centre de la commune, attributs ≤ 5, urlSlug
+ * unique généré). La page naît 'active' et non vérifiée (D69). */
+export interface CreatePageInput {
+  ownerId: string;
+  pageType: PageType;
+  name: string;
+  urlSlug: string;
+  bio?: string;
+  avatarUrl?: string | null;
+  coverUrl?: string | null;
+  city: string;
+  location?: GeoPoint | null;
+  phone?: string | null;
+  attributes?: string[];
+}
+
+/** Patch d'une page (propriétaire) — pageType/urlSlug immuables ; le statut
+ * passe par setStatus, le badge par setVerified. */
+export type UpdatePagePatch = Partial<
+  Pick<
+    Page,
+    | 'name'
+    | 'bio'
+    | 'avatarUrl'
+    | 'coverUrl'
+    | 'city'
+    | 'location'
+    | 'phone'
+    | 'attributes'
+    | 'vacationUntil'
+    | 'vacationMessage'
+  >
+>;
+
+/** Pages d'un propriétaire, filtrées par statuts (profil public : ['active'] ;
+ * « mes pages » : ['active','hidden'] — jamais 'deleted'). */
+export interface ListOwnerPagesParams {
+  statuses: PageStatus[];
+}
+
+/** Filtres de la liste BACKOFFICE des pages : TOUS statuts par défaut,
+ * `search` porte sur le nom de la page, la commune ET le nom affiché du
+ * propriétaire (insensible à la casse). */
+export interface AdminListPagesParams {
+  pageType?: PageType;
+  status?: PageStatus;
+  verified?: boolean;
+  /** true = seulement les pages avec au moins un signalement OUVERT. */
+  flaggedOnly?: boolean;
+  search?: string;
+  limit: number;
+  offset: number;
+}
+
+/** Plage horaire fournie au remplacement des horaires (l'id et le pageId
+ * sont posés par le repository ; position = index du tableau par défaut). */
+export interface PageHourSpec {
+  weekday: number;
+  opensMinute: number;
+  closesMinute: number;
+  position?: number;
+}
+
+/** Données de création d'un document « Nos cartes » (position = max+1 posée
+ * par le repository). */
+export interface CreatePageDocumentInput {
+  pageId: string;
+  label: string;
+  url: string;
+  fileSizeBytes: number;
+}
+
+/** Données de création d'un plat (le SERVICE garantit : au moins un des deux
+ * prix, image issue de l'upload Endirek). */
+export interface CreateDishInput {
+  pageId: string;
+  name: string;
+  description?: string;
+  imageUrl?: string | null;
+  priceTakeawayCents?: number | null;
+  priceDineInCents?: number | null;
+  position?: number;
+}
+
+export type UpdateDishPatch = Partial<
+  Pick<
+    Dish,
+    | 'name'
+    | 'description'
+    | 'imageUrl'
+    | 'priceTakeawayCents'
+    | 'priceDineInCents'
+    | 'position'
+  >
+>;
+
+/** Menu d'un jour avec ses plats ordonnés (forme de lecture assemblée par le
+ * repository — les jours sans menu sont ABSENTS du résultat). */
+export interface PageMenuWithDishes {
+  menu: PageMenu;
+  /** Plats ordonnés par position d'item (les plats 'deleted' n'apparaissent
+   * jamais : la suppression d'un plat retire ses items de menu — D71). */
+  dishes: Dish[];
+}
+
+/** Données de création d'une offre de page. */
+export interface CreatePageOfferInput {
+  pageId: string;
+  title: string;
+  description?: string;
+  imageUrl?: string | null;
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+}
+
+export type UpdatePageOfferPatch = Partial<
+  Pick<PageOffer, 'title' | 'description' | 'imageUrl' | 'startsAt' | 'endsAt'>
+>;
+
+/** Données de création d'un événement de page. */
+export interface CreatePageEventInput {
+  pageId: string;
+  title: string;
+  description?: string;
+  imageUrl?: string | null;
+  startsAt: Date;
+  endsAt?: Date | null;
+}
+
+export type UpdatePageEventPatch = Partial<
+  Pick<PageEvent, 'title' | 'description' | 'imageUrl' | 'startsAt' | 'endsAt'>
+>;
+
+/**
+ * Repository des pages professionnelles (Lot 3 — 14ᵉ repository).
+ *
+ * Comme partout : les compteurs (abonnés, signalements) sont calculés À LA
+ * LECTURE ; les règles métier vivent au SERVICE ; le repository ne porte que
+ * les contraintes structurelles du schéma (FK, UNIQUE, CHECK).
+ */
+export interface PagesRepository {
+  // ── Pages ────────────────────────────────────────────────────────────────
+  findById(id: string): Promise<Page | null>;
+  /** Pages par lot (ids inconnus ignorés) — anti N+1 (feed, conversations). */
+  findByIds(ids: string[]): Promise<Page[]>;
+  findByUrlSlug(urlSlug: string): Promise<Page | null>;
+  create(input: CreatePageInput): Promise<Page>;
+  update(id: string, patch: UpdatePagePatch): Promise<Page>;
+  setStatus(id: string, status: PageStatus): Promise<Page>;
+  setVerified(id: string, verified: boolean): Promise<Page>;
+  /** Pages d'un propriétaire filtrées par statuts, de la plus ancienne à la
+   * plus récente (ordre de création — tie-break id). */
+  listByOwner(ownerId: string, params: ListOwnerPagesParams): Promise<Page[]>;
+  /** Liste BACKOFFICE paginée : tous statuts, filtres type/statut/vérifiée/
+   * flaggedOnly et recherche nom/commune/propriétaire, antéchronologique
+   * (tie-break id). Le driver postgres fera un JOIN users + ILIKE. */
+  listAdmin(params: AdminListPagesParams): Promise<PagedResult<Page>>;
+
+  // ── Abonnés (D74) ────────────────────────────────────────────────────────
+  /** Abonne userId à la page. Idempotent (PK composite). */
+  follow(pageId: string, userId: string): Promise<void>;
+  /** Désabonne userId. Idempotent (no-op si absent). */
+  unfollow(pageId: string, userId: string): Promise<void>;
+  isFollowing(pageId: string, userId: string): Promise<boolean>;
+  /** Ids des pages suivies par userId (bonus feed — D74). */
+  listFollowedPageIds(userId: string): Promise<string[]>;
+  /** Nombre d'abonnés AU COMPTE ACTIF par page : { pageId → n } EN UN APPEL
+   * (anti N+1). Les pages sans abonné sont absentes du résultat. */
+  followersCountsByPageIds(pageIds: string[]): Promise<Record<string, number>>;
+
+  // ── Horaires (D70) ───────────────────────────────────────────────────────
+  /** Remplace TOUTES les plages de la page (équivalent transaction SQL :
+   * purge + réinsertion). */
+  replaceHours(pageId: string, hours: PageHourSpec[]): Promise<void>;
+  /** Plages de plusieurs pages EN UN APPEL : { pageId → PageHour[] } triées
+   * weekday puis opensMinute. Les pages sans plage sont absentes. */
+  listHoursByPageIds(pageIds: string[]): Promise<Record<string, PageHour[]>>;
+
+  // ── Documents « Nos cartes » (D71) ───────────────────────────────────────
+  createDocument(input: CreatePageDocumentInput): Promise<PageDocument>;
+  findDocumentById(id: string): Promise<PageDocument | null>;
+  /** Suppression DÉFINITIVE (simple ligne d'attachement, pas un contenu
+   * modérable). Idempotente. */
+  deleteDocument(id: string): Promise<void>;
+  /** Documents de plusieurs pages EN UN APPEL : { pageId → PageDocument[] }
+   * triés par position croissante. Les pages sans document sont absentes. */
+  listDocumentsByPageIds(
+    pageIds: string[],
+  ): Promise<Record<string, PageDocument[]>>;
+
+  // ── Plats (D71) ──────────────────────────────────────────────────────────
+  createDish(input: CreateDishInput): Promise<Dish>;
+  findDishById(id: string): Promise<Dish | null>;
+  /** Plats par lot (ids inconnus ignorés) — validation des menus. */
+  findDishesByIds(ids: string[]): Promise<Dish[]>;
+  updateDish(id: string, patch: UpdateDishPatch): Promise<Dish>;
+  /** Suppression douce d'un plat + RETRAIT de tous les menus programmés qui
+   * le référencent (D71) — équivalent transaction SQL. */
+  softDeleteDish(id: string): Promise<Dish>;
+  /** Plats 'active' d'une page, triés par position puis createdAt (tie-break
+   * id — ordre STABLE). */
+  listDishes(pageId: string): Promise<Dish[]>;
+
+  // ── Menus programmés (D71) ───────────────────────────────────────────────
+  /** Crée ou remplace le menu d'une date : la liste ORDONNÉE de dishIds
+   * remplace les items existants ([] = le menu du jour est SUPPRIMÉ, retour
+   * null) — équivalent transaction SQL. Le service a validé les plats
+   * (appartenance à la page, statut actif). */
+  upsertMenu(
+    pageId: string,
+    menuDate: string,
+    dishIds: string[],
+  ): Promise<PageMenuWithDishes | null>;
+  /** Menus d'une page sur [fromDate, toDate] inclus (dates 'YYYY-MM-DD'),
+   * avec leurs plats ordonnés. Les jours sans menu sont ABSENTS. */
+  listMenusWithDishes(
+    pageId: string,
+    fromDate: string,
+    toDate: string,
+  ): Promise<PageMenuWithDishes[]>;
+
+  // ── Offres (D72) ─────────────────────────────────────────────────────────
+  createOffer(input: CreatePageOfferInput): Promise<PageOffer>;
+  findOfferById(id: string): Promise<PageOffer | null>;
+  updateOffer(id: string, patch: UpdatePageOfferPatch): Promise<PageOffer>;
+  setOfferStatus(id: string, status: PageContentStatus): Promise<PageOffer>;
+  /** Offres 'active' d'une page, antéchronologiques (tie-break id). */
+  listOffers(pageId: string): Promise<PageOffer[]>;
+
+  // ── Événements (D72) ─────────────────────────────────────────────────────
+  createEvent(input: CreatePageEventInput): Promise<PageEvent>;
+  findEventById(id: string): Promise<PageEvent | null>;
+  updateEvent(id: string, patch: UpdatePageEventPatch): Promise<PageEvent>;
+  setEventStatus(id: string, status: PageContentStatus): Promise<PageEvent>;
+  /** Événements 'active' d'une page, triés par startsAt CROISSANT
+   * (tie-break id). */
+  listEvents(pageId: string): Promise<PageEvent[]>;
+
+  // ── Compteurs backoffice ─────────────────────────────────────────────────
+  /** Compteurs de contenus d'une page (détail backoffice) — calculés à la
+   * lecture : plats/offres/événements 'active', documents, menus. */
+  countContents(pageId: string): Promise<{
+    dishes: number;
+    documents: number;
+    menus: number;
+    offers: number;
+    events: number;
+  }>;
 }
