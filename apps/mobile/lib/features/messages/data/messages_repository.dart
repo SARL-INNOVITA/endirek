@@ -68,21 +68,38 @@ class MessagesRepository {
     }
   }
 
+  /// MA conversation existante avec une PAGE (Lot 3, D75), ou null si
+  /// aucune (404) — miroir de [chargerFilPourAnnonce].
+  Future<ConversationCard?> chargerFilPourPage(String pageId) async {
+    try {
+      final reponse = await _api.get('/conversations/page/$pageId');
+      return ConversationCard.fromJson(reponse.data as Map<String, dynamic>);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
   /// Détail d'un fil (GET /conversations/:id).
   Future<ConversationCard> chargerConversation(String id) async {
     final reponse = await _api.get('/conversations/$id');
     return ConversationCard.fromJson(reponse.data as Map<String, dynamic>);
   }
 
-  /// Démarre (ou reprend) le fil sur une annonce + PREMIER message
-  /// (POST /conversations — get-or-create).
+  /// Démarre (ou reprend) le fil sur une annonce OU une page + PREMIER
+  /// message (POST /conversations — get-or-create). Exactement UNE des deux
+  /// cibles [listingId]/[pageId] doit être fournie (contrat D75).
   Future<({ConversationCard conversation, MessageChat message})>
       demarrerConversation({
-    required String listingId,
+    String? listingId,
+    String? pageId,
     required String body,
   }) async {
     final reponse = await _api.post('/conversations', data: {
-      'listingId': listingId,
+      'listingId': ?listingId,
+      'pageId': ?pageId,
       'body': body,
     });
     final data = reponse.data as Map<String, dynamic>;

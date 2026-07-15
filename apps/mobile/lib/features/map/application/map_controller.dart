@@ -6,36 +6,59 @@ import '../../../core/api/models/map_overview.dart';
 import '../data/map_repository.dart';
 import '../domain/map_marker.dart';
 
-/// Bascules de filtrage de la carte (mode « Météo & trafic »). Chaque bascule
-/// pilote à la fois l'affichage local des marqueurs ET les filtres envoyés à
-/// l'API (types= pour les posts, categories= pour les caméras).
+/// Bascules de filtrage de la carte. Chaque bascule pilote à la fois
+/// l'affichage local des marqueurs ET les filtres envoyés à l'API (types=
+/// pour les posts, categories= pour les caméras). Le Lot 3 ajoute les types
+/// de PAGE menu/offer/event (publications des restaurants et entreprises,
+/// fenêtres carte gérées par le serveur — D73).
 class MapFiltres {
   const MapFiltres({
     this.meteo = true,
     this.trafic = true,
     this.danger = true,
     this.cameras = true,
+    this.menus = true,
+    this.offres = true,
+    this.evenements = true,
   });
 
   final bool meteo;
   final bool trafic;
   final bool danger;
   final bool cameras;
+  final bool menus;
+  final bool offres;
+  final bool evenements;
 
-  MapFiltres copyWith({bool? meteo, bool? trafic, bool? danger, bool? cameras}) {
+  MapFiltres copyWith({
+    bool? meteo,
+    bool? trafic,
+    bool? danger,
+    bool? cameras,
+    bool? menus,
+    bool? offres,
+    bool? evenements,
+  }) {
     return MapFiltres(
       meteo: meteo ?? this.meteo,
       trafic: trafic ?? this.trafic,
       danger: danger ?? this.danger,
       cameras: cameras ?? this.cameras,
+      menus: menus ?? this.menus,
+      offres: offres ?? this.offres,
+      evenements: evenements ?? this.evenements,
     );
   }
 
-  /// Slugs de types de post demandés à l'API (weather/traffic/danger).
+  /// Slugs de types de post demandés à l'API
+  /// (weather/traffic/danger + menu/offer/event depuis le Lot 3).
   List<String> get typesPosts => [
         if (meteo) 'weather',
         if (trafic) 'traffic',
         if (danger) 'danger',
+        if (menus) 'menu',
+        if (offres) 'offer',
+        if (evenements) 'event',
       ];
 
   /// Catégories de caméra demandées à l'API. Les caméras suivent les bascules
@@ -47,7 +70,13 @@ class MapFiltres {
       ];
 
   bool get toutDesactive =>
-      !meteo && !trafic && !danger && !cameras;
+      !meteo &&
+      !trafic &&
+      !danger &&
+      !cameras &&
+      !menus &&
+      !offres &&
+      !evenements;
 }
 
 /// État de la carte : marqueurs bruts (posts + caméras) + drapeaux d'UI.
@@ -130,6 +159,12 @@ class CarteController extends Notifier<MapState> {
         types: filtres.typesPosts,
         categories: filtres.categoriesCameras,
       );
+      // Réponse OBSOLÈTE : les filtres ont changé pendant la requête (les
+      // chips s'enchaînent vite) — la requête relancée avec les filtres
+      // courants fait foi, celle-ci est jetée.
+      if (!identical(state.filtres, filtres)) {
+        return;
+      }
       state = state.copyWith(
         marqueurs: _construireMarqueurs(overview, filtres),
         chargement: false,
@@ -137,6 +172,9 @@ class CarteController extends Notifier<MapState> {
         erreur: null,
       );
     } on ApiException catch (e) {
+      if (!identical(state.filtres, filtres)) {
+        return;
+      }
       state = state.copyWith(chargement: false, erreur: e.message);
     }
   }
@@ -194,6 +232,9 @@ class CarteController extends Notifier<MapState> {
       'weather' => filtres.meteo,
       'traffic' => filtres.trafic,
       'danger' => filtres.danger,
+      'menu' => filtres.menus,
+      'offer' => filtres.offres,
+      'event' => filtres.evenements,
       _ => false,
     };
   }

@@ -1310,22 +1310,6 @@ class _CarteOffre extends StatelessWidget {
   }
 }
 
-/// Libellé français de la période d'une offre (période optionnelle).
-String libellePeriodeOffre(PageOffer offre) {
-  final DateTime? debut = offre.startsAt;
-  final DateTime? fin = offre.endsAt;
-  if (debut != null && fin != null) {
-    return 'Du ${formaterDateCourte(debut)} au ${formaterDateCourte(fin)}';
-  }
-  if (fin != null) {
-    return 'Jusqu\'au ${formaterDateCourte(fin)}';
-  }
-  if (debut != null) {
-    return 'Depuis le ${formaterDateCourte(debut)}';
-  }
-  return 'Offre permanente';
-}
-
 /// Section « Événements à venir » (masquée si aucun événement).
 class _SectionEvenements extends ConsumerWidget {
   const _SectionEvenements({required this.pageId});

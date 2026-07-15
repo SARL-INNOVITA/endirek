@@ -16,11 +16,13 @@ import '../data/messages_repository.dart';
 import '../domain/conversation.dart';
 import '../domain/message_chat.dart';
 
-/// Écran de FIL de discussion (CP2.3) — deux modes :
+/// Écran de FIL de discussion (CP2.3 + pages Lot 3) — trois modes :
 /// - fil EXISTANT : `/messages/:id` (conversationId fourni) ;
 /// - CONTACT depuis une annonce : `/dealplace/:id/contact` (listingId
 ///   fourni) — s'il existe déjà un fil pour cette annonce il est repris,
-///   sinon le premier envoi le crée (get-or-create serveur).
+///   sinon le premier envoi le crée (get-or-create serveur) ;
+/// - MESSAGE à une page (D75) : `/pages/:id/contact` (pageId fourni) —
+///   même mécanique get-or-create, cible page.
 ///
 /// Messages en bulles chronologiques (les miens à droite), champ d'envoi en
 /// bas, réception en TEMPS RÉEL (event 'message.created' du socket — repli :
@@ -29,17 +31,27 @@ import '../domain/message_chat.dart';
 class ChatScreen extends ConsumerStatefulWidget {
   /// Fil existant (route /messages/:id).
   const ChatScreen({super.key, required this.conversationId})
-      : listingId = null;
+      : listingId = null,
+        pageId = null;
 
   /// Contact depuis une annonce (route /dealplace/:id/contact).
   const ChatScreen.pourAnnonce({super.key, required this.listingId})
-      : conversationId = null;
+      : conversationId = null,
+        pageId = null;
+
+  /// Message à une page (route /pages/:id/contact — Lot 3, D75).
+  const ChatScreen.pourPage({super.key, required this.pageId})
+      : conversationId = null,
+        listingId = null;
 
   /// Fil existant (mode /messages/:id), sinon null.
   final String? conversationId;
 
   /// Annonce à contacter (mode /dealplace/:id/contact), sinon null.
   final String? listingId;
+
+  /// Page à contacter (mode /pages/:id/contact), sinon null.
+  final String? pageId;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -102,8 +114,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ConversationCard? conversation;
       if (widget.conversationId != null) {
         conversation = await _repo.chargerConversation(widget.conversationId!);
-      } else {
+      } else if (widget.listingId != null) {
         conversation = await _repo.chargerFilPourAnnonce(widget.listingId!);
+      } else {
+        conversation = await _repo.chargerFilPourPage(widget.pageId!);
       }
       List<MessageChat> messages = [];
       if (conversation != null) {
@@ -157,9 +171,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       MessageChat envoye;
       if (_conversation == null) {
-        // Premier message : crée (ou reprend) le fil côté serveur.
+        // Premier message : crée (ou reprend) le fil côté serveur — cible
+        // annonce OU page selon le mode d'entrée.
         final resultat = await _repo.demarrerConversation(
-          listingId: widget.listingId!,
+          listingId: widget.listingId,
+          pageId: widget.pageId,
           body: texte,
         );
         _conversation = resultat.conversation;
@@ -201,8 +217,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final ConversationCard? fil = _conversation;
 
     // Deal OUVERT lié au fil (bandeau + action « Proposer un deal » sinon).
-    final dealOuvert =
-        fil == null ? null : ref.watch(dealDeConversationProvider(fil.id));
+    // Les deals ne concernent que les fils d'ANNONCE — jamais les fils de
+    // page (D75).
+    final ConversationListingRef? annonce = fil?.listing;
+    final dealOuvert = (fil == null || annonce == null)
+        ? null
+        : ref.watch(dealDeConversationProvider(fil.id));
 
     return Scaffold(
       appBar: AppBar(
@@ -215,13 +235,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // Proposer un deal depuis le fil (CP2.4) — pour les DEUX parties
           // (le propriétaire de l'annonce propose ici, pas depuis le détail).
           if (fil != null &&
-              fil.listing.estActive &&
+              annonce != null &&
+              annonce.estActive &&
               dealOuvert?.hasValue == true &&
               dealOuvert?.value == null)
             IconButton(
               tooltip: 'Proposer un deal',
               onPressed: () => context.push(
-                '/dealplace/${fil.listing.id}/proposer'
+                '/dealplace/${annonce.id}/proposer'
                 '?recipient=${fil.otherParticipant.id}',
               ),
               icon: const Icon(Icons.handshake_outlined),
@@ -231,7 +252,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            if (fil != null) _EnTeteAnnonce(listing: fil.listing),
+            if (annonce != null) _EnTeteAnnonce(listing: annonce),
+            if (fil?.page != null) _EnTetePage(page: fil!.page!),
             if (dealOuvert?.value != null)
               _BandeauDeal(deal: dealOuvert!.value!),
             Expanded(child: _corps(monId)),
@@ -269,14 +291,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
     if (_messages.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
+          padding: const EdgeInsets.all(32),
           child: Text(
-            'Présentez-vous et posez votre question au vendeur : votre '
-            'premier message ouvrira la conversation.',
+            widget.pageId != null
+                ? 'Posez votre question à la page : votre premier message '
+                    'ouvrira la conversation.'
+                : 'Présentez-vous et posez votre question au vendeur : votre '
+                    'premier message ouvrira la conversation.',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: EndirekColors.encreSecondaire,
               fontSize: 13.5,
               height: 1.45,
@@ -342,6 +367,64 @@ class _EnTeteAnnonce extends StatelessWidget {
                 ),
               ),
               if (listing.estActive)
+                const Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: EndirekColors.encreSecondaire,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bandeau de PAGE en tête du fil (Lot 3, D75) : nom + type, tap → écran
+/// public de la page (grisé si la page n'est plus visible — le fil reste
+/// consultable). Miroir de [_EnTeteAnnonce].
+class _EnTetePage extends StatelessWidget {
+  const _EnTetePage({required this.page});
+
+  final ConversationPageRef page;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: EndirekColors.surface,
+      child: InkWell(
+        onTap: page.estActive
+            ? () => context.push('/pages/${page.id}')
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                page.pageType == 'restaurant'
+                    ? Icons.restaurant_outlined
+                    : Icons.business_outlined,
+                size: 18,
+                color: EndirekColors.encreSecondaire,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  page.estActive
+                      ? page.name
+                      : '${page.name} (page indisponible)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: page.estActive
+                        ? EndirekColors.encre
+                        : EndirekColors.encreSecondaire,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (page.estActive)
                 const Icon(
                   Icons.chevron_right,
                   size: 18,

@@ -12,11 +12,13 @@ IconData iconePourType(String nomIcone) {
     'car' => Icons.directions_car_outlined,
     'warning' => Icons.warning_amber_rounded,
     'help' => Icons.help_outline,
-    // Quelques noms plausibles de futurs types (table pilotable).
+    // Types de page du Lot 3 (table locale types_posts_page.dart) et noms
+    // plausibles de futurs types (table pilotable).
     'megaphone' => Icons.campaign_outlined,
     'camera' => Icons.photo_camera_outlined,
     'event' => Icons.event_outlined,
     'sale' => Icons.local_offer_outlined,
+    'restaurant' => Icons.restaurant_outlined,
     _ => Icons.label_outline,
   };
 }

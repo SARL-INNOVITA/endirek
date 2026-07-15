@@ -34,8 +34,10 @@ class _FiltresCarteSheetState extends State<_FiltresCarteSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Contenu DÉFILANT : avec les 7 bascules du Lot 3, la hauteur dépasse
+    // celle d'un bottom sheet standard sur téléphone.
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -91,6 +93,22 @@ class _FiltresCarteSheetState extends State<_FiltresCarteSheet> {
               visuel: VisuelMarqueur.camera,
               valeur: _filtres.cameras,
               onChange: (v) => setState(() => _filtres = _filtres.copyWith(cameras: v)),
+            ),
+            // Publications de PAGE (Lot 3) : menus, offres, événements.
+            _Bascule(
+              visuel: VisuelMarqueur.pourTypePost('menu'),
+              valeur: _filtres.menus,
+              onChange: (v) => setState(() => _filtres = _filtres.copyWith(menus: v)),
+            ),
+            _Bascule(
+              visuel: VisuelMarqueur.pourTypePost('offer'),
+              valeur: _filtres.offres,
+              onChange: (v) => setState(() => _filtres = _filtres.copyWith(offres: v)),
+            ),
+            _Bascule(
+              visuel: VisuelMarqueur.pourTypePost('event'),
+              valeur: _filtres.evenements,
+              onChange: (v) => setState(() => _filtres = _filtres.copyWith(evenements: v)),
             ),
             const SizedBox(height: 16),
             FilledButton(

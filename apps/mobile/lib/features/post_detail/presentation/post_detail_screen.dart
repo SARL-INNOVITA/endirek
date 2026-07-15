@@ -5,12 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/api/models/feed_post.dart';
 import '../../../core/api/models/post_comment.dart';
+import '../../../core/api/models/post_page_ref.dart';
 import '../../../core/api/models/post_type.dart';
 import '../../../core/auth/auth_controller.dart';
 import '../../../core/auth/auth_state.dart';
 import '../../../core/theme/endirek_theme.dart';
 import '../../../core/utils/temps_relatif.dart';
 import '../../feed/application/referentiels_providers.dart';
+import '../../pages/domain/types_posts_page.dart';
+import '../../pages/presentation/widgets/badge_verifie.dart';
 import '../../feed/presentation/widgets/avatar_rond.dart';
 import '../../feed/presentation/widgets/post_card.dart'
     show LigneCompteurs, PostActionsBar;
@@ -564,6 +567,11 @@ class _EtatSansPost extends StatelessWidget {
 }
 
 /// Carte d'infos du détail : type (pastille + libellé), lieu, temps, auteur.
+///
+/// Publication DE PAGE (Lot 3) : l'identité de la PAGE (avatar, nom, coche
+/// vérifiée) remplace l'auteur humain à droite (tap → /pages/:id) et les
+/// types réservés menu/offer/event, absents du référentiel `post_types`,
+/// sont résolus par la table locale [typesPostsPage].
 class _CarteInfos extends StatelessWidget {
   const _CarteInfos({required this.post, required this.type});
 
@@ -572,6 +580,9 @@ class _CarteInfos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final PostPageRef? page = post.page;
+    final TypePostPage? typePage = typePostPageParSlug(post.typeSlug);
+    final String? couleurType = type?.color ?? typePage?.couleurHex;
     final String sousTitre = [
       tempsRelatif(post.createdAt),
       if (post.city != null && post.city!.isNotEmpty) post.city!,
@@ -586,8 +597,8 @@ class _CarteInfos extends StatelessWidget {
       child: Row(
         children: [
           PastilleType(
-            nomIcone: type?.icon ?? '',
-            couleurHex: type?.color ?? '',
+            nomIcone: type?.icon ?? typePage?.nomIcone ?? '',
+            couleurHex: couleurType ?? '',
             taille: 36,
           ),
           const SizedBox(width: 10),
@@ -596,10 +607,10 @@ class _CarteInfos extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  type?.labelFr ?? post.typeSlug,
+                  type?.labelFr ?? typePage?.libelle ?? post.typeSlug,
                   style: TextStyle(
-                    color: type != null
-                        ? couleurPourType(type!.color)
+                    color: couleurType != null
+                        ? couleurPourType(couleurType)
                         : EndirekColors.encre,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w700,
@@ -617,25 +628,60 @@ class _CarteInfos extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          AvatarRond(
-            initiales: post.author.initiales,
-            avatarUrl: post.author.avatarUrl,
-            rayon: 14,
-          ),
-          const SizedBox(width: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 110),
-            child: Text(
-              post.author.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: EndirekColors.encre,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+          if (page == null) ...[
+            AvatarRond(
+              initiales: post.author.initiales,
+              avatarUrl: post.author.avatarUrl,
+              rayon: 14,
+            ),
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 110),
+              child: Text(
+                post.author.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: EndirekColors.encre,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
+          ] else
+            // Identité de PAGE tappable → écran public de la page.
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => context.push('/pages/${page.id}'),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AvatarRond(
+                    initiales: page.initiales,
+                    avatarUrl: page.avatarUrl,
+                    rayon: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 96),
+                    child: Text(
+                      page.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: EndirekColors.encre,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (page.verified) ...[
+                    const SizedBox(width: 3),
+                    const BadgeVerifie(taille: 14),
+                  ],
+                ],
+              ),
+            ),
         ],
       ),
     );

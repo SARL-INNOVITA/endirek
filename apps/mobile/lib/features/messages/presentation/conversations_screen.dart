@@ -142,13 +142,20 @@ class _CarteConversation extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
+                    // Ligne de la CIBLE du fil : annonce (CP2.3) ou page
+                    // (Lot 3, D75) — exactement une des deux.
                     Row(
                       children: [
-                        _VignetteAnnonce(listing: conversation.listing),
+                        if (conversation.page != null)
+                          _VignettePage(page: conversation.page!)
+                        else
+                          _VignetteAnnonce(listing: conversation.listing),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            conversation.listing.title,
+                            conversation.page?.name ??
+                                conversation.listing?.title ??
+                                '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -223,12 +230,12 @@ class _CarteConversation extends ConsumerWidget {
 class _VignetteAnnonce extends StatelessWidget {
   const _VignetteAnnonce({required this.listing});
 
-  final ConversationListingRef listing;
+  final ConversationListingRef? listing;
 
   @override
   Widget build(BuildContext context) {
     const double cote = 18;
-    final String? url = listing.coverThumbnailUrl;
+    final String? url = listing?.coverThumbnailUrl;
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: SizedBox(
@@ -241,6 +248,44 @@ class _VignetteAnnonce extends StatelessWidget {
                 errorBuilder: (_, _, _) => const _PictoAnnonce(),
               )
             : const _PictoAnnonce(),
+      ),
+    );
+  }
+}
+
+/// Petite vignette de la PAGE du fil (Lot 3, D75) : avatar de la page, ou
+/// pictogramme selon son type.
+class _VignettePage extends StatelessWidget {
+  const _VignettePage({required this.page});
+
+  final ConversationPageRef page;
+
+  @override
+  Widget build(BuildContext context) {
+    const double cote = 18;
+    final String? url = page.avatarUrl;
+    final Widget picto = ColoredBox(
+      color: EndirekColors.surface,
+      child: Icon(
+        page.pageType == 'restaurant'
+            ? Icons.restaurant_outlined
+            : Icons.business_outlined,
+        size: 13,
+        color: EndirekColors.encreSecondaire,
+      ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        width: cote,
+        height: cote,
+        child: (url != null && url.isNotEmpty)
+            ? Image.network(
+                ApiConfig.resolveMediaUrl(url),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => picto,
+              )
+            : picto,
       ),
     );
   }

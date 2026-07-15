@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/endirek_theme.dart';
+import '../../../feed/presentation/widgets/type_visuel.dart'
+    show couleurPourType, iconePourType;
+import '../../../pages/domain/types_posts_page.dart';
 import '../../domain/map_marker.dart';
 
 /// Visuel d'un TYPE de marqueur carte : icône + couleur, distincts par type
@@ -26,8 +29,18 @@ class VisuelMarqueur {
   /// Couleur des marqueurs caméra (carré sombre) — exposée pour les vignettes.
   static const Color couleurCamera = Color(0xFF1F2937);
 
-  /// Visuel d'un marqueur de POST selon son slug de type.
+  /// Visuel d'un marqueur de POST selon son slug de type. Les types de PAGE
+  /// menu/offer/event (Lot 3) sont résolus par la table locale partagée
+  /// [typesPostsPage] (mêmes libellés/couleurs/icônes que le fil).
   static VisuelMarqueur pourTypePost(String slug) {
+    final TypePostPage? typePage = typePostPageParSlug(slug);
+    if (typePage != null) {
+      return VisuelMarqueur(
+        icone: iconePourType(typePage.nomIcone),
+        couleur: couleurPourType(typePage.couleurHex),
+        libelle: typePage.libelle,
+      );
+    }
     return switch (slug) {
       'weather' => const VisuelMarqueur(
           icone: Icons.cloud_outlined,

@@ -18,6 +18,18 @@ import '../../features/map/presentation/map_screen.dart';
 import '../../features/messages/presentation/chat_screen.dart';
 import '../../features/messages/presentation/conversations_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/pages/presentation/create_page_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_cartes_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_evenements_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_horaires_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_infos_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_menus_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_offres_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_page_screen.dart';
+import '../../features/pages/presentation/gestion/gerer_plats_screen.dart';
+import '../../features/pages/presentation/page_posts_screen.dart';
+import '../../features/pages/presentation/page_screen.dart';
+import '../../features/pages/presentation/publier_libre_screen.dart';
 import '../../features/post_composer/presentation/create_post_screen.dart';
 import '../../features/post_detail/presentation/post_detail_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
@@ -178,6 +190,79 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ChatScreen(conversationId: state.pathParameters['id']!),
           ),
         ],
+      ),
+      // Pages restaurants & entreprises (Lot 3) : création, publications,
+      // publication libre, contact, hub de gestion (+ sous-écrans imbriqués)
+      // et écran public — plein écran au-dessus du shell. La route statique
+      // '/pages/create' AVANT '/pages/:id' pour ne pas être capturée par le
+      // paramètre dynamique (même règle que le Dealplace).
+      GoRoute(
+        path: '/pages/create',
+        builder: (context, state) => const CreatePageScreen(),
+      ),
+      GoRoute(
+        path: '/pages/:id/posts',
+        builder: (context, state) =>
+            PagePostsScreen(pageId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/pages/:id/publier',
+        builder: (context, state) =>
+            PublierLibreScreen(pageId: state.pathParameters['id']!),
+      ),
+      // Message à la page (Lot 3, D75) : fil lié à la page (repris s'il
+      // existe, créé au premier message sinon) — miroir du contact annonce.
+      GoRoute(
+        path: '/pages/:id/contact',
+        builder: (context, state) =>
+            ChatScreen.pourPage(pageId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/pages/:id/gerer',
+        builder: (context, state) =>
+            GererPageScreen(pageId: state.pathParameters['id']!),
+        routes: [
+          GoRoute(
+            path: 'infos',
+            builder: (context, state) =>
+                GererInfosScreen(pageId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'horaires',
+            builder: (context, state) =>
+                GererHorairesScreen(pageId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'plats',
+            builder: (context, state) =>
+                GererPlatsScreen(pageId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'menus',
+            builder: (context, state) =>
+                GererMenusScreen(pageId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'cartes',
+            builder: (context, state) =>
+                GererCartesScreen(pageId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'offres',
+            builder: (context, state) =>
+                GererOffresScreen(pageId: state.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'evenements',
+            builder: (context, state) =>
+                GererEvenementsScreen(pageId: state.pathParameters['id']!),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/pages/:id',
+        builder: (context, state) =>
+            PageScreen(pageId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/notifications',

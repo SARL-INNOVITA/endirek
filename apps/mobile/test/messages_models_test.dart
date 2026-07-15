@@ -2,9 +2,9 @@ import 'package:endirek_mobile/features/messages/domain/conversation.dart';
 import 'package:endirek_mobile/features/messages/domain/message_chat.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Modèles de la messagerie (CP2.3) : parsing des formes CONVERSATION et
-/// MESSAGE du contrat, y compris les cas limites (dernier message absent,
-/// annonce indisponible).
+/// Modèles de la messagerie (CP2.3 + fils de PAGE du Lot 3) : parsing des
+/// formes CONVERSATION et MESSAGE du contrat, y compris les cas limites
+/// (dernier message absent, annonce indisponible, fil de page).
 void main() {
   group('MessageChat', () {
     test('parse la forme MESSAGE', () {
@@ -79,7 +79,8 @@ void main() {
         'createdAt': '2026-07-11T10:00:00.000Z',
       }));
       expect(carte.otherParticipant.displayName, 'Kévin Dijoux');
-      expect(carte.listing.estActive, isTrue);
+      expect(carte.listing!.estActive, isTrue);
+      expect(carte.page, isNull);
       expect(carte.lastMessage!.body, 'Ça marche pour samedi !');
       expect(carte.unreadCount, 1);
     });
@@ -89,7 +90,65 @@ void main() {
       final carte =
           ConversationCard.fromJson(json(lastMessage: null, status: 'deleted'));
       expect(carte.lastMessage, isNull);
-      expect(carte.listing.estActive, isFalse);
+      expect(carte.listing!.estActive, isFalse);
+    });
+
+    test('fil de PAGE (Lot 3, D75) : listing null, référence de page parsée',
+        () {
+      final carte = ConversationCard.fromJson({
+        'id': 'c4',
+        'listing': null,
+        'page': {
+          'id': 'p1',
+          'name': 'Bon Goût',
+          'urlSlug': 'bon-gout',
+          'pageType': 'restaurant',
+          'avatarUrl': null,
+          'status': 'active',
+        },
+        'otherParticipant': {
+          'id': 'u13',
+          'displayName': 'David Payet',
+          'avatarUrl': null,
+          'city': 'Saint-Denis',
+        },
+        'lastMessage': null,
+        'unreadCount': 0,
+        'lastMessageAt': null,
+        'createdAt': '2026-07-14T08:00:00.000Z',
+      });
+      expect(carte.listing, isNull);
+      expect(carte.page, isNotNull);
+      expect(carte.page!.name, 'Bon Goût');
+      expect(carte.page!.pageType, 'restaurant');
+      expect(carte.page!.estActive, isTrue);
+      expect(carte.page!.initiales, 'BG');
+    });
+
+    test('fil de page — page supprimée (repli serveur) → estActive false', () {
+      final carte = ConversationCard.fromJson({
+        'id': 'c5',
+        'page': {
+          'id': 'p9',
+          'name': 'Page supprimée',
+          'urlSlug': '',
+          'pageType': 'business',
+          'avatarUrl': null,
+          'status': 'deleted',
+        },
+        'otherParticipant': {
+          'id': 'u13',
+          'displayName': 'David Payet',
+          'avatarUrl': null,
+          'city': 'Saint-Denis',
+        },
+        'lastMessage': null,
+        'unreadCount': 0,
+        'lastMessageAt': null,
+        'createdAt': '2026-07-14T08:00:00.000Z',
+      });
+      expect(carte.listing, isNull);
+      expect(carte.page!.estActive, isFalse);
     });
   });
 }

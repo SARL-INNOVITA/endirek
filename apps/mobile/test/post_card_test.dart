@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:endirek_mobile/core/api/models/feed_post.dart';
 import 'package:endirek_mobile/core/api/models/post_author.dart';
+import 'package:endirek_mobile/core/api/models/post_page_ref.dart';
 import 'package:endirek_mobile/core/api/models/post_type.dart';
 import 'package:endirek_mobile/core/auth/auth_controller.dart';
 import 'package:endirek_mobile/core/auth/token_storage.dart';
@@ -16,14 +17,18 @@ import 'package:endirek_mobile/features/feed/application/referentiels_providers.
 import 'package:endirek_mobile/features/feed/presentation/widgets/post_card.dart';
 
 /// Publication factice conforme au contrat FEED_POST (sans média).
-FeedPost postFactice() {
+FeedPost postFactice({PostPageRef? page}) {
   final DateTime maintenant = DateTime.now();
   return FeedPost(
     id: 'post-test-1',
-    typeSlug: 'traffic',
-    title: 'Embouteillage route du littoral',
-    body: 'Circulation très dense en direction de Saint-Denis, comptez '
-        '45 minutes de plus.',
+    typeSlug: page == null ? 'traffic' : 'menu',
+    title: page == null
+        ? 'Embouteillage route du littoral'
+        : 'Menu du jour',
+    body: page == null
+        ? 'Circulation très dense en direction de Saint-Denis, comptez '
+            '45 minutes de plus.'
+        : '• Rougail saucisses — 7,00 € à emporter',
     city: 'Saint-Denis',
     location: null,
     mapExpiresAt: null,
@@ -35,7 +40,7 @@ FeedPost postFactice() {
     commentCount: 3,
     shareCount: 0,
     saveCount: 1,
-    page: null,
+    page: page,
     author: const PostAuthor(
       id: 'user-test-1',
       displayName: 'Maya Hoarau',
@@ -112,5 +117,50 @@ void main() {
     await tester.tap(find.text('Partager'));
     await tester.pump();
     expect(find.text('Partage disponible prochainement'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Publication DE PAGE (Lot 3) : identité de page, coche vérifiée et '
+      'type menu résolu localement', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tokenStorageProvider.overrideWith((ref) => InMemoryTokenStorage()),
+          // Référentiel VIDE : les slugs de page (menu/offer/event) sont
+          // absents de GET /posts/types — résolution par la table locale.
+          postTypesProvider.overrideWith((ref) async => const <PostType>[]),
+        ],
+        child: MaterialApp(
+          theme: buildEndirekTheme(),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: PostCard(
+                post: postFactice(
+                  page: const PostPageRef(
+                    id: 'page-test-1',
+                    name: 'Bon Goût',
+                    avatarUrl: null,
+                    pageType: 'restaurant',
+                    verified: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // L'identité de la PAGE remplace l'auteur humain.
+    expect(find.text('Bon Goût'), findsOneWidget);
+    expect(find.text('Maya Hoarau'), findsNothing);
+    expect(find.byIcon(Icons.verified), findsOneWidget);
+
+    // Type « menu » résolu par la table locale : icône restaurant.
+    expect(find.byIcon(Icons.restaurant_outlined), findsOneWidget);
+
+    // Le sous-titre temps · ville reste inchangé.
+    expect(find.text('il y a 37 min · Saint-Denis'), findsOneWidget);
   });
 }

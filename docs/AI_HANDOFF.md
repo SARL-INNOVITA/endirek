@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : **Lot 3 — API et backoffice COMPLETS et vérifiés, volet MOBILE PARTIEL** (interruption du sous-agent — plan de reprise dans [TODO_LOT_3.md](TODO_LOT_3.md)) ; Lots 1 et 2 validés et poussés (2026-07-15)._
+_Dernière mise à jour : **Lot 3 — API, backoffice ET mobile (CP3.R1) COMPLETS** ; reste le CP3.R2 (vérification émulateur + validation product owner) avant push — voir [TODO_LOT_3.md](TODO_LOT_3.md) ; Lots 1 et 2 validés et poussés (2026-07-15)._
 
 ---
 
@@ -24,7 +24,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 |---|---|---|
 | **Lot 1 — Socle + Live Local** | Auth, profils, follows, feed social (5 types de posts), interactions, carte météo/trafic, caméras, notifications, backoffice minimal, préparation démo | **STABILISÉ — validation product owner attendue** |
 | **Lot 2 — Dealplace** | Marketplace biens/services, annonces, conversations 1-to-1 temps réel, deals contractuels (états, éléments validables, litiges), modération avancée | **COMPLET — validé et poussé** |
-| **Lot 3 — Pages restaurants / entreprises** | Pages pro, menus programmés, cartes, horaires, offres, événements, publications de page | **API + BACKOFFICE COMPLETS et vérifiés (D69-D77) ; MOBILE PARTIEL (sain mais non câblé) — commit local, reprise planifiée dans [TODO_LOT_3.md](TODO_LOT_3.md)** |
+| **Lot 3 — Pages restaurants / entreprises** | Pages pro, menus programmés, cartes, horaires, offres, événements, publications de page | **API + BACKOFFICE + MOBILE (CP3.R1) COMPLETS (D69-D77) — commits locaux, reste le CP3.R2 (émulateur + validation product owner) avant push, voir [TODO_LOT_3.md](TODO_LOT_3.md)** |
 | **Lot 4 — News automatisées IA** | Harnais IA supervisé, sources, génération d'articles, page News | Non commencé — anticipé |
 
 > Monétisation (premium, offres exceptionnelles, Google Ads) = transverse/future, hors des 4 lots ci-dessus.
@@ -34,7 +34,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 
 ## 3. Lot actuel et checkpoints
 
-**Lot 1 : terminé** (7 checkpoints + Lot 1.5). **Lot 2 : COMPLET, validé et poussé.** **Lot actuel : Lot 3 — API + backoffice complets et vérifiés ; MOBILE à finir (reprise planifiée : [TODO_LOT_3.md](TODO_LOT_3.md)).**
+**Lot 1 : terminé** (7 checkpoints + Lot 1.5). **Lot 2 : COMPLET, validé et poussé.** **Lot actuel : Lot 3 — API + backoffice + mobile (CP3.R1) complets ; reste le CP3.R2, vérification émulateur + validation product owner ([TODO_LOT_3.md](TODO_LOT_3.md)).**
 
 ### Lot 1 (rappel)
 
@@ -95,13 +95,15 @@ réservés `menu`/`offer`/`event` — Feed + Carte avec fenêtres 23 h / J-3 —
 export RGPD enrichi. Migration `0009` (rejouable), 14ᵉ repository `pages`,
 parité mock+postgres vérifiée par sondes croisées (27 lectures strictement
 identiques, 44 écritures) sur les DEUX drivers. Backoffice Pages COMPLET
-(build vert). **Volet MOBILE PARTIEL** : la moitié « socle » de la feature
-`pages` est écrite et SAINE (`flutter analyze`/`test` verts) mais NON câblée
-au routeur (inaccessible dans l'app) ; il manque des écrans de gestion, la
-publication et toutes les intégrations (feed, messages, profil, carte) —
-**état précis et plan de reprise en 2 checkpoints (CP3.R1/CP3.R2) dans
-[TODO_LOT_3.md](TODO_LOT_3.md)**. **Commit LOCAL, non poussé** — le push
-attendra la fin du mobile + validation product owner (émulateur).
+(build vert). **Volet MOBILE COMPLET (CP3.R1, 2026-07-15)** : routes
+`/pages/*` câblées, 4 écrans de gestion ajoutés (menus de la semaine,
+cartes PDF, offres, événements), publication au nom de la page atteignable,
+et toutes les intégrations posées (identité de page dans le fil/détail/
+carte, conversations de page, section « Mes pages » du profil) — détail
+au §CP3.R1 de [TODO_LOT_3.md](TODO_LOT_3.md). `flutter analyze` vierge,
+74 tests verts, parcours runtime API mock vérifié. **Commits LOCAUX, non
+poussés** — le push attendra le CP3.R2 (vérification émulateur +
+validation product owner).
 > ✅ **Revue qualité complète CP2.1 exécutée le 2026-07-11** (l'avertissement « revue à relancer » du 2026-07-10 est levé) : relecture intégrale du diff (migrations, contrat + 2 implémentations de repositories, service, DTOs, assembleur, admin, mobile), builds/tests (`api:build`, `admin:build`, `flutter analyze`, `flutter test` — tous verts), boot des DEUX drivers et sondes croisées (taxonomie, annuaire, filtres, détail, backoffice : résultats identiques). **1 finding de parité corrigé** (`3f1c1a1`) : le filtre `?tags=` avec doublons divergeait entre mock et postgres. **2 points mineurs relevés puis ARBITRÉS et CORRIGÉS le jour même** (décisions D60/D61) : (a) une catégorie/sous-catégorie INACTIVE refuse désormais toute nouvelle annonce (400 « inconnue ou inactive », les annonces existantes restent affichées et éditables) ; (b) les cartes de `GET /users/me/listings` portent désormais le champ `status` (le propriétaire distingue ses annonces masquées). Vérifiés par sondes runtime (création/édition refusées sur inactif, édition hors taxonomie toujours OK, statut présent).
 
 ---
@@ -126,15 +128,29 @@ Fonctionnelle. Modules livrés : `health`, `database` (mock/postgres), `auth`, `
 - **Dealplace (Lot 2 — CP2.1)** : `GET /dealplace/taxonomy` (catégories actives + sous-catégories + tags, pour le formulaire mobile) ; annuaire public `GET /dealplace/listings` (annonces `active`, filtres `family/category/subcategory/city/valueMin/valueMax/tags/search`, pagination) ; `POST /dealplace/listings` (règles métier : valeur fixe/fourchette cohérente, **photo obligatoire pour un bien**, commune du référentiel, catégorie+sous-catégorie cohérentes, **catégorie « forbidden » refusée 400**, médias issus de `/media/upload`) ; `GET /dealplace/listings/:id`, `GET /dealplace/listings/slug/:slug`, `PATCH|DELETE /dealplace/listings/:id` (propriétaire, soft-delete) ; listes de profil `GET /users/me/listings` (active+hidden, cartes enrichies du `status` — D61) et `GET /users/:id/listings` (active), toutes deux filtrables par `?family=good|service` (CP2.2) ; catégorie/sous-catégorie **inactive** refusée à la création et au changement de catégorie (400 — D60). **CP2.2 (D62)** : champ de profil `dealplaceSeeking` (« Ce que je recherche », public, 500 caractères, migration 0005) exposé dans les profils complet et public, édité via `PATCH /users/me/profile` (chaîne vide → null). **Backoffice** : `GET|POST|PATCH /admin/dealplace/categories|subcategories|tags` (taxonomie pilotable, slug immuable) ; `GET /admin/dealplace/listings` (tous statuts + recherche), `GET /admin/dealplace/listings/:id`, `PATCH /admin/dealplace/listings/:id/status` (masquer/republier — `deleted` non restaurable). Forme `LISTING`/`LISTING_CARD` assemblée par `ListingAssembler` (source unique, partagée avec le backoffice, comme `FeedPostAssembler`).
 
 ### Mobile — `apps/mobile` (Flutter 3.44, Riverpod, go_router, dio)
-Fonctionnel et stabilisé. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News = placeholder propre**, la **Carte** et **désormais le Dealplace (CP2.1)** sont réels. Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types actifs depuis `GET /posts/types`, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**, et l'**onglet Dealplace** (`features/dealplace`) : annuaire (grille de cartes, recherche + filtres, états loading/vide/erreur, pull-to-refresh, pagination, FAB), **création d'annonce** (`/dealplace/create` — photo obligatoire pour un bien, upload via `/media/upload`), **détail** (`/dealplace/:id`, fidèle au mockup 06). **CP2.2 — Profil Dealplace (D59/D62)** : mon profil passe en **deux onglets** « Mes infos » / « Profil Dealplace » (mockups 04/05) et le bloc vendeur du détail d'annonce ouvre l'**écran public** `/dealplace/profil/:userId` ; le volet (vue partagée `profil_dealplace_view`) affiche le placeholder avis/deals (pastille « Bientôt »), « **Ce que je recherche** » (éditable sur mon profil), les sections **Services / Biens** (tuiles compactes, badge « Masquée » sur mes annonces cachées) et « Comment ça marche ? » (bottom sheet). **CP2.4 — Deals (`features/deals`, D64)** : le bouton **« Proposer un deal »** est **RÉEL** — écran de composition (`/dealplace/:id/proposer` : éléments des deux côtés, nature/valeur/sous-éléments) ; **page de deal** (`/deals/:id`, mockup 07 : stepper 5 étapes dérivé, sections d'éléments avec steps actionnables — honorer/valider —, ajustements avec décision, timeline de notes, annulation 2 temps, litige, formulaire d'avis 3 critères en étoiles sur deal conclu) ; **liste « Mes deals »** (`/deals`) ; **bandeau de deal** dans le fil de conversation + action « Proposer un deal » depuis le fil (les deux parties) ; **profil Dealplace ACTIVÉ** (stats réelles : note globale, barres des 3 critères, dernier avis, « X deals réalisés », « Deals conclus » — plus de placeholders) ; notifications type `deal` (tap → page du deal) et rafraîchissement en direct via `deal.updated`. **CP2.3 — Messagerie (`features/messages`, D63)** : bouton **« Contacter »** sur le détail d'annonce (masqué sur mes annonces) → fil lié à l'annonce (`/dealplace/:id/contact`, repris s'il existe, créé au premier envoi) ; **liste des conversations** (`/messages` — cartes avec badge par fil) ; **écran de fil** (`/messages/:id` — bulles chronologiques, bandeau annonce cliquable, saisie 2000 max) ; réception **en direct** (event `message.created`) + marquage lu à l'ouverture/réception. **Lot 3 (PARTIEL — voir [TODO_LOT_3.md](TODO_LOT_3.md))** : la feature
-`features/pages` est écrite pour sa moitié « socle » (modèles + repository
-API complet + providers + écran PUBLIC du mockup 08 + création + hub de
-gestion infos/horaires/plats + upload PDF `uploaderDocument` + deps
-`url_launcher`/`file_picker`) mais **NON câblée au routeur** — aucun écran
-n'est atteignable dans l'app ; `FeedPost.page`/`MapPostItem.page` sont
-parsés mais pas encore affichés. Restent : routes, gestion menus/cartes/
-offres/événements, bottom sheet « Publier », intégrations feed/messages/
-profil/carte, test émulateur. Les notifications `system` affichent `payload.title` ou `payload.message`. Temps réel via **socket.io** (`socket_io_client`) : notifications + `map.updated` + `message.created`, avec **fallback polling ~45 s** (cloche ET messagerie). Header : icône messagerie **ACTIVE avec badge** (conversations avec non-lus), cloche **active**. Les libellés Material sont localisés en français via `flutter_localizations`. **CP2.5 — Modération (D65/D66/D67)** : menu **⋮ « Signaler »** sur le détail d'annonce (non-propriétaire, dialogue de signalement du Lot 1 réutilisé avec titre paramétré) ; page de deal : bandeau de litige actualisé (« L'équipe de modération va examiner la situation. ») + **bandeau « Litige tranché »** (issue + note de décision, bleu pâle) dès qu'un arbitrage est rendu (`disputeResolution*` dans le modèle Deal) ; messages masqués rendus en **placeholder italique** « Message masqué par la modération. » (bulle neutre, aperçu de conversation en italique).
+Fonctionnel et stabilisé. Shell 4 onglets (Accueil, Carte, News, Dealplace) ; **News = placeholder propre**, la **Carte** et **désormais le Dealplace (CP2.1)** sont réels. Écrans réels : login/register, profil + édition, feed (infinite scroll, pull-to-refresh), composer (5 types actifs depuis `GET /posts/types`, images, choix de commune), détail post (commentaires 2 niveaux, réactions, signalement, édition), **carte Météo & trafic** (`flutter_map` + tuiles OSM, clustering client-side, cartes de preview, filtres), **détail caméra** (image live pour `streamType='image'`, repli pour video/iframe), **écran notifications** + **cloche active avec badge de non-lues**, et l'**onglet Dealplace** (`features/dealplace`) : annuaire (grille de cartes, recherche + filtres, états loading/vide/erreur, pull-to-refresh, pagination, FAB), **création d'annonce** (`/dealplace/create` — photo obligatoire pour un bien, upload via `/media/upload`), **détail** (`/dealplace/:id`, fidèle au mockup 06). **CP2.2 — Profil Dealplace (D59/D62)** : mon profil passe en **deux onglets** « Mes infos » / « Profil Dealplace » (mockups 04/05) et le bloc vendeur du détail d'annonce ouvre l'**écran public** `/dealplace/profil/:userId` ; le volet (vue partagée `profil_dealplace_view`) affiche le placeholder avis/deals (pastille « Bientôt »), « **Ce que je recherche** » (éditable sur mon profil), les sections **Services / Biens** (tuiles compactes, badge « Masquée » sur mes annonces cachées) et « Comment ça marche ? » (bottom sheet). **CP2.4 — Deals (`features/deals`, D64)** : le bouton **« Proposer un deal »** est **RÉEL** — écran de composition (`/dealplace/:id/proposer` : éléments des deux côtés, nature/valeur/sous-éléments) ; **page de deal** (`/deals/:id`, mockup 07 : stepper 5 étapes dérivé, sections d'éléments avec steps actionnables — honorer/valider —, ajustements avec décision, timeline de notes, annulation 2 temps, litige, formulaire d'avis 3 critères en étoiles sur deal conclu) ; **liste « Mes deals »** (`/deals`) ; **bandeau de deal** dans le fil de conversation + action « Proposer un deal » depuis le fil (les deux parties) ; **profil Dealplace ACTIVÉ** (stats réelles : note globale, barres des 3 critères, dernier avis, « X deals réalisés », « Deals conclus » — plus de placeholders) ; notifications type `deal` (tap → page du deal) et rafraîchissement en direct via `deal.updated`. **CP2.3 — Messagerie (`features/messages`, D63)** : bouton **« Contacter »** sur le détail d'annonce (masqué sur mes annonces) → fil lié à l'annonce (`/dealplace/:id/contact`, repris s'il existe, créé au premier envoi) ; **liste des conversations** (`/messages` — cartes avec badge par fil) ; **écran de fil** (`/messages/:id` — bulles chronologiques, bandeau annonce cliquable, saisie 2000 max) ; réception **en direct** (event `message.created`) + marquage lu à l'ouverture/réception. **Lot 3 — Pages (`features/pages`, D69-D77, CP3.R1 fait — reste la
+vérification émulateur CP3.R2)** : routes `/pages/*` câblées (création,
+écran public du mockup 08, publications, publication libre, contact, hub
+de gestion + 7 sous-écrans) ; écran public complet (couverture, ✓, statut
+dérivé, horaires, menus de la semaine, « Nos cartes » PDF ouvertes via
+url_launcher, offres, événements, publications, suivre/message/itinéraire/
+signaler) ; côté propriétaire : hub de gestion COMPLET (infos + congés,
+horaires, plats, **menus de la semaine** — sélection ordonnée ≤12 plats
+par jour glissant, réordonnancement par glisser, [] = suppression —,
+**cartes PDF** — file_picker → `uploaderDocument` → attache, quota 5 —,
+**offres** et **événements** — CRUD avec périodes) et FAB « Publier »
+(bottom sheet 4 choix : libre/menu/offre/événement, erreurs 400 du contrat
+en snackbar). Intégrations : les publications DE PAGE affichent l'identité
+de la page (avatar, nom, ✓ — tap → `/pages/:id`) dans le fil, le détail de
+post et la preview carte, types réservés menu/offer/event résolus par la
+table locale `types_posts_page.dart` ; **conversations de page (D75)** —
+`ConversationCard.listing` NULLABLE + `page`, bouton « Message » →
+`/pages/:id/contact` (get-or-create), bandeau de page cliquable dans le
+fil, vignette de page dans la liste ; section **« Mes pages »** de l'onglet
+« Mes infos » du profil (badge « Masquée », bouton « Créer une page ») ;
+**carte** : filtres menus/offres/événements (bottom sheet + chips de mode
+devenues bascules rapides par famille), marqueurs et preview aux couleurs
+du contrat (#0EA5A4/#D97706/#DB2777). Les notifications `system` affichent `payload.title` ou `payload.message`. Temps réel via **socket.io** (`socket_io_client`) : notifications + `map.updated` + `message.created`, avec **fallback polling ~45 s** (cloche ET messagerie). Header : icône messagerie **ACTIVE avec badge** (conversations avec non-lus), cloche **active**. Les libellés Material sont localisés en français via `flutter_localizations`. **CP2.5 — Modération (D65/D66/D67)** : menu **⋮ « Signaler »** sur le détail d'annonce (non-propriétaire, dialogue de signalement du Lot 1 réutilisé avec titre paramétré) ; page de deal : bandeau de litige actualisé (« L'équipe de modération va examiner la situation. ») + **bandeau « Litige tranché »** (issue + note de décision, bleu pâle) dès qu'un arbitrage est rendu (`disputeResolution*` dans le modèle Deal) ; messages masqués rendus en **placeholder italique** « Message masqué par la modération. » (bulle neutre, aperçu de conversation en italique).
 
 ### Admin — `apps/admin` (React 19 + Vite 7, CSS pur, port 5173)
 Backoffice consolidé : connexion réservée aux rôles admin, onglets **Utilisateurs** (recherche + statut + rôle, suspendre/réactiver), **Publications** (type/statut/recherche + filtre carte `mapVisible`, détail, masquer/réactiver), **Signalements** (statut + cible — dont **Annonces** depuis le CP2.5 : actions directes Masquer/Réactiver + « Voir l'annonce », traitement, action directe sur commentaire signalé), **Caméras** (`CamerasView` + `CameraForm` : liste tous statuts, création/édition, changement de statut, masquage doux), **Dealplace** — `DealplaceView` à **quatre sous-vues** : **Annonces** (`ListingsView` + `ListingDetailAdmin` : liste tous statuts + filtres famille/catégorie/statut/modération/recherche, colonne signalements, détail avec signalements liés, masquer/republier), **Deals (CP2.5)** (`DealsView` + `DealDetailAdmin` : file « Litiges à arbitrer » par défaut avec badge sur le sous-onglet, tous statuts, détail 2 parties + éléments/steps + **formulaire d'arbitrage** 3 issues avec note obligatoire + **conversation liée moderable**), **Conversations (CP2.5)** (`ConversationsView` : liste + fil en clair, masquer/réactiver par message) et **Taxonomie** (`TaxonomyView` : catégories/sous-catégories/tags pilotables, création + édition, slug immuable) — **Pages (Lot 3)** (`PagesView` + `PageDetailAdmin` : liste tous statuts avec filtres type/statut/vérifiée/« Signalées seulement » + recherche nom/commune/propriétaire, colonne signalements, détail complet — identité, horaires lisibles, congés, compteurs, documents, offres/événements, signalements liés — actions Masquer/Republier et badge ✓ Accorder/Retirer ; la file Signalements gère la cible **Pages** avec actions directes, les conversations affichent les fils de PAGE, les types de posts réservés aux pages portent un badge dédié) — et **Paramètres** (types de posts pilotables + notification système dev/mock).
@@ -233,10 +249,13 @@ lectures — et 44 sondes d'écriture vertes sur les DEUX drivers : création/
 édition de page, congés, horaires avec chevauchement refusé, plats/menus
 transactionnels, publication menu/offre/événement avec fenêtres carte,
 abonnements, masquage admin retirant les posts du feed, badge vérifié,
-suppressions). **PROCHAINE ÉTAPE : finir le volet MOBILE** en suivant
-[TODO_LOT_3.md](TODO_LOT_3.md) (CP3.R1 : écrans manquants + routes +
-intégrations ; CP3.R2 : vérification émulateur + validation product owner),
-PUIS pousser. Ensuite : Lot 4 (News automatisées IA) ou dettes transverses
+suppressions). **Le volet MOBILE (CP3.R1) est FAIT** (routes + écrans de
+gestion + intégrations, analyze vierge, 74 tests verts, parcours runtime
+API mock — détail dans [TODO_LOT_3.md](TODO_LOT_3.md)). **PROCHAINE
+ÉTAPE : le CP3.R2** — vérification visuelle sur l'émulateur
+`Pixel_3a_API_34` (parcours « Bon Goût » complet, côté visiteur puis
+propriétaire) + validation product owner, PUIS pousser. Ensuite : Lot 4
+(News automatisées IA) ou dettes transverses
 (tests e2e API, rate limiting, vérification d'email, purge des uploads
 orphelins — voir [KNOWN_LIMITS.md](KNOWN_LIMITS.md)).
 **Paiement = hors app** (jamais dans le périmètre applicatif).

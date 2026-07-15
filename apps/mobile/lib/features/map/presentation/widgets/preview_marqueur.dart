@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/api/models/camera.dart';
 import '../../../../core/api/models/map_post_item.dart';
+import '../../../../core/api/models/post_page_ref.dart';
 import '../../../../core/config/api_config.dart';
 import '../../../../core/theme/endirek_theme.dart';
 import '../../../../core/utils/temps_relatif.dart';
@@ -52,7 +53,9 @@ class PreviewMarqueur extends StatelessWidget {
 }
 
 /// Preview d'un post carte : vignette média (si présente), libellé de type,
-/// titre/texte court, ville et temps relatif.
+/// titre/texte court, ville et temps relatif. Publication DE PAGE (Lot 3) :
+/// l'avatar de la page sert de vignette et son nom (+ coche vérifiée)
+/// complète la ligne de type.
 class _ContenuPost extends StatelessWidget {
   const _ContenuPost({required this.post, required this.onFermer});
 
@@ -62,17 +65,48 @@ class _ContenuPost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final VisuelMarqueur visuel = VisuelMarqueur.pourTypePost(post.typeSlug);
+    final PostPageRef? page = post.page;
     final String titre = (post.title != null && post.title!.trim().isNotEmpty)
         ? post.title!.trim()
         : 'Publication ${visuel.libelle.toLowerCase()}';
+    final Widget ligneType = _LigneType(
+      icone: visuel.icone,
+      couleur: visuel.couleur,
+      texte: visuel.libelle,
+    );
     return _Cadre(
       onFermer: onFermer,
-      vignette: _VignetteIcone(icone: visuel.icone, couleur: visuel.couleur),
-      enTete: _LigneType(
-        icone: visuel.icone,
-        couleur: visuel.couleur,
-        texte: visuel.libelle,
-      ),
+      vignette: page == null
+          ? _VignetteIcone(icone: visuel.icone, couleur: visuel.couleur)
+          : _VignettePage(page: page, visuel: visuel),
+      enTete: page == null
+          ? ligneType
+          : Row(
+              children: [
+                ligneType,
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    page.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: EndirekColors.encreSecondaire,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (page.verified) ...[
+                  const SizedBox(width: 3),
+                  const Icon(
+                    Icons.verified,
+                    size: 13,
+                    color: EndirekColors.bleu,
+                  ),
+                ],
+              ],
+            ),
       titre: titre,
       sousTitre: _sousTitre(post),
       lienTexte: 'Voir la publication →',
@@ -289,6 +323,29 @@ class _VignetteIcone extends StatelessWidget {
       color: couleur.withValues(alpha: 0.12),
       child: Icon(icone, color: couleur, size: 30),
     );
+  }
+}
+
+/// Vignette d'une publication DE PAGE (Lot 3) : avatar de la page, repli sur
+/// l'icône du type si absent ou en erreur.
+class _VignettePage extends StatelessWidget {
+  const _VignettePage({required this.page, required this.visuel});
+
+  final PostPageRef page;
+  final VisuelMarqueur visuel;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? url = page.avatarUrl;
+    if (url != null && url.isNotEmpty) {
+      return Image.network(
+        ApiConfig.resolveMediaUrl(url),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stack) =>
+            _VignetteIcone(icone: visuel.icone, couleur: visuel.couleur),
+      );
+    }
+    return _VignetteIcone(icone: visuel.icone, couleur: visuel.couleur);
   }
 }
 

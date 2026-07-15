@@ -10,6 +10,9 @@ import '../../../core/theme/endirek_theme.dart';
 import '../../dealplace/application/profil_dealplace_providers.dart';
 import '../../dealplace/presentation/profil_dealplace_view.dart';
 import '../../feed/application/posts_liste_controller.dart';
+import '../../pages/application/pages_providers.dart';
+import '../../pages/domain/page_models.dart';
+import '../../pages/presentation/widgets/tuile_page_profil.dart';
 import 'widgets/carte_publication_compacte.dart';
 
 /// Écran du profil de l'utilisateur COURANT, en DEUX onglets (mockups 04/05) :
@@ -89,10 +92,13 @@ class _OngletMesInfos extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return RefreshIndicator(
-      onRefresh: () => Future.wait([
-        ref.read(authControllerProvider.notifier).refreshProfile(),
-        ref.read(mesPublicationsProvider.notifier).rafraichir(),
-      ]),
+      onRefresh: () {
+        ref.invalidate(mesPagesProvider);
+        return Future.wait([
+          ref.read(authControllerProvider.notifier).refreshProfile(),
+          ref.read(mesPublicationsProvider.notifier).rafraichir(),
+        ]);
+      },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
@@ -164,6 +170,17 @@ class _OngletMesInfos extends ConsumerWidget {
                         ),
                         label: const Text('Se déconnecter'),
                       ),
+                      const SizedBox(height: 32),
+                      const Text(
+                        'Mes pages',
+                        style: TextStyle(
+                          color: EndirekColors.encre,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const _SectionMesPages(),
                       const SizedBox(height: 32),
                       const Text(
                         'Mes publications',
@@ -392,6 +409,72 @@ class _SeparateurVertical extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(width: 1, height: 36, color: EndirekColors.bordure);
+  }
+}
+
+/// Section « Mes pages » (Lot 3) : tuiles de mes pages restaurant/entreprise
+/// (statut masqué inclus, tap → écran public) + bouton « Créer une page »,
+/// états chargement/erreur/vide sobres.
+class _SectionMesPages extends ConsumerWidget {
+  const _SectionMesPages();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<OwnerPageCard>> etat = ref.watch(mesPagesProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        switch (etat) {
+          AsyncData(:final value) when value.isEmpty => const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text(
+                'Vous n\'avez pas encore de page. Créez la page de votre '
+                'restaurant ou de votre entreprise !',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: EndirekColors.encreSecondaire,
+                  fontSize: 13.5,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          AsyncData(:final value) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final OwnerPageCard page in value)
+                  TuilePageProfil(page: page),
+              ],
+            ),
+          AsyncError() => Column(
+              children: [
+                const Text(
+                  'Impossible de charger vos pages.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: EndirekColors.encreSecondaire,
+                    fontSize: 13.5,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => ref.invalidate(mesPagesProvider),
+                  child: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          _ => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+        },
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => context.push('/pages/create'),
+          icon: const Icon(Icons.add_business_outlined, size: 18),
+          label: const Text('Créer une page'),
+        ),
+      ],
+    );
   }
 }
 

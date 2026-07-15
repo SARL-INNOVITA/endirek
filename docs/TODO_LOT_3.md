@@ -3,13 +3,13 @@
 > **Contexte.** Le Lot 3 a été implémenté en un passage le 2026-07-14/15 :
 > **API et backoffice sont COMPLETS et VÉRIFIÉS** (voir
 > [AI_HANDOFF.md](AI_HANDOFF.md) §3 et les décisions D69-D77 dans
-> [AI_DECISIONS.md](AI_DECISIONS.md)). Le volet MOBILE a été interrompu en
-> cours de route (limite d'API du sous-agent) : il est **PARTIEL mais SAIN**
-> (`flutter analyze` sans erreur, 44 tests verts) — la feature `pages`
-> existe et compile, mais n'est **pas encore câblée au routeur** (code
-> inatteignable depuis l'app), et il manque des écrans + toutes les
-> intégrations. Ce fichier est le plan de reprise, découpé en deux
-> checkpoints à valider un par un par le product owner.
+> [AI_DECISIONS.md](AI_DECISIONS.md)). Le volet MOBILE avait été interrompu
+> en cours de route (limite d'API du sous-agent) ; **le CP3.R1 (reprise) est
+> FAIT le 2026-07-15** : feature `pages` complète et câblée au routeur,
+> toutes les intégrations posées, `flutter analyze` vierge et **74 tests
+> verts** (dont 30 nouveaux), parcours runtime API mock vérifié. **RESTE le
+> CP3.R2** (vérification visuelle émulateur + validation product owner,
+> puis push).
 
 ## Sources de vérité pour la reprise
 
@@ -54,9 +54,54 @@
 
 ### ❌ Reste à faire
 
-Voir les deux checkpoints ci-dessous.
+Le CP3.R2 uniquement (le CP3.R1 ci-dessous est fait).
 
-## CP3.R1 — Finaliser la feature mobile + intégrations
+## CP3.R1 — Finaliser la feature mobile + intégrations — ✅ FAIT (2026-07-15)
+
+> Réalisé en un passage (commit local `feat: Lot 3 — mobile pages (CP3.R1)`) :
+> 1. **Routes** : `/pages/create`, `/pages/:id`, `/pages/:id/posts`,
+>    `/pages/:id/publier`, `/pages/:id/contact` (→ `ChatScreen.pourPage`),
+>    `/pages/:id/gerer` + 7 sous-routes imbriquées (infos/horaires/plats/
+>    menus/cartes/offres/evenements) — statiques avant `/pages/:id`.
+> 2. **Écrans de gestion** : `gerer_menus_screen` (7 jours glissants,
+>    sélection ordonnée ≤12 plats avec réordonnancement par glisser,
+>    [] = suppression confirmée), `gerer_cartes_screen` (file_picker PDF →
+>    `uploaderDocument` → attache, quota 5 gardé des deux côtés),
+>    `gerer_offres_screen` (CRUD, période optionnelle 00:00→23:59 locales,
+>    effacement par null explicite) et `gerer_evenements_screen` (CRUD,
+>    début REQUIS date+heure, fin optionnelle effaçable).
+> 3. **Bottom sheet « Publier »** : déjà écrit dans `page_screen.dart` (FAB
+>    propriétaire, 4 choix) — rendu atteignable par les routes, vérifié en
+>    runtime (`kind=menu` → 201 avec identité de page).
+> 4. **Feed + détail** : identité de PAGE (avatar, nom, ✓) à la place de
+>    l'auteur quand `FeedPost.page != null`, zone tappable → `/pages/:id`,
+>    types menu/offer/event résolus par la table locale
+>    `types_posts_page.dart` (chemin utilisateur inchangé au pixel près).
+> 5. **Messages (D75)** : `ConversationCard.listing` nullable + champ
+>    `page` (`ConversationPageRef`), `chargerFilPourPage`,
+>    `demarrerConversation({listingId?|pageId?})`, bandeau de page cliquable
+>    dans le fil et vignette de page dans la liste ; le bandeau/action deal
+>    ne s'active jamais sur un fil de page.
+> 6. **Profil** : section « Mes pages » (tuiles + bouton « Créer une
+>    page ») dans « Mes infos », rafraîchie par le pull-to-refresh.
+> 7. **Carte** : filtres menus/offres/evenements (bottom sheet + bascules
+>    rapides des chips de mode, ex-placeholders), visuels partagés via
+>    `types_posts_page.dart`, identité de page dans la preview.
+> 8. **Vérifications** : analyze vierge, 75 tests verts (+
+>    `pages_formatage_test`, `pages_models_test`, cas fil de page et
+>    publication de page), sondes runtime API mock (mes pages,
+>    conversations de page get-or-create + 404, menus PUT/[] ,
+>    offres cycle complet, publication menu, overview carte types de page),
+>    et revue adversariale multi-agents du diff : 15 findings confirmés,
+>    TOUS corrigés (avatar de page sans repli sur l'avatar personnel du
+>    propriétaire, zone de tap identité bornée à son contenu, dates
+>    initiales des DatePickers bornées, invalidations résilientes au rejet
+>    d'une sheet pendant l'enregistrement, gardes mounted après await,
+>    retouches de menu conservées pendant un enregistrement, anti-course
+>    des filtres carte, preview de marqueur filtré refermée, bottom sheet
+>    de filtres défilant, tests indépendants de l'horloge murale).
+
+### Détail d'origine du CP3.R1 (réalisé)
 
 1. **Routes go_router** (`lib/core/router/…`, pattern des routes
    `/dealplace/:id` hors shell) : `/pages/create`, `/pages/:id`,

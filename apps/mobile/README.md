@@ -34,14 +34,23 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
 - **Détail d'un post** (`/post/:id`) — médias, réactions, commentaires
   deux niveaux (répondre seulement à un commentaire principal — option A),
   menu ⋯ Signaler / Modifier / Supprimer (si auteur) ;
-- **Profil** (`/profile`) — couverture, avatar, bio, stats, section « Mes
-  publications », déconnexion, tirer-pour-rafraîchir ;
+- **Profil** (`/profile`) — couverture, avatar, bio, stats, sections « Mes
+  pages » (Lot 3) et « Mes publications », déconnexion,
+  tirer-pour-rafraîchir ;
 - **Édition du profil** (`/profile/edit`) — nom affiché, bio, ville.
-- **Carte** (`/map`) — carte météo/trafic réelle, tuiles OSM dev, clustering,
-  filtres, preview cards, caméras actives et détail caméra ;
+- **Carte** (`/map`) — carte réelle, tuiles OSM dev, clustering, filtres
+  (météo/trafic/danger/caméras + menus/offres/événements des pages depuis
+  le Lot 3, chips de mode en bascules rapides), preview cards, caméras
+  actives et détail caméra ;
 - **Notifications** (`/notifications`) — liste in-app, badge de cloche,
   lecture unitaire/tout lire, libellés `comment`/`reply`/`reaction`/
-  `report_handled`/`system`.
+  `report_handled`/`system` ;
+- **Pages restaurants & entreprises** (Lot 3 — `/pages/:id`, `/pages/create`,
+  `/pages/:id/gerer`…) — écran public du mockup 08 (statut d'ouverture
+  dérivé, menus de la semaine, cartes PDF, offres, événements,
+  publications), gestion complète par le propriétaire et publication au
+  nom de la page ; messagerie de page via `/pages/:id/contact` (voir
+  `lib/features/pages/README.md`).
 
 ## Limites connues (Lot 1)
 
@@ -60,7 +69,9 @@ flutter run -d chrome       # aperçu web rapide sans émulateur
   signalement d'annonce — voir `lib/features/*/README.md`).
 
 Principales dépendances : Riverpod, go_router, Dio, `flutter_secure_storage`,
-`image_picker`, `flutter_map`, `socket_io_client` et `flutter_localizations`.
+`image_picker`, `flutter_map`, `socket_io_client`, `flutter_localizations`
+et, depuis le Lot 3, `url_launcher` (itinéraire + PDF) et `file_picker`
+(cartes PDF).
 
 > Les textes rédigés par l'app et les libellés système Material sont localisés
 > en français via `flutter_localizations`.

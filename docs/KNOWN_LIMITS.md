@@ -260,8 +260,10 @@ messages). Limites restantes :
 - **Pas de notification aux abonnés d'une page** lors d'une publication
   (anti-flood — le feed, le bonus d'abonnement et la carte s'en chargent).
 - **Pas de marqueurs de PAGES sur la carte** : seules leurs PUBLICATIONS
-  (menu/offre/événement) y apparaissent. Les modes carte complets
-  « Offres & restos » (restaurants permanents, filtre « ouvert
+  (menu/offre/événement) y apparaissent. Les chips de mode de la carte
+  (« Offres & restos », « Événements ») sont depuis le CP3.R1 des bascules
+  rapides des filtres de PUBLICATIONS correspondants ; les modes carte
+  complets « Offres & restos » (restaurants permanents, filtre « ouvert
   maintenant ») et « Événements » du PRD §7 restent à construire.
 - **Horaires** : pas de plage à cheval sur minuit (ouverture < fermeture le
   même jour) ; fuseau unique La Réunion (UTC+4 fixe) — pas de multi-fuseaux.

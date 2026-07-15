@@ -8,6 +8,7 @@ library;
 
 import '../../dealplace/domain/dealplace_value.dart'
     show espaceFineInsecable, espaceInsecable;
+import 'page_models.dart' show PageOffer;
 
 /// Jours de la semaine en français, indexés comme le contrat
 /// (weekday 0 = lundi … 6 = dimanche).
@@ -147,6 +148,26 @@ String formaterDateCourte(DateTime date, {DateTime? reference}) {
   String deux(int n) => n.toString().padLeft(2, '0');
   final String base = '${deux(locale.day)}/${deux(locale.month)}';
   return locale.year == ref.year ? base : '$base/${locale.year}';
+}
+
+/// Libellé français de la période d'une offre (période optionnelle) :
+/// « Du 12/05 au 30/06 », « Jusqu'au 30/06 », « Depuis le 12/05 » ou
+/// « Offre permanente ». [reference] fige « l'année courante » des dates
+/// courtes (tests) — aujourd'hui par défaut.
+String libellePeriodeOffre(PageOffer offre, {DateTime? reference}) {
+  final DateTime? debut = offre.startsAt;
+  final DateTime? fin = offre.endsAt;
+  if (debut != null && fin != null) {
+    return 'Du ${formaterDateCourte(debut, reference: reference)} '
+        'au ${formaterDateCourte(fin, reference: reference)}';
+  }
+  if (fin != null) {
+    return 'Jusqu\'au ${formaterDateCourte(fin, reference: reference)}';
+  }
+  if (debut != null) {
+    return 'Depuis le ${formaterDateCourte(debut, reference: reference)}';
+  }
+  return 'Offre permanente';
 }
 
 /// Date d'événement lisible : « sam. 17 mai à 19:00 » (année ajoutée si

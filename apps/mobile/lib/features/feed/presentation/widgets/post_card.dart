@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/api/api_exception.dart';
 import '../../../../core/api/models/feed_post.dart';
+import '../../../../core/api/models/post_page_ref.dart';
 import '../../../../core/api/models/post_type.dart';
 import '../../../../core/theme/endirek_theme.dart';
 import '../../../../core/utils/temps_relatif.dart';
+import '../../../pages/domain/types_posts_page.dart';
+import '../../../pages/presentation/widgets/badge_verifie.dart';
 import '../../application/post_actions.dart';
 import '../../application/referentiels_providers.dart';
 import '../../domain/reactions_palette.dart';
@@ -99,6 +102,12 @@ class PostCard extends ConsumerWidget {
 }
 
 /// En-tête : avatar + nom + « il y a X · Ville », pastille du type à droite.
+///
+/// Publication DE PAGE (Lot 3) : l'identité de la PAGE (avatar, nom, coche
+/// vérifiée) remplace l'auteur humain, la zone identité navigue vers
+/// /pages/:id, et les types réservés menu/offer/event (absents du
+/// référentiel `post_types`) sont résolus par la table locale
+/// [typesPostsPage].
 class _EnTeteAuteur extends StatelessWidget {
   const _EnTeteAuteur({required this.post, required this.type});
 
@@ -107,32 +116,52 @@ class _EnTeteAuteur extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final PostPageRef? page = post.page;
+    final TypePostPage? typePage = typePostPageParSlug(post.typeSlug);
     final String sousTitre = [
       tempsRelatif(post.createdAt),
       if (post.city != null && post.city!.isNotEmpty) post.city!,
     ].join(' · ');
 
-    return Row(
+    // Bloc identité SERRÉ SUR SON CONTENU (mainAxisSize.min) : pour un post
+    // de page, il devient la zone tappable — l'espace restant de la bande
+    // d'en-tête doit continuer d'ouvrir le détail du post. L'avatar d'une
+    // PAGE n'a JAMAIS de repli sur l'avatar personnel du propriétaire
+    // (initiales de la page sinon — l'auteur humain reste privé).
+    final Widget identite = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         AvatarRond(
-          initiales: post.author.initiales,
-          avatarUrl: post.author.avatarUrl,
+          initiales: page != null ? page.initiales : post.author.initiales,
+          avatarUrl: page != null ? page.avatarUrl : post.author.avatarUrl,
           rayon: 20,
         ),
         const SizedBox(width: 10),
-        Expanded(
+        Flexible(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                post.author.displayName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: EndirekColors.encre,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      page?.name ?? post.author.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: EndirekColors.encre,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (page != null && page.verified) ...[
+                    const SizedBox(width: 4),
+                    const BadgeVerifie(taille: 15),
+                  ],
+                ],
               ),
               const SizedBox(height: 1),
               Text(
@@ -147,13 +176,34 @@ class _EnTeteAuteur extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+
+    return Row(
+      children: [
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: page == null
+                ? identite
+                // Zone identité (avatar + nom + méta, serrée sur son
+                // contenu) tappable → écran public de la page ; le reste
+                // de la bande et de la carte ouvre le détail du post.
+                : InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => context.push('/pages/${page.id}'),
+                    child: identite,
+                  ),
+          ),
+        ),
         const SizedBox(width: 8),
         // Icône colorée du type (référentiel post_types chargé une fois ;
-        // repli générique tant que le référentiel n'est pas disponible).
+        // types de page menu/offer/event résolus par la table locale ;
+        // repli générique sinon).
         PastilleType(
-          nomIcone: type?.icon ?? '',
-          couleurHex: type?.color ?? '',
-          tooltip: type?.labelFr,
+          nomIcone: type?.icon ?? typePage?.nomIcone ?? '',
+          couleurHex: type?.color ?? typePage?.couleurHex ?? '',
+          tooltip: type?.labelFr ?? typePage?.libelle,
         ),
       ],
     );

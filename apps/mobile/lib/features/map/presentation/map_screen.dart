@@ -12,13 +12,15 @@ import 'widgets/filtres_carte_sheet.dart';
 import 'widgets/marqueur_carte.dart';
 import 'widgets/preview_marqueur.dart';
 
-/// Écran Carte (onglet Carte du shell, mode « Météo & trafic ») :
+/// Écran Carte (onglet Carte du shell) :
 /// - flutter_map + tuiles OSM, centré La Réunion, contraint à l'emprise île ;
-/// - marqueurs posts (météo/trafic/danger) + caméras actives, REGROUPÉS par un
-///   clusterer maison dépendant du zoom (features/map/domain/) ;
+/// - marqueurs posts (météo/trafic/danger + menu/offre/événement des pages
+///   depuis le Lot 3) + caméras actives, REGROUPÉS par un clusterer maison
+///   dépendant du zoom (features/map/domain/) ;
 /// - preview card flottante au tap d'un marqueur → /post/:id ou /camera/:id ;
 /// - FAB recentrer + FAB filtres (bottom sheet) + FAB recherche (placeholder) ;
-/// - chips de mode (Offres & restos / Événements → « Bientôt disponible ») ;
+/// - chips de mode = bascules rapides par famille (Météo & trafic / Offres &
+///   restos / Événements) ;
 /// - états chargement / vide / erreur.
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
@@ -56,6 +58,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final MapState etat = ref.watch(mapControllerProvider);
+    // Le marqueur sélectionné a disparu (filtre appliqué via les chips ou
+    // le bottom sheet, rafraîchissement temps réel...) : la preview card
+    // ne doit pas survivre à son marqueur.
+    if (_selection != null &&
+        etat.initialise &&
+        !etat.marqueurs.any((m) => m.cle == _selection!.cle)) {
+      _selection = null;
+    }
     final List<ClusterCarte> clusters =
         _clusterer.regrouper(etat.marqueurs, _zoom);
 
@@ -254,39 +264,66 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 }
 
-/// Trois chips de mode en haut de la carte. Seul « Météo & trafic » est actif ;
-/// les autres affichent « Bientôt disponible ».
-class _ChipsMode extends StatelessWidget {
+/// Trois chips de mode en haut de la carte — bascules RAPIDES par famille
+/// (le réglage fin par type reste dans le bottom sheet de filtres) :
+/// « Météo & trafic » (météo/trafic/danger/caméras du Lot 1),
+/// « Offres & restos » (menus + offres des pages — Lot 3) et
+/// « Événements » (événements des pages — Lot 3).
+class _ChipsMode extends ConsumerWidget {
   const _ChipsMode();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final MapFiltres filtres =
+        ref.watch(mapControllerProvider.select((etat) => etat.filtres));
+    final bool live = filtres.meteo ||
+        filtres.trafic ||
+        filtres.danger ||
+        filtres.cameras;
+    final bool offresRestos = filtres.menus || filtres.offres;
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          const _ChipMode(libelle: 'Météo & trafic', actif: true),
+          _ChipMode(
+            libelle: 'Météo & trafic',
+            actif: live,
+            onTap: () => _appliquer(
+              ref,
+              filtres.copyWith(
+                meteo: !live,
+                trafic: !live,
+                danger: !live,
+                cameras: !live,
+              ),
+            ),
+          ),
           const SizedBox(width: 8),
           _ChipMode(
             libelle: 'Offres & restos',
-            actif: false,
-            onTap: () => _bientot(context),
+            actif: offresRestos,
+            onTap: () => _appliquer(
+              ref,
+              filtres.copyWith(menus: !offresRestos, offres: !offresRestos),
+            ),
           ),
           const SizedBox(width: 8),
           _ChipMode(
             libelle: 'Événements',
-            actif: false,
-            onTap: () => _bientot(context),
+            actif: filtres.evenements,
+            onTap: () => _appliquer(
+              ref,
+              filtres.copyWith(evenements: !filtres.evenements),
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _bientot(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Bientôt disponible')),
-    );
+  void _appliquer(WidgetRef ref, MapFiltres filtres) {
+    ref.read(mapControllerProvider.notifier).appliquerFiltres(filtres);
   }
 }
 
