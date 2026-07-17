@@ -4,7 +4,7 @@
 > Lis ce fichier EN PREMIER, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md), puis fais `git status` avant toute modification.
 > Ce fichier est la source de vérité de l'état du projet. Il doit être **mis à jour à la fin de chaque checkpoint**.
 
-_Dernière mise à jour : **Lot 3 COMPLET — CP3.R2 (vérification émulateur) FAIT le 2026-07-17**, 2 correctifs mobiles appliqués (82 tests verts) — rapport dans [TODO_LOT_3.md](TODO_LOT_3.md) ; reste la **validation product owner puis le push** des 3 commits locaux ; Lots 1 et 2 validés et poussés._
+_Dernière mise à jour : **Lot 3 COMPLET, VALIDÉ par le product owner et POUSSÉ le 2026-07-17** (CP3.R2 : vérification émulateur faite, 2 correctifs mobiles, 82 tests verts — rapport dans [TODO_LOT_3.md](TODO_LOT_3.md)) ; Lots 1, 2 et 3 sont tous validés et poussés._
 
 ---
 
@@ -24,7 +24,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 |---|---|---|
 | **Lot 1 — Socle + Live Local** | Auth, profils, follows, feed social (5 types de posts), interactions, carte météo/trafic, caméras, notifications, backoffice minimal, préparation démo | **STABILISÉ — validation product owner attendue** |
 | **Lot 2 — Dealplace** | Marketplace biens/services, annonces, conversations 1-to-1 temps réel, deals contractuels (états, éléments validables, litiges), modération avancée | **COMPLET — validé et poussé** |
-| **Lot 3 — Pages restaurants / entreprises** | Pages pro, menus programmés, cartes, horaires, offres, événements, publications de page | **COMPLET (D69-D77) — API + backoffice + mobile, vérifié à l'émulateur (CP3.R2 fait, rapport dans [TODO_LOT_3.md](TODO_LOT_3.md)) ; commits locaux, validation product owner attendue avant push** |
+| **Lot 3 — Pages restaurants / entreprises** | Pages pro, menus programmés, cartes, horaires, offres, événements, publications de page | **COMPLET (D69-D77) — API + backoffice + mobile, vérifié à l'émulateur (CP3.R2), VALIDÉ et POUSSÉ (2026-07-17, rapport dans [TODO_LOT_3.md](TODO_LOT_3.md))** |
 | **Lot 4 — News automatisées IA** | Harnais IA supervisé, sources, génération d'articles, page News | Non commencé — anticipé |
 
 > Monétisation (premium, offres exceptionnelles, Google Ads) = transverse/future, hors des 4 lots ci-dessus.
@@ -34,7 +34,7 @@ Territoire MVP : La Réunion uniquement, mais architecture pensée pour être ex
 
 ## 3. Lot actuel et checkpoints
 
-**Lot 1 : terminé** (7 checkpoints + Lot 1.5). **Lot 2 : COMPLET, validé et poussé.** **Lot 3 : COMPLET — CP3.R1 et CP3.R2 faits, vérification émulateur comprise ; reste la validation product owner puis le push ([TODO_LOT_3.md](TODO_LOT_3.md)).**
+**Lot 1 : terminé** (7 checkpoints + Lot 1.5). **Lot 2 : COMPLET, validé et poussé.** **Lot 3 : COMPLET, validé par le product owner et POUSSÉ le 2026-07-17** (CP3.R1 + CP3.R2, vérification émulateur comprise — rapport dans [TODO_LOT_3.md](TODO_LOT_3.md)).
 
 ### Lot 1 (rappel)
 
@@ -109,8 +109,8 @@ carte), masquage backoffice → publications retirées du feed/carte puis
 restauration. **2 défauts corrigés au passage** (cluster carte indivisible →
 bottom sheet de contenu ; PATCH page omettant avatar/couverture inchangés —
 rapport détaillé au §CP3.R2 de [TODO_LOT_3.md](TODO_LOT_3.md)). `flutter
-analyze` vierge, **82 tests verts**. **Commits LOCAUX, non poussés** — le
-push attendra la validation product owner.
+analyze` vierge, **82 tests verts**. **Validé par le product owner et
+POUSSÉ le 2026-07-17.**
 > ✅ **Revue qualité complète CP2.1 exécutée le 2026-07-11** (l'avertissement « revue à relancer » du 2026-07-10 est levé) : relecture intégrale du diff (migrations, contrat + 2 implémentations de repositories, service, DTOs, assembleur, admin, mobile), builds/tests (`api:build`, `admin:build`, `flutter analyze`, `flutter test` — tous verts), boot des DEUX drivers et sondes croisées (taxonomie, annuaire, filtres, détail, backoffice : résultats identiques). **1 finding de parité corrigé** (`3f1c1a1`) : le filtre `?tags=` avec doublons divergeait entre mock et postgres. **2 points mineurs relevés puis ARBITRÉS et CORRIGÉS le jour même** (décisions D60/D61) : (a) une catégorie/sous-catégorie INACTIVE refuse désormais toute nouvelle annonce (400 « inconnue ou inactive », les annonces existantes restent affichées et éditables) ; (b) les cartes de `GET /users/me/listings` portent désormais le champ `status` (le propriétaire distingue ses annonces masquées). Vérifiés par sondes runtime (création/édition refusées sur inactif, édition hors taxonomie toujours OK, statut présent).
 
 ---
@@ -252,8 +252,7 @@ Liste complète et à jour : [KNOWN_LIMITS.md](KNOWN_LIMITS.md).
 
 ## 7. Prochaine étape recommandée
 
-**Lots 1 et 2 terminés, validés et poussés. Lot 3 COMPLET (API + backoffice
-+ mobile), vérifié à l'émulateur.**
+**Lots 1, 2 et 3 terminés, validés et poussés.**
 
 **L'API et le backoffice du Lot 3 sont implémentés et vérifiés** (api/admin
 builds + flutter analyze/test verts ; migration 0009 rejouable ; boot mock
@@ -266,11 +265,11 @@ suppressions). **Le volet MOBILE est FAIT et VÉRIFIÉ À L'ÉMULATEUR**
 (CP3.R1 : routes + écrans de gestion + intégrations ; CP3.R2 : parcours
 « Bon Goût » complet visiteur + propriétaire + masquage backoffice, 2
 correctifs mobiles appliqués, analyze vierge, 82 tests verts — rapport
-détaillé dans [TODO_LOT_3.md](TODO_LOT_3.md)). **PROCHAINE ÉTAPE : la
-validation du product owner, PUIS pousser les 3 commits locaux** (jamais de
-force-push). Ensuite : Lot 4 (News automatisées IA) ou dettes transverses
-(tests e2e API, rate limiting, vérification d'email, purge des uploads
-orphelins — voir [KNOWN_LIMITS.md](KNOWN_LIMITS.md)).
+détaillé dans [TODO_LOT_3.md](TODO_LOT_3.md)). **Le Lot 3 est VALIDÉ et
+POUSSÉ (2026-07-17). PROCHAINE ÉTAPE : à arbitrer avec le product owner —
+Lot 4 (News automatisées IA) ou dettes transverses** (tests e2e API, rate
+limiting, vérification d'email, purge des uploads orphelins — voir
+[KNOWN_LIMITS.md](KNOWN_LIMITS.md)).
 **Paiement = hors app** (jamais dans le périmètre applicatif).
 Côté base, le chantier de **performance** (compteurs calculés à la lecture →
 triggers/colonnes maintenues à grande échelle) reste ouvert mais non requis.
@@ -280,7 +279,7 @@ triggers/colonnes maintenues à grande échelle) reste ouvert mais non requis.
 ## 8. Consignes strictes pour le prochain modèle
 
 1. **Lire d'abord** : ce fichier, puis [AI_DECISIONS.md](AI_DECISIONS.md) et [AI_RUNBOOK.md](AI_RUNBOOK.md). Puis `git status`.
-2. **Rester dans le périmètre du lot courant.** Le Lot 3 est IMPLÉMENTÉ (en attente de validation product owner). Ne développe PAS, avant le feu vert du product owner : News IA (Lot 4), premium/Google Ads réel, arbitrage IA des litiges, offres exceptionnelles. **Paiement = hors app.**
+2. **Rester dans le périmètre du lot courant.** Le Lot 3 est TERMINÉ, validé et poussé. Ne développe PAS, avant le feu vert du product owner : News IA (Lot 4), premium/Google Ads réel, arbitrage IA des litiges, offres exceptionnelles. **Paiement = hors app.**
 3. **`DB_DRIVER=mock` par défaut**, mais **`DB_DRIVER=postgres` est fonctionnel** (Lot 1.5). Les deux drivers doivent rester au comportement observable identique : toute modification d'un repository (les 14, `pages` du Lot 3 compris) doit être répercutée dans les DEUX implémentations (mock ET postgres), le mock restant la spécification de référence. **La parité mock+postgres est OBLIGATOIRE pour tous les lots.**
 4. **Aucun secret dans le repo.** Jamais de clé API, token, mot de passe réel. Tout via variables d'environnement ; mettre à jour `.env.example` si une variable apparaît.
 5. **Ne pas versionner** `01_PRD/`, `02_MOCKUPS/`, `03_PROMPTS/`, `04_ACCESS/` (contexte produit local, dans `.gitignore`).

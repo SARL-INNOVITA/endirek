@@ -1,9 +1,10 @@
 # TODO Lot 3 — ✅ FAIT (CP3.R1 + CP3.R2 terminés le 2026-07-17)
 
 > **CE FICHIER EST CLOS.** Le Lot 3 mobile est terminé : CP3.R1 (feature +
-> intégrations) ET CP3.R2 (vérification visuelle émulateur) sont faits.
-> Reste UNIQUEMENT la validation du product owner, puis le push des commits
-> locaux. Ce fichier peut être supprimé après le push.
+> intégrations) ET CP3.R2 (vérification visuelle émulateur) sont faits,
+> **validés par le product owner et poussés le 2026-07-17**. Ce fichier est
+> conservé comme rapport ; il peut être supprimé à l'ouverture du lot
+> suivant.
 
 ## CP3.R2 — ✅ FAIT (2026-07-16/17) : rapport de vérification émulateur
 
