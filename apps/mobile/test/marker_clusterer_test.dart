@@ -127,6 +127,56 @@ void main() {
     expect(position.longitude, closeTo(55.41, 1e-9));
   });
 
+  group('peutEclater (clusters indivisibles — Lot 3)', () {
+    test('un marqueur seul n\'est pas éclatable', () {
+      expect(clusterer.peutEclater([_post('a', -20.8825, 55.4501)]), isFalse);
+    });
+
+    test('des marqueurs au MÊME point exact sont indivisibles', () {
+      // Cas nominal des publications d'une même page : menu, offre et
+      // événement portent tous le point de la page (D73).
+      final marqueurs = [
+        _post('menu', -20.8825, 55.4501),
+        _post('offre', -20.8825, 55.4501),
+        _post('event', -20.8825, 55.4501),
+      ];
+      expect(clusterer.peutEclater(marqueurs), isFalse);
+    });
+
+    test('des marqueurs quasi confondus (même cellule plancher) sont '
+        'indivisibles', () {
+      // ~7 m d'écart, choisis DANS une même cellule du pas plancher.
+      final marqueurs = [
+        _post('a', -20.88250, 55.45010),
+        _post('b', -20.88255, 55.45015),
+      ];
+      expect(clusterer.peutEclater(marqueurs), isFalse);
+    });
+
+    test('des marqueurs séparables par le zoom sont éclatables', () {
+      final marqueurs = [
+        _post('a', -20.8825, 55.4501),
+        _post('b', -20.8901, 55.4620), // ~1,5 km plus loin
+      ];
+      expect(clusterer.peutEclater(marqueurs), isTrue);
+    });
+
+    test('cohérence avec regrouper au zoom maximum', () {
+      // Si peutEclater est vrai, regrouper au zoom max produit PLUSIEURS
+      // clusters ; s'il est faux, un seul.
+      final indivisibles = [
+        _post('a', -20.8825, 55.4501),
+        _post('b', -20.8825, 55.4501),
+      ];
+      final separables = [
+        _post('c', -20.8825, 55.4501),
+        _post('d', -20.8901, 55.4620),
+      ];
+      expect(clusterer.regrouper(indivisibles, 18), hasLength(1));
+      expect(clusterer.regrouper(separables, 18), hasLength(2));
+    });
+  });
+
   test('la taille de cellule décroît quand le zoom augmente', () {
     final grand = clusterer.tailleCellulePourZoom(8);
     final moyen = clusterer.tailleCellulePourZoom(11);

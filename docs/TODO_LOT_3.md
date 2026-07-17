@@ -1,15 +1,85 @@
-# TODO Lot 3 — Reprise du volet MOBILE (pages restaurants & entreprises)
+# TODO Lot 3 — ✅ FAIT (CP3.R1 + CP3.R2 terminés le 2026-07-17)
 
-> **Contexte.** Le Lot 3 a été implémenté en un passage le 2026-07-14/15 :
+> **CE FICHIER EST CLOS.** Le Lot 3 mobile est terminé : CP3.R1 (feature +
+> intégrations) ET CP3.R2 (vérification visuelle émulateur) sont faits.
+> Reste UNIQUEMENT la validation du product owner, puis le push des commits
+> locaux. Ce fichier peut être supprimé après le push.
+
+## CP3.R2 — ✅ FAIT (2026-07-16/17) : rapport de vérification émulateur
+
+Parcours complet exécuté sur `Pixel_3a_API_34` (API mock, log de seed
+inchangé), en heure Réunion :
+
+- **Visiteur (Laurence)** : feed avec identité de page (avatar/nom/✓, types
+  colorés), écran public fidèle au mockup 08 (statut dérivé vérifié contre
+  l'API, bottom sheet horaires, sélecteur 7 jours glissants — jour sans menu
+  compris), suivre/se désabonner (3↔4 abonnés), message à la page (fil seed
+  n°4 rouvert par get-or-create, envoi OK, badge côté propriétaire),
+  itinéraire (Google Maps ouvert sur le point « Bon Goût »), signalement
+  (file admin +1), détail de publication avec identité de page, carte
+  (bascules par famille, marqueurs menu/offre/événement, preview avec ✓).
+- **Propriétaire (David)** : hub de gestion complet — infos + cycle congés
+  COMPLET (poser → « EN CONGÉS » → lever), horaires, plats (création
+  « Samoussas poisson » 5,50 €), menus de la semaine (ajout au jour courant,
+  enregistrement, pastille de modification), cartes PDF (file_picker →
+  upload RÉEL `/media/upload-document` → attache 3/5 → ouverture via Chrome
+  sur l'URL `/uploads/` réécrite par `ApiConfig.resolveMediaUrl`), offres,
+  événements ; **publication du menu du jour** → post en tête du feed
+  (corps auto-composé avec les 4 plats du jour) ET marqueur + preview sur
+  la carte (fenêtre 23 h vérifiée : expiré le lendemain).
+- **Modération** : masquage de la page (PATCH admin `status=hidden`) →
+  publications RETIRÉES du feed et de la carte (émulateur + sondes API :
+  0 post de page sur `/map/overview`, 404 visiteur), badge « Masquée par la
+  modération » sur la tuile « Mes pages » de David ; restauration → page
+  visible (200) et événement de retour sur la carte.
+
+**2 défauts constatés et corrigés (apps/mobile uniquement, analyze vierge,
+82 tests verts après chaque correctif)** :
+
+1. **Cluster carte indivisible inouvrable** — les publications d'une même
+   page partagent le point de la page (D73) : le cluster ne s'éclatait
+   jamais et le tap ne faisait rien au zoom max. Correctif :
+   `MarkerClusterer.peutEclater()` (détection « même cellule au pas du zoom
+   max ») + bottom sheet `contenu_cluster_sheet.dart` listant le contenu
+   (type coloré, identité de page ✓, titre, ville · temps) ; le choix
+   sélectionne le marqueur comme un tap ordinaire (preview). Tests unitaires
+   + widget ajoutés, README carte mis à jour.
+2. **Enregistrement des infos de page en échec sur le seed** — l'écran
+   renvoyait au PATCH les URLs d'avatar/couverture INCHANGÉES ; la garde de
+   provenance serveur (D16/D77) refuse une URL hors upload Endirek (cas des
+   visuels picsum du seed) → « Les médias doivent provenir de l'upload
+   Endirek » en enregistrant les congés. Correctif : sentinelle
+   `champAbsent` rendue publique dans `pages_repository.dart`, l'écran
+   n'envoie avatar/couverture QUE s'ils ont été modifiés (upload/retrait).
+
+**Notes de démo (non bloquantes, aucun changement API)** :
+- Les 2 cartes PDF du SEED pointent vers un PDF public w3.org désormais
+  derrière une vérification anti-bot Cloudflare : l'ouverture débouche sur
+  un CAPTCHA (franchissable par un humain). Les documents réellement
+  UPLOADÉS (flux propriétaire) s'ouvrent parfaitement — vérifié.
+- L'émulateur peut perdre son fuseau (retour GMT) après une veille de la
+  machine hôte : les heures affichées semblent décalées de −4 h. Refaire
+  `adb shell cmd alarm set-timezone Indian/Reunion` (l'app affiche l'heure
+  LOCALE du device — comportement correct).
+
+## Rappels de périmètre (NE PAS déborder)
+
+Réservation restaurant, offres exceptionnelles/monétisation, changement de
+propriétaire de page, rendu web public, marqueurs de PAGES permanents sur la
+carte : HORS Lot 3 (voir [KNOWN_LIMITS.md](KNOWN_LIMITS.md) §2 septies).
+
+---
+
+## Archive — contexte d'origine
+
+> Le Lot 3 a été implémenté en un passage le 2026-07-14/15 :
 > **API et backoffice sont COMPLETS et VÉRIFIÉS** (voir
 > [AI_HANDOFF.md](AI_HANDOFF.md) §3 et les décisions D69-D77 dans
 > [AI_DECISIONS.md](AI_DECISIONS.md)). Le volet MOBILE avait été interrompu
 > en cours de route (limite d'API du sous-agent) ; **le CP3.R1 (reprise) est
 > FAIT le 2026-07-15** : feature `pages` complète et câblée au routeur,
 > toutes les intégrations posées, `flutter analyze` vierge et **74 tests
-> verts** (dont 30 nouveaux), parcours runtime API mock vérifié. **RESTE le
-> CP3.R2** (vérification visuelle émulateur + validation product owner,
-> puis push).
+> verts** (dont 30 nouveaux), parcours runtime API mock vérifié.
 
 ## Sources de vérité pour la reprise
 
@@ -51,10 +121,6 @@
     `gerer_horaires_screen.dart` + `gerer_plats_screen.dart`, widgets
     (badge ✓, carte de plat, chip de statut, bottom sheet horaires,
     tuile de page pour le profil).
-
-### ❌ Reste à faire
-
-Le CP3.R2 uniquement (le CP3.R1 ci-dessous est fait).
 
 ## CP3.R1 — Finaliser la feature mobile + intégrations — ✅ FAIT (2026-07-15)
 
@@ -144,23 +210,9 @@ Le CP3.R2 uniquement (le CP3.R1 ci-dessous est fait).
    `flutter test` (tous verts — corriger les tests impactés, en ajouter
    sur le formatage/parsing pages), boot API mock + parcours runtime rapide.
 
-## CP3.R2 — Vérification visuelle émulateur + validation product owner
-
-1. API mock démarrée (`npm run api:dev`), émulateur `Pixel_3a_API_34`,
-   `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3001`.
-2. Parcours complet : page « Bon Goût » fidèle au mockup 08 (statut,
-   horaires, menus avec sélecteur de jours, cartes PDF qui s'ouvrent,
-   offres/événements, publications), suivre/se désabonner, message à la
-   page, itinéraire, signalement ; côté propriétaire (David) : gestion
-   complète + publication du menu du jour → post visible feed + carte ;
-   page masquée au backoffice → disparaît du feed/carte.
-3. Boucle de re-test croisé postgres si un repository a bougé.
-4. Mise à jour des docs de passation (AI_HANDOFF §4 mobile, suppression de
-   ce fichier ou marquage « fait »), commit, **validation product owner,
-   puis push**.
-
-## Rappels de périmètre (NE PAS déborder)
-
-Réservation restaurant, offres exceptionnelles/monétisation, changement de
-propriétaire de page, rendu web public, marqueurs de PAGES permanents sur la
-carte : HORS Lot 3 (voir [KNOWN_LIMITS.md](KNOWN_LIMITS.md) §2 septies).
+> Le plan d'origine du CP3.R2 (exécuté intégralement, voir le rapport en
+> tête de fichier) : parcours « Bon Goût » visiteur + propriétaire sur
+> émulateur, publication du menu → feed + carte, masquage backoffice →
+> disparition feed/carte, docs + commit, validation product owner, push.
+> Aucun repository n'a bougé (correctifs UI mobiles uniquement) → pas de
+> re-test croisé postgres nécessaire.

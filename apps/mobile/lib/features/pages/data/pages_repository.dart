@@ -8,8 +8,11 @@ import '../../feed/data/posts_repository.dart' show PostsPage;
 import '../domain/page_models.dart';
 
 /// Marqueur « champ absent » pour le PATCH partiel : seul un champ EXPLICITE
-/// est transmis au serveur (les autres restent inchangés).
-const Object _champAbsent = Object();
+/// est transmis au serveur (les autres restent inchangés). PUBLIC pour que
+/// les écrans puissent OMETTRE un champ non modifié — indispensable pour
+/// avatar/couverture, dont la garde de provenance serveur (D16/D77) rejette
+/// une URL hors upload Endirek renvoyée telle quelle (cas du seed picsum).
+const Object champAbsent = Object();
 
 /// Accès aux endpoints PAGES du contrat Lot 3 (pages restaurants &
 /// entreprises : fiche, horaires, plats, menus, documents, offres,
@@ -73,30 +76,30 @@ class PagesRepository {
   /// pour EFFACER la valeur.
   Future<PageDetail> modifierPage(
     String id, {
-    Object? name = _champAbsent,
-    Object? bio = _champAbsent,
-    Object? city = _champAbsent,
-    Object? phone = _champAbsent,
-    Object? attributes = _champAbsent,
-    Object? avatarUrl = _champAbsent,
-    Object? coverUrl = _champAbsent,
-    Object? vacationUntil = _champAbsent,
-    Object? vacationMessage = _champAbsent,
+    Object? name = champAbsent,
+    Object? bio = champAbsent,
+    Object? city = champAbsent,
+    Object? phone = champAbsent,
+    Object? attributes = champAbsent,
+    Object? avatarUrl = champAbsent,
+    Object? coverUrl = champAbsent,
+    Object? vacationUntil = champAbsent,
+    Object? vacationMessage = champAbsent,
   }) async {
     final Map<String, dynamic> donnees = {};
-    if (!identical(name, _champAbsent)) donnees['name'] = name;
-    if (!identical(bio, _champAbsent)) donnees['bio'] = bio;
-    if (!identical(city, _champAbsent)) donnees['city'] = city;
-    if (!identical(phone, _champAbsent)) donnees['phone'] = phone;
-    if (!identical(attributes, _champAbsent)) {
+    if (!identical(name, champAbsent)) donnees['name'] = name;
+    if (!identical(bio, champAbsent)) donnees['bio'] = bio;
+    if (!identical(city, champAbsent)) donnees['city'] = city;
+    if (!identical(phone, champAbsent)) donnees['phone'] = phone;
+    if (!identical(attributes, champAbsent)) {
       donnees['attributes'] = attributes;
     }
-    if (!identical(avatarUrl, _champAbsent)) donnees['avatarUrl'] = avatarUrl;
-    if (!identical(coverUrl, _champAbsent)) donnees['coverUrl'] = coverUrl;
-    if (!identical(vacationUntil, _champAbsent)) {
+    if (!identical(avatarUrl, champAbsent)) donnees['avatarUrl'] = avatarUrl;
+    if (!identical(coverUrl, champAbsent)) donnees['coverUrl'] = coverUrl;
+    if (!identical(vacationUntil, champAbsent)) {
       donnees['vacationUntil'] = vacationUntil;
     }
-    if (!identical(vacationMessage, _champAbsent)) {
+    if (!identical(vacationMessage, champAbsent)) {
       donnees['vacationMessage'] = vacationMessage;
     }
     final reponse = await _api.patch('/pages/$id', data: donnees);
@@ -178,22 +181,22 @@ class PagesRepository {
   Future<Dish> modifierPlat(
     String id,
     String dishId, {
-    Object? name = _champAbsent,
-    Object? description = _champAbsent,
-    Object? imageUrl = _champAbsent,
-    Object? priceTakeawayCents = _champAbsent,
-    Object? priceDineInCents = _champAbsent,
+    Object? name = champAbsent,
+    Object? description = champAbsent,
+    Object? imageUrl = champAbsent,
+    Object? priceTakeawayCents = champAbsent,
+    Object? priceDineInCents = champAbsent,
   }) async {
     final Map<String, dynamic> donnees = {};
-    if (!identical(name, _champAbsent)) donnees['name'] = name;
-    if (!identical(description, _champAbsent)) {
+    if (!identical(name, champAbsent)) donnees['name'] = name;
+    if (!identical(description, champAbsent)) {
       donnees['description'] = description;
     }
-    if (!identical(imageUrl, _champAbsent)) donnees['imageUrl'] = imageUrl;
-    if (!identical(priceTakeawayCents, _champAbsent)) {
+    if (!identical(imageUrl, champAbsent)) donnees['imageUrl'] = imageUrl;
+    if (!identical(priceTakeawayCents, champAbsent)) {
       donnees['priceTakeawayCents'] = priceTakeawayCents;
     }
-    if (!identical(priceDineInCents, _champAbsent)) {
+    if (!identical(priceDineInCents, champAbsent)) {
       donnees['priceDineInCents'] = priceDineInCents;
     }
     final reponse = await _api.patch('/pages/$id/dishes/$dishId', data: donnees);
@@ -270,23 +273,23 @@ class PagesRepository {
   Future<PageOffer> modifierOffre(
     String id,
     String offerId, {
-    Object? title = _champAbsent,
-    Object? description = _champAbsent,
-    Object? imageUrl = _champAbsent,
-    Object? startsAt = _champAbsent,
-    Object? endsAt = _champAbsent,
+    Object? title = champAbsent,
+    Object? description = champAbsent,
+    Object? imageUrl = champAbsent,
+    Object? startsAt = champAbsent,
+    Object? endsAt = champAbsent,
   }) async {
     final Map<String, dynamic> donnees = {};
-    if (!identical(title, _champAbsent)) donnees['title'] = title;
-    if (!identical(description, _champAbsent)) {
+    if (!identical(title, champAbsent)) donnees['title'] = title;
+    if (!identical(description, champAbsent)) {
       donnees['description'] = description;
     }
-    if (!identical(imageUrl, _champAbsent)) donnees['imageUrl'] = imageUrl;
-    if (!identical(startsAt, _champAbsent)) {
+    if (!identical(imageUrl, champAbsent)) donnees['imageUrl'] = imageUrl;
+    if (!identical(startsAt, champAbsent)) {
       donnees['startsAt'] =
           (startsAt as DateTime?)?.toUtc().toIso8601String();
     }
-    if (!identical(endsAt, _champAbsent)) {
+    if (!identical(endsAt, champAbsent)) {
       donnees['endsAt'] = (endsAt as DateTime?)?.toUtc().toIso8601String();
     }
     final reponse =
@@ -338,23 +341,23 @@ class PagesRepository {
   Future<PageEvent> modifierEvenement(
     String id,
     String eventId, {
-    Object? title = _champAbsent,
-    Object? description = _champAbsent,
-    Object? imageUrl = _champAbsent,
-    Object? startsAt = _champAbsent,
-    Object? endsAt = _champAbsent,
+    Object? title = champAbsent,
+    Object? description = champAbsent,
+    Object? imageUrl = champAbsent,
+    Object? startsAt = champAbsent,
+    Object? endsAt = champAbsent,
   }) async {
     final Map<String, dynamic> donnees = {};
-    if (!identical(title, _champAbsent)) donnees['title'] = title;
-    if (!identical(description, _champAbsent)) {
+    if (!identical(title, champAbsent)) donnees['title'] = title;
+    if (!identical(description, champAbsent)) {
       donnees['description'] = description;
     }
-    if (!identical(imageUrl, _champAbsent)) donnees['imageUrl'] = imageUrl;
-    if (!identical(startsAt, _champAbsent)) {
+    if (!identical(imageUrl, champAbsent)) donnees['imageUrl'] = imageUrl;
+    if (!identical(startsAt, champAbsent)) {
       donnees['startsAt'] =
           (startsAt as DateTime?)?.toUtc().toIso8601String();
     }
-    if (!identical(endsAt, _champAbsent)) {
+    if (!identical(endsAt, champAbsent)) {
       donnees['endsAt'] = (endsAt as DateTime?)?.toUtc().toIso8601String();
     }
     final reponse =

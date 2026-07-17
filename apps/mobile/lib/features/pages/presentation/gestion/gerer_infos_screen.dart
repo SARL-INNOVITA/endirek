@@ -291,8 +291,14 @@ class _FormulaireInfosState extends ConsumerState<_FormulaireInfos> {
             city: _ville,
             phone: telephone.isEmpty ? null : telephone,
             attributes: _attributs,
-            avatarUrl: _avatarUrl,
-            coverUrl: _coverUrl,
+            // Avatar/couverture OMIS si inchangés : la garde de provenance
+            // serveur (D16/D77) refuse une URL hors upload Endirek renvoyée
+            // telle quelle — cas des visuels de démonstration du seed.
+            avatarUrl: _avatarUrl == widget.page.avatarUrl
+                ? champAbsent
+                : _avatarUrl,
+            coverUrl:
+                _coverUrl == widget.page.coverUrl ? champAbsent : _coverUrl,
             // null EFFACE les congés (page de nouveau pilotée par les
             // horaires) ; une date les active/positionne.
             vacationUntil: _finConges?.toUtc().toIso8601String(),

@@ -31,7 +31,13 @@ Clusterer **à grille dépendante du zoom**, sans dépendance externe, testé
    cellule = un cluster ; sa position d'affichage est le **barycentre** des points
    (pas le centre de cellule) → pas d'effet « pin qui saute ».
 3. Un cluster d'un seul élément est rendu comme un marqueur normal ; un agrégat
-   affiche son nombre. Tap sur un agrégat → zoom d'un cran pour l'écarter.
+   affiche son nombre. Tap sur un agrégat → zoom de deux crans pour l'écarter.
+   **Cluster INDIVISIBLE** (marqueurs confondus qu'aucun zoom ne sépare — même
+   cellule au pas du zoom max, cas nominal des publications d'une même PAGE au
+   Lot 3 : menu/offre/événement portés par le point de la page) : le tap ouvre
+   un **bottom sheet listant le contenu** (`contenu_cluster_sheet.dart`) et le
+   choix sélectionne le marqueur comme un tap ordinaire (preview card). Détection
+   par `MarkerClusterer.peutEclater`.
 
 Propriétés : O(n), stable, robuste (jamais de coordonnée invalide). L'antiméridien
 n'est pas géré (La Réunion en est très loin). **Évolution serveur** : l'API porte

@@ -8,6 +8,7 @@ import '../application/map_controller.dart';
 import '../domain/map_constants.dart';
 import '../domain/map_marker.dart';
 import '../domain/marker_clusterer.dart';
+import 'widgets/contenu_cluster_sheet.dart';
 import 'widgets/filtres_carte_sheet.dart';
 import 'widgets/marqueur_carte.dart';
 import 'widgets/preview_marqueur.dart';
@@ -201,12 +202,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   /// Tap sur un cluster : zoom de deux crans pour éclater le cluster sur sa
-  /// position.
+  /// position. Cluster INDIVISIBLE (marqueurs confondus qu'aucun zoom ne
+  /// sépare — publications d'une même page, Lot 3) : liste du contenu en
+  /// bottom sheet, le choix sélectionne le marqueur comme un tap ordinaire.
   void _tapCluster(ClusterCarte cluster) {
     _deselectionner();
+    if (!_clusterer.peutEclater(cluster.marqueurs)) {
+      _choisirDansCluster(cluster);
+      return;
+    }
     final double cible =
         (_zoom + 2).clamp(MapConstants.zoomMin, MapConstants.zoomMax);
     _mapController.move(cluster.position, cible);
+  }
+
+  Future<void> _choisirDansCluster(ClusterCarte cluster) async {
+    final MapMarker? choisi =
+        await montrerContenuCluster(context, cluster.marqueurs);
+    if (!mounted || choisi == null) {
+      return;
+    }
+    _tapMarqueur(choisi);
   }
 
   /// Tap sur un marqueur solitaire : sélection (affiche la preview) + centrage

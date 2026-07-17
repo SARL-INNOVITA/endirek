@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:latlong2/latlong.dart';
 
+import 'map_constants.dart';
 import 'map_marker.dart';
 
 /// Résultat du regroupement : soit un marqueur SEUL, soit un AGRÉGAT de
@@ -114,6 +115,31 @@ class MarkerClusterer {
       );
     }
     return clusters;
+  }
+
+  /// Un groupe peut-il être ÉCLATÉ en zoomant ? Vrai dès que ses marqueurs
+  /// occupent au moins deux cellules au pas du ZOOM MAXIMUM autorisé
+  /// ([MapConstants.zoomMax]) : il existe alors un niveau de zoom qui les
+  /// sépare. Faux pour des marqueurs confondus ou quasi confondus (même
+  /// cellule au pas plancher) — cas nominal des publications d'une même PAGE
+  /// (menu/offre/événement portés par le point de la page, Lot 3). La carte
+  /// doit alors proposer autre chose que le zoom (liste du contenu).
+  bool peutEclater(List<MapMarker> marqueurs) {
+    if (marqueurs.length < 2) {
+      return false;
+    }
+    final double pas = tailleCellulePourZoom(MapConstants.zoomMax);
+    String? premiereCellule;
+    for (final MapMarker m in marqueurs) {
+      final int colLat = (m.point.latitude / pas).floor();
+      final int colLng = (m.point.longitude / pas).floor();
+      final String cellule = '$colLat:$colLng';
+      premiereCellule ??= cellule;
+      if (cellule != premiereCellule) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Code entier stable d'une cellule (pour la clé de widget d'un cluster).
